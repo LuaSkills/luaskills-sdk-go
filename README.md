@@ -136,6 +136,32 @@ func main() {
 }
 ```
 
+## Examples
+
+Detailed source-tree examples live under `examples/`.
+
+详细源码示例位于 `examples/`。
+
+```powershell
+go run .\examples\basic
+go run .\examples\call
+go run .\examples\query
+go run .\examples\lifecycle
+go run .\examples\provider_callback
+```
+
+The query and lifecycle examples use the bundled fixture skill at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. Prepare runtime assets with a TypeScript or Python installer first:
+
+query 与 lifecycle 示例使用内置夹具 skill：`examples/fixture-runtime/user_skills/demo-standard-ffi-skill`。请先使用 TypeScript 或 Python 安装器准备 runtime 资产：
+
+```powershell
+npx @luaskills/sdk install-runtime --database none --runtime-root .\examples\fixture-runtime
+```
+
+See `examples/README.md` for the full example index and runtime notes.
+
+完整示例索引与 runtime 注意事项见 `examples/README.md`。
+
 ## Authority And Management
 
 Query APIs should use `AuthorityDelegatedTool` by default, so ROOT skills are hidden from delegated tools.
