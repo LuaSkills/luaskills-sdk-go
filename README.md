@@ -168,3 +168,28 @@ go test ./...
 ```
 
 Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Windows, Visual Studio alone is usually not enough for Go cgo; install a MinGW-w64/UCRT64 toolchain or another Go-compatible GCC distribution.
+
+## Publishing
+
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.2.4`.
+
+Before publishing:
+
+```powershell
+$env:CGO_ENABLED = "0"
+go test ./...
+```
+
+Publish the SDK by pushing the matching Go module tag:
+
+```powershell
+git tag v0.2.4
+git push origin v0.2.4
+```
+
+After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:
+
+- `luaskills-sdk-go-examples-{VERSION}.zip`
+- `luaskills-sdk-go-examples-{VERSION}.zip.sha256`
+
+The examples release tag intentionally uses the `examples-v` prefix so it does not interfere with Go module semver tags.

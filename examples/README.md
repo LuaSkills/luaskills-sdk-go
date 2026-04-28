@@ -57,3 +57,9 @@ go run .\examples\provider_callback
 ## Fixture Skill
 
 The fixture skill is stored at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. It intentionally lives in USER so delegated-query examples can see it without System authority.
+
+## Release Package
+
+The repository workflow **Examples Release** creates `luaskills-sdk-go-examples-{VERSION}.zip` after the matching Go module tag is available. The workflow verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, and runs the examples before uploading the asset.
+
+The release tag is `examples-v{VERSION}` so example assets do not interfere with Go module semver tags.

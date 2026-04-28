@@ -1,0 +1,176 @@
+name: Examples Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  examples-release:
+    name: Build and publish examples release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup Node.js runtime installer
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid VERSION value: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "module_tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "release_tag=examples-v$version" >> "$GITHUB_OUTPUT"
+          echo "package_name=luaskills-sdk-go-examples-$version" >> "$GITHUB_OUTPUT"
+          echo "asset_name=luaskills-sdk-go-examples-$version.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Create standalone examples package
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MODULE_TAG: ${{ steps.version.outputs.module_tag }}
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+        run: |
+          set -euo pipefail
+          package_root="target/examples-release/$PACKAGE_NAME"
+          mkdir -p "$package_root"
+          cp LICENSE README.md README_cn.md "$package_root/"
+          cp -R examples "$package_root/examples"
+          cat > "$package_root/go.mod" <<GOMOD
+          module luaskills-sdk-go-examples
+
+          go 1.22
+
+          require github.com/LuaSkills/luaskills-sdk-go $MODULE_TAG
+          GOMOD
+          cat > "$package_root/EXAMPLES_RELEASE.md" <<MARKDOWN
+          # LuaSkills Go SDK Examples $VERSION
+
+          English documentation is the default documentation. For Chinese, see README_cn.md and examples/README_cn.md.
+
+          These examples install and use the published Go module tag:
+
+          \`\`\`bash
+          go mod download
+          npx @luaskills/sdk@$VERSION install-runtime --database none --runtime-root examples/fixture-runtime
+          CGO_ENABLED=1 go run ./examples/basic
+          CGO_ENABLED=1 go run ./examples/query
+          \`\`\`
+
+          Main repository: https://github.com/LuaSkills/luaskills
+          MARKDOWN
+
+      - name: Verify published module tag
+        shell: bash
+        env:
+          MODULE_TAG: ${{ steps.version.outputs.module_tag }}
+        run: |
+          set -euo pipefail
+          go list -m "github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG"
+
+      - name: Install runtime assets
+        shell: bash
+        working-directory: target/examples-release/${{ steps.version.outputs.package_name }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          npx --yes "@luaskills/sdk@$VERSION" install-runtime --database none --runtime-root examples/fixture-runtime
+
+      - name: Run published-module smoke examples
+        shell: bash
+        working-directory: target/examples-release/${{ steps.version.outputs.package_name }}
+        env:
+          CGO_ENABLED: "1"
+          CGO_LDFLAGS: -L${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime/libs
+          LD_LIBRARY_PATH: ${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime/libs
+          LUASKILLS_RUNTIME_ROOT: ${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime
+          LUASKILLS_EXAMPLE_RUNTIME_ROOT: ${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime
+        run: |
+          set -euo pipefail
+          go mod tidy
+          go run ./examples/basic
+          go run ./examples/query
+          go run ./examples/call
+          go run ./examples/lifecycle
+          go run ./examples/provider_callback
+
+      - name: Package examples asset
+        shell: bash
+        env:
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/release-assets
+          (
+            cd target/examples-release
+            zip -qr "../release-assets/$ASSET_NAME" "$PACKAGE_NAME"
+          )
+          (
+            cd target/release-assets
+            sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
+          )
+
+      - name: Write release notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MODULE_TAG: ${{ steps.version.outputs.module_tag }}
+        run: |
+          set -euo pipefail
+          cat > target/release-assets/RELEASE_NOTES.md <<MARKDOWN
+          ## LuaSkills Go SDK Examples $VERSION
+
+          This release contains a standalone examples package for the published Go module \`github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG\`.
+
+          The package was smoke-tested by installing LuaSkills runtime assets with the published TypeScript installer and running the bundled Go examples against the published module tag.
+
+          Main repository: https://github.com/LuaSkills/luaskills
+
+          ## 中文说明
+
+          本 Release 包含面向已发布 Go module \`github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG\` 的独立示例包。
+
+          工作流已通过正式 TypeScript 安装器安装 LuaSkills runtime 资产，并基于正式 Go module tag 运行内置示例完成冒烟验证。
+          MARKDOWN
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              "target/release-assets/$ASSET_NAME" \
+              "target/release-assets/$ASSET_NAME.sha256" \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              "target/release-assets/$ASSET_NAME" \
+              "target/release-assets/$ASSET_NAME.sha256" \
+              --target "$GITHUB_SHA" \
+              --title "LuaSkills Go SDK Examples $VERSION" \
+              --notes-file target/release-assets/RELEASE_NOTES.md
+          fi

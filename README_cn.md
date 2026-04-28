@@ -168,3 +168,28 @@ go test ./...
 ```
 
 完整原生 FFI 检查需要 `CGO_ENABLED=1` 与 cgo 兼容的 C 编译器。在 Windows 上，仅有 Visual Studio 通常不足以满足 Go cgo；请安装 MinGW-w64/UCRT64 工具链或其他 Go 兼容的 GCC 发行版。
+
+## 发布
+
+发布版本记录在 `VERSION`。Go 用户通过 `v0.2.4` 这类 Go module tag 消费 SDK 版本。
+
+发布前执行：
+
+```powershell
+$env:CGO_ENABLED = "0"
+go test ./...
+```
+
+推送匹配的 Go module tag 即完成 SDK 发布：
+
+```powershell
+git tag v0.2.4
+git push origin v0.2.4
+```
+
+Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：
+
+- `luaskills-sdk-go-examples-{VERSION}.zip`
+- `luaskills-sdk-go-examples-{VERSION}.zip.sha256`
+
+示例 release tag 故意使用 `examples-v` 前缀，避免干扰 Go module 的语义版本 tag。
