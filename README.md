@@ -174,6 +174,57 @@ err := luaskills.SetHostToolJSONCallback(func(request luaskills.HostToolJSONRequ
 
 Currently this returns `ErrHostToolCallbacksRequireHostBridge`. A production Go host that wants Lua skills to call host tools should implement the controlled cgo bridge in the host process. The callback request contains `action`, `tool_name`, and `args`; `list` returns metadata, `has` returns availability, and `call` returns one complete table-shaped result without streaming.
 
+## Model Callback
+
+`vulcan.models.*` uses fixed callbacks registered through `luaskills_ffi_set_model_embed_json_callback` and `luaskills_ffi_set_model_llm_json_callback`. The Go SDK exposes typed request, response, and error shapes, but still leaves the process-level cgo callback bridge to the host:
+
+Use these types to keep the production bridge contract explicit:
+
+- `ModelEmbedJSONRequest`: receives `Text` and `Caller`.
+- `ModelLLMJSONRequest`: receives `System`, `User`, and `Caller`.
+- `ModelEmbedJSONResponse`: returns `Vector`, `Dimensions`, and optional `Usage`.
+- `ModelLLMJSONResponse`: returns `Assistant` and optional `Usage`.
+- `ModelJSONErrorEnvelope`: preserves model errors and optional provider details.
+
+```go
+// Register the model callback boundary in hosts that provide a cgo bridge.
+// 在提供 cgo 桥的宿主中注册模型 callback 边界。
+err := luaskills.SetModelEmbedJSONCallback(func(request luaskills.ModelEmbedJSONRequest) (any, error) {
+	return luaskills.ModelEmbedJSONResponse{
+		Vector:     []float32{0.1, 0.2, 0.3},
+		Dimensions: 3,
+	}, nil
+})
+```
+
+Provider failures should be returned as structured envelopes when callers need diagnostics:
+
+```go
+func ptr[T any](value T) *T {
+	return &value
+}
+
+failure := luaskills.ModelJSONErrorEnvelope{
+	OK: false,
+	Error: luaskills.ModelJSONError{
+		Code:            luaskills.ModelJSONErrorProviderError,
+		Message:         "model provider rejected the request",
+		ProviderMessage: ptr("raw provider message after host-side redaction"),
+		ProviderCode:    ptr("model_not_found"),
+		ProviderStatus:  ptr(uint16(404)),
+	},
+}
+```
+
+Currently `SetModelEmbedJSONCallback` and `SetModelLLMJSONCallback` return `ErrModelCallbacksRequireHostBridge`. A production Go host should implement the controlled cgo callback bridge in its own process, forward `{ text, caller }` for embeddings and `{ system, user, caller }` for LLM calls, and return either a bare success payload or `ModelJSONErrorEnvelope`. Lua does not receive or override model configuration.
+
+Go host checklist:
+
+- Keep provider settings in host configuration, not in Lua skill config.
+- Redact API keys, Authorization headers, signatures, and request headers before filling provider error fields.
+- Use `Caller` for cost attribution, rate limits, audit logs, and per-skill policy.
+- Treat thrown Go errors from the bridge as internal bridge failures; use `ModelJSONErrorEnvelope` for provider failures that should reach Lua.
+
 ## Verification
 
 Source-tree checks:
@@ -187,7 +238,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.2.5`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.2.6`.
 
 Before publishing:
 
@@ -199,8 +250,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.2.5
-git push origin v0.2.5
+git tag v0.2.6
+git push origin v0.2.6
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

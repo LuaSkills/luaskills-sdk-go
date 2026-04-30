@@ -174,6 +174,57 @@ err := luaskills.SetHostToolJSONCallback(func(request luaskills.HostToolJSONRequ
 
 当前该 API 会返回 `ErrHostToolCallbacksRequireHostBridge`。如果正式 Go 宿主希望让 Lua skill 调用宿主工具，应在宿主进程内实现受控 cgo bridge。callback 请求包含 `action`、`tool_name` 与 `args`；`list` 返回工具元数据，`has` 返回可用性，`call` 返回一次完整的 table 形态结果，不走 stream。
 
+## 模型 Callback
+
+`vulcan.models.*` 使用通过 `luaskills_ffi_set_model_embed_json_callback` 与 `luaskills_ffi_set_model_llm_json_callback` 注册的固定 callback。Go SDK 暴露类型化请求、响应和错误结构，但进程级 cgo callback bridge 仍由宿主实现：
+
+可使用这些类型保持正式 bridge 契约清晰：
+
+- `ModelEmbedJSONRequest`：接收 `Text` 与 `Caller`。
+- `ModelLLMJSONRequest`：接收 `System`、`User` 与 `Caller`。
+- `ModelEmbedJSONResponse`：返回 `Vector`、`Dimensions` 与可选 `Usage`。
+- `ModelLLMJSONResponse`：返回 `Assistant` 与可选 `Usage`。
+- `ModelJSONErrorEnvelope`：保留模型错误与可选 provider 诊断字段。
+
+```go
+// Register the model callback boundary in hosts that provide a cgo bridge.
+// 在提供 cgo 桥的宿主中注册模型 callback 边界。
+err := luaskills.SetModelEmbedJSONCallback(func(request luaskills.ModelEmbedJSONRequest) (any, error) {
+	return luaskills.ModelEmbedJSONResponse{
+		Vector:     []float32{0.1, 0.2, 0.3},
+		Dimensions: 3,
+	}, nil
+})
+```
+
+provider 失败且需要让 Lua 侧拿到诊断信息时，应返回结构化错误包络：
+
+```go
+func ptr[T any](value T) *T {
+	return &value
+}
+
+failure := luaskills.ModelJSONErrorEnvelope{
+	OK: false,
+	Error: luaskills.ModelJSONError{
+		Code:            luaskills.ModelJSONErrorProviderError,
+		Message:         "model provider rejected the request",
+		ProviderMessage: ptr("raw provider message after host-side redaction"),
+		ProviderCode:    ptr("model_not_found"),
+		ProviderStatus:  ptr(uint16(404)),
+	},
+}
+```
+
+当前 `SetModelEmbedJSONCallback` 与 `SetModelLLMJSONCallback` 会返回 `ErrModelCallbacksRequireHostBridge`。正式 Go 宿主应在自己的进程中实现受控 cgo callback bridge，转发 embedding 的 `{ text, caller }` 和 LLM 的 `{ system, user, caller }`，并返回裸成功载荷或 `ModelJSONErrorEnvelope`。Lua 侧不会接触或覆盖模型配置。
+
+Go 宿主检查清单：
+
+- 模型 provider 配置放在宿主配置中，不放进 Lua skill config。
+- 填充 provider 错误字段前先脱敏 API key、Authorization header、签名和请求头。
+- 使用 `Caller` 做成本归因、限流、审计和按 skill 策略控制。
+- Go bridge 抛出的错误应视为内部桥接失败；需要透传给 Lua 的 provider 失败应使用 `ModelJSONErrorEnvelope`。
+
 ## 验证
 
 源码环境检查：
@@ -187,7 +238,7 @@ go test ./...
 
 ## 发布
 
-发布版本记录在 `VERSION`。Go 用户通过 `v0.2.5` 这类 Go module tag 消费 SDK 版本。
+发布版本记录在 `VERSION`。Go 用户通过 `v0.2.6` 这类 Go module tag 消费 SDK 版本。
 
 发布前执行：
 
@@ -199,8 +250,8 @@ go test ./...
 推送匹配的 Go module tag 即完成 SDK 发布：
 
 ```powershell
-git tag v0.2.5
-git push origin v0.2.5
+git tag v0.2.6
+git push origin v0.2.6
 ```
 
 Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：

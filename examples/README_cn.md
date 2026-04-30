@@ -54,6 +54,8 @@ go run .\examples\lifecycle
 go run .\examples\provider_callback
 ```
 
+模型 callback 对接见主 [SDK README](../README_cn.md#模型-callback)。Go SDK 暴露类型化模型请求、响应和错误结构；真实 callback 注册仍需要宿主拥有的 cgo bridge。
+
 ## Fixture Skill
 
 夹具 skill 位于 `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`。它故意放在 USER 层，这样委托查询示例不需要 System 权限也能看到它。

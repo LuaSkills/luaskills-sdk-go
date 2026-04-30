@@ -54,6 +54,8 @@ go run .\examples\lifecycle
 go run .\examples\provider_callback
 ```
 
+Model callback integration is documented in the main [SDK README](../README.md#model-callback). The Go SDK exposes typed model request, response, and error structures, while real callback registration still requires a host-owned cgo bridge.
+
 ## Fixture Skill
 
 The fixture skill is stored at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. It intentionally lives in USER so delegated-query examples can see it without System authority.
