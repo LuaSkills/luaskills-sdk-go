@@ -48,7 +48,7 @@ go run .\examples\call
 go run .\examples\lifecycle
 ```
 
-`provider_callback` 展示 Go callback API 边界。除非宿主添加受控 cgo callback bridge，否则当前会返回 `ErrProviderCallbacksRequireHostBridge`。
+`provider_callback` 展示 Go provider 与宿主工具 callback API 边界。除非宿主添加受控 cgo callback bridge，否则当前会返回需要宿主桥接的错误。
 
 ```powershell
 go run .\examples\provider_callback

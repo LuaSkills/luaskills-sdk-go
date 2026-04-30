@@ -6,7 +6,7 @@ Main LuaSkills repository: [LuaSkills/luaskills](https://github.com/LuaSkills/lu
 
 Go SDK for integrating the LuaSkills runtime through the public JSON FFI surface.
 
-The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, and runtime manifest helpers.
+The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, provider callback boundaries, host-tool callback boundaries, and runtime manifest helpers.
 
 ## Installation
 
@@ -128,6 +128,8 @@ go run .\examples\lifecycle
 go run .\examples\provider_callback
 ```
 
+`provider_callback` covers both JSON provider callbacks and the `vulcan.host.*` host-tool callback boundary. It returns bridge-required errors until a host-owned cgo callback bridge is installed.
+
 The query and lifecycle examples use the bundled fixture skill at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. Prepare runtime assets with a TypeScript or Python installer first:
 
 ```powershell
@@ -158,6 +160,20 @@ err := luaskills.SetSQLiteProviderJSONCallback(func(request any) (any, error) {
 
 Currently this returns `ErrProviderCallbacksRequireHostBridge`. Production Go hosts that need `host_callback + json` should implement a controlled cgo callback bridge in the host process, or use the TypeScript / Python SDK for JSON callbacks.
 
+## Host Tool Callback
+
+`vulcan.host.*` uses the fixed host-tool callback registered through `luaskills_ffi_set_host_tool_json_callback`. The Go SDK exposes the typed request shape and registration boundary:
+
+```go
+// Register the host-tool callback boundary in hosts that provide a cgo bridge.
+// 在提供 cgo 桥的宿主中注册宿主工具 callback 边界。
+err := luaskills.SetHostToolJSONCallback(func(request luaskills.HostToolJSONRequest) (any, error) {
+	return map[string]any{"ok": true, "value": request.Args}, nil
+})
+```
+
+Currently this returns `ErrHostToolCallbacksRequireHostBridge`. A production Go host that wants Lua skills to call host tools should implement the controlled cgo bridge in the host process. The callback request contains `action`, `tool_name`, and `args`; `list` returns metadata, `has` returns availability, and `call` returns one complete table-shaped result without streaming.
+
 ## Verification
 
 Source-tree checks:
@@ -171,7 +187,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.2.4`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.2.5`.
 
 Before publishing:
 
@@ -183,8 +199,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.2.4
-git push origin v0.2.4
+git tag v0.2.5
+git push origin v0.2.5
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

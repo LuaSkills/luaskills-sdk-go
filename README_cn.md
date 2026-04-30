@@ -6,7 +6,7 @@ LuaSkills 主仓库：[LuaSkills/luaskills](https://github.com/LuaSkills/luaskil
 
 Go SDK，用于通过公共 JSON FFI 接入 LuaSkills 运行时。
 
-SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config 与 runtime manifest 辅助能力。
+SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config、provider callback 边界、宿主工具 callback 边界与 runtime manifest 辅助能力。
 
 ## 安装
 
@@ -128,6 +128,8 @@ go run .\examples\lifecycle
 go run .\examples\provider_callback
 ```
 
+`provider_callback` 同时覆盖 JSON provider callback 与 `vulcan.host.*` 宿主工具 callback 边界。在宿主安装自有 cgo callback bridge 前，它会返回需要宿主桥接的错误。
+
 query 与 lifecycle 示例使用内置夹具 skill：`examples/fixture-runtime/user_skills/demo-standard-ffi-skill`。请先使用 TypeScript 或 Python 安装器准备 runtime 资产：
 
 ```powershell
@@ -158,6 +160,20 @@ err := luaskills.SetSQLiteProviderJSONCallback(func(request any) (any, error) {
 
 当前该 API 会返回 `ErrProviderCallbacksRequireHostBridge`。需要 `host_callback + json` 的正式 Go 宿主，应在宿主进程内实现受控 cgo callback bridge，或先使用 TypeScript / Python SDK 接 JSON callback。
 
+## 宿主工具 Callback
+
+`vulcan.host.*` 使用通过 `luaskills_ffi_set_host_tool_json_callback` 注册的固定宿主工具 callback。Go SDK 暴露类型化请求结构与注册边界：
+
+```go
+// Register the host-tool callback boundary in hosts that provide a cgo bridge.
+// 在提供 cgo 桥的宿主中注册宿主工具 callback 边界。
+err := luaskills.SetHostToolJSONCallback(func(request luaskills.HostToolJSONRequest) (any, error) {
+	return map[string]any{"ok": true, "value": request.Args}, nil
+})
+```
+
+当前该 API 会返回 `ErrHostToolCallbacksRequireHostBridge`。如果正式 Go 宿主希望让 Lua skill 调用宿主工具，应在宿主进程内实现受控 cgo bridge。callback 请求包含 `action`、`tool_name` 与 `args`；`list` 返回工具元数据，`has` 返回可用性，`call` 返回一次完整的 table 形态结果，不走 stream。
+
 ## 验证
 
 源码环境检查：
@@ -171,7 +187,7 @@ go test ./...
 
 ## 发布
 
-发布版本记录在 `VERSION`。Go 用户通过 `v0.2.4` 这类 Go module tag 消费 SDK 版本。
+发布版本记录在 `VERSION`。Go 用户通过 `v0.2.5` 这类 Go module tag 消费 SDK 版本。
 
 发布前执行：
 
@@ -183,8 +199,8 @@ go test ./...
 推送匹配的 Go module tag 即完成 SDK 发布：
 
 ```powershell
-git tag v0.2.4
-git push origin v0.2.4
+git tag v0.2.5
+git push origin v0.2.5
 ```
 
 Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：

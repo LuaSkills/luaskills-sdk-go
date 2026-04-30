@@ -48,7 +48,7 @@ go run .\examples\call
 go run .\examples\lifecycle
 ```
 
-`provider_callback` shows the Go callback API boundary. It currently returns `ErrProviderCallbacksRequireHostBridge` unless the host adds a controlled cgo callback bridge.
+`provider_callback` shows the Go provider and host-tool callback API boundaries. They currently return bridge-required errors unless the host adds a controlled cgo callback bridge.
 
 ```powershell
 go run .\examples\provider_callback
