@@ -15,7 +15,7 @@ const DefaultLuaSkillsVersion = "v0.3.0"
 
 // DefaultLuaSkillsPackagesVersion is the release tag used by SDK runtime package installation.
 // DefaultLuaSkillsPackagesVersion 是 SDK 运行时 package 安装使用的 luaskills-packages 发布标签。
-const DefaultLuaSkillsPackagesVersion = "v0.1.5"
+const DefaultLuaSkillsPackagesVersion = "v0.1.6"
 
 // DefaultVldbControllerVersion is the release tag used by SDK runtime installation.
 // DefaultVldbControllerVersion 是 SDK 运行时安装使用的 vldb-controller 发布标签。
