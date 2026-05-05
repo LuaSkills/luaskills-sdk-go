@@ -274,7 +274,7 @@ go test ./...
 
 ## 发布
 
-发布版本记录在 `VERSION`。Go 用户通过 `v0.3.0` 这类 Go module tag 消费 SDK 版本。
+发布版本记录在 `VERSION`。Go 用户通过 `v0.3.1` 这类 Go module tag 消费 SDK 版本。
 
 如果要做生态统一发布，必须先发布 `LuaSkills/luaskills` 与匹配的 `LuaSkills/luaskills-packages`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
 
@@ -288,8 +288,8 @@ go test ./...
 推送匹配的 Go module tag 即完成 SDK 发布：
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.3.1
+git push origin v0.3.1
 ```
 
 Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：

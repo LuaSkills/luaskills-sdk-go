@@ -274,7 +274,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.3.0`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.3.1`.
 
 For one unified ecosystem release, publish `LuaSkills/luaskills` and the matching `LuaSkills/luaskills-packages` release first, then publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
@@ -288,8 +288,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.3.1
+git push origin v0.3.1
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:
