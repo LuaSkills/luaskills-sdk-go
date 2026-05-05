@@ -3,9 +3,14 @@ package luaskills
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,9 +18,9 @@ import (
 // DefaultLuaSkillsVersion 是 SDK 运行时安装使用的 LuaSkills 发布标签。
 const DefaultLuaSkillsVersion = "v0.3.1"
 
-// DefaultLuaSkillsPackagesVersion is the release tag used by SDK runtime package installation.
-// DefaultLuaSkillsPackagesVersion 是 SDK 运行时 package 安装使用的 luaskills-packages 发布标签。
-const DefaultLuaSkillsPackagesVersion = "v0.1.6"
+// DefaultLuaSkillsPackagesSeries is the release series used by SDK runtime package installation.
+// DefaultLuaSkillsPackagesSeries 是 SDK 运行时 package 安装使用的 luaskills-packages 发布协议线。
+const DefaultLuaSkillsPackagesSeries = "0.1"
 
 // DefaultVldbControllerVersion is the release tag used by SDK runtime installation.
 // DefaultVldbControllerVersion 是 SDK 运行时安装使用的 vldb-controller 发布标签。
@@ -173,6 +178,9 @@ type RuntimeInstallOptions struct {
 	// LuaRuntimeVersion is the runtime packages release tag.
 	// LuaRuntimeVersion 是 runtime packages 发布标签。
 	LuaRuntimeVersion string
+	// LuaRuntimeSeries is the runtime packages release series.
+	// LuaRuntimeSeries 是 runtime packages 发布协议线。
+	LuaRuntimeSeries string
 	// VldbControllerVersion is the vldb-controller release tag.
 	// VldbControllerVersion 是 vldb-controller 发布标签。
 	VldbControllerVersion string
@@ -248,7 +256,10 @@ func BuildRuntimeInstallManifest(options RuntimeInstallOptions) (*RuntimeInstall
 	if err != nil {
 		return nil, err
 	}
-	normalized := normalizeRuntimeInstallOptions(options)
+	normalized, err := normalizeRuntimeInstallOptions(options)
+	if err != nil {
+		return nil, err
+	}
 	assets := buildRuntimeAssetDescriptors(normalized, target)
 	manifest := &RuntimeInstallManifest{
 		SchemaVersion:    1,
@@ -297,15 +308,22 @@ func RuntimeManifestPath(runtimeRoot string) string {
 
 // normalizeRuntimeInstallOptions fills default release repositories and versions.
 // normalizeRuntimeInstallOptions 填充默认发布仓库与版本。
-func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) RuntimeInstallOptions {
+func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) (RuntimeInstallOptions, error) {
 	if options.Database == "" {
 		options.Database = RuntimeDatabaseNone
 	}
 	if options.LuaSkillsVersion == "" {
 		options.LuaSkillsVersion = DefaultLuaSkillsVersion
 	}
+	if options.LuaRuntimeSeries == "" {
+		options.LuaRuntimeSeries = DefaultLuaSkillsPackagesSeries
+	}
 	if options.LuaRuntimeVersion == "" {
-		options.LuaRuntimeVersion = DefaultLuaSkillsPackagesVersion
+		resolvedTag, err := resolveReleaseTagForSeries(options.LuaRuntimeRepoOrDefault(), options.LuaRuntimeSeries)
+		if err != nil {
+			return RuntimeInstallOptions{}, err
+		}
+		options.LuaRuntimeVersion = resolvedTag
 	}
 	if options.VldbControllerVersion == "" {
 		options.VldbControllerVersion = DefaultVldbControllerVersion
@@ -331,7 +349,16 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) RuntimeInstal
 	if options.VldbLanceDBRepo == "" {
 		options.VldbLanceDBRepo = "OpenVulcan/vldb-lancedb"
 	}
-	return options
+	return options, nil
+}
+
+// LuaRuntimeRepoOrDefault returns the configured runtime packages repository or the SDK default.
+// LuaRuntimeRepoOrDefault 返回已配置的 runtime packages 仓库或 SDK 默认仓库。
+func (options RuntimeInstallOptions) LuaRuntimeRepoOrDefault() string {
+	if options.LuaRuntimeRepo != "" {
+		return options.LuaRuntimeRepo
+	}
+	return "LuaSkills/luaskills-packages"
 }
 
 // darwinRuntimeTarget builds one macOS runtime platform descriptor.
@@ -403,6 +430,114 @@ func releaseRuntimeAsset(role RuntimeAssetRole, repository string, version strin
 		SHA256URL:       baseURL + ".sha256",
 		InstalledPath:   installedPath,
 	}
+}
+
+// releaseSemVer stores one parsed semantic-version tag.
+// releaseSemVer 保存单个已解析的语义化版本标签。
+type releaseSemVer struct {
+	major int
+	minor int
+	patch int
+	tag   string
+}
+
+// resolveReleaseTagForSeries resolves the newest published release inside one semantic-version series.
+// resolveReleaseTagForSeries 解析单个语义化版本协议线中的最新已发布版本。
+func resolveReleaseTagForSeries(repository string, series string) (string, error) {
+	major, minor, err := parseReleaseSeries(series)
+	if err != nil {
+		return "", err
+	}
+	request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://api.github.com/repos/%s/releases?per_page=100", repository), nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("User-Agent", "luaskills-sdk-go")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("github releases api returned %d for %s", response.StatusCode, repository)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+	var releases []struct {
+		TagName    string `json:"tag_name"`
+		Draft      bool   `json:"draft"`
+		Prerelease bool   `json:"prerelease"`
+	}
+	if err := json.Unmarshal(body, &releases); err != nil {
+		return "", err
+	}
+	candidates := make([]releaseSemVer, 0)
+	for _, release := range releases {
+		if release.Draft || release.Prerelease {
+			continue
+		}
+		parsed, ok := parseReleaseTagSemVer(release.TagName)
+		if !ok || parsed.major != major || parsed.minor != minor {
+			continue
+		}
+		candidates = append(candidates, parsed)
+	}
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no published release found in series %s for %s", series, repository)
+	}
+	sort.Slice(candidates, func(left int, right int) bool {
+		return candidates[left].patch > candidates[right].patch
+	})
+	return candidates[0].tag, nil
+}
+
+// parseReleaseSeries parses one release series string like 0.1.
+// parseReleaseSeries 解析形如 0.1 的发布协议线字符串。
+func parseReleaseSeries(series string) (int, int, error) {
+	parts := strings.Split(series, ".")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid release series: %s", series)
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid release series: %s", series)
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid release series: %s", series)
+	}
+	return major, minor, nil
+}
+
+// parseReleaseTagSemVer parses one release tag when it follows vX.Y.Z or X.Y.Z.
+// parseReleaseTagSemVer 在发布标签符合 vX.Y.Z 或 X.Y.Z 时解析该标签。
+func parseReleaseTagSemVer(tag string) (releaseSemVer, bool) {
+	normalized := strings.TrimPrefix(tag, "v")
+	parts := strings.Split(normalized, ".")
+	if len(parts) != 3 {
+		return releaseSemVer{}, false
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return releaseSemVer{}, false
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return releaseSemVer{}, false
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return releaseSemVer{}, false
+	}
+	return releaseSemVer{
+		major: major,
+		minor: minor,
+		patch: patch,
+		tag:   tag,
+	}, true
 }
 
 // buildRuntimeHostOptionsPatch builds host option overrides for one database mode.

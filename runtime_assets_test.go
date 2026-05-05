@@ -6,8 +6,9 @@ import "testing"
 // TestBuildRuntimeInstallManifestIncludesLuaRuntime 校验默认 Lua runtime 资产规划。
 func TestBuildRuntimeInstallManifestIncludesLuaRuntime(t *testing.T) {
 	manifest, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{
-		RuntimeRoot: "runtime",
-		Database:    RuntimeDatabaseNone,
+		RuntimeRoot:       "runtime",
+		Database:          RuntimeDatabaseNone,
+		LuaRuntimeVersion: "v0.1.6",
 	})
 	if err != nil {
 		t.Fatalf("BuildRuntimeInstallManifest failed: %v", err)
@@ -27,9 +28,10 @@ func TestBuildRuntimeInstallManifestIncludesLuaRuntime(t *testing.T) {
 // TestBuildRuntimeInstallManifestSkipsLuaRuntime 校验显式跳过选项。
 func TestBuildRuntimeInstallManifestSkipsLuaRuntime(t *testing.T) {
 	manifest, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{
-		RuntimeRoot:    "runtime",
-		Database:       RuntimeDatabaseNone,
-		SkipLuaRuntime: true,
+		RuntimeRoot:       "runtime",
+		Database:          RuntimeDatabaseNone,
+		LuaRuntimeVersion: "v0.1.6",
+		SkipLuaRuntime:    true,
 	})
 	if err != nil {
 		t.Fatalf("BuildRuntimeInstallManifest failed: %v", err)
