@@ -34,7 +34,10 @@ export LD_LIBRARY_PATH="/opt/luaskills-runtime/libs:${LD_LIBRARY_PATH}"
 
 ## Runtime 资产
 
-Go SDK 会规划并消费共享 SDK runtime manifest，但它本身不下载 release 资产。请使用 TypeScript 或 Python 安装器，或基于生成的 manifest 实现宿主自己的安装器。
+Go SDK 会规划并消费共享 SDK runtime manifest，但它本身不下载 release 资产。请使用 TypeScript 或 Python 安装器，或基于生成的 manifest 实现宿主自己的安装器。当前共享 manifest 会指向：
+
+- `LuaSkills/luaskills-packages` 的 `lua-runtime-packages-{platform}.tar.gz`
+- `LuaSkills/luaskills` 的 `luaskills-ffi-sdk-{platform}.tar.gz`
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
@@ -273,7 +276,7 @@ go test ./...
 
 发布版本记录在 `VERSION`。Go 用户通过 `v0.3.0` 这类 Go module tag 消费 SDK 版本。
 
-如果要做生态统一发布，必须先发布 `LuaSkills/luaskills` 核心仓库；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
+如果要做生态统一发布，必须先发布 `LuaSkills/luaskills` 与匹配的 `LuaSkills/luaskills-packages`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
 
 发布前执行：
 

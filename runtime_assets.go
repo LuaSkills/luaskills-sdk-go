@@ -13,6 +13,10 @@ import (
 // DefaultLuaSkillsVersion 是 SDK 运行时安装使用的 LuaSkills 发布标签。
 const DefaultLuaSkillsVersion = "v0.3.0"
 
+// DefaultLuaSkillsPackagesVersion is the release tag used by SDK runtime package installation.
+// DefaultLuaSkillsPackagesVersion 是 SDK 运行时 package 安装使用的 luaskills-packages 发布标签。
+const DefaultLuaSkillsPackagesVersion = "v0.1.5"
+
 // DefaultVldbControllerVersion is the release tag used by SDK runtime installation.
 // DefaultVldbControllerVersion 是 SDK 运行时安装使用的 vldb-controller 发布标签。
 const DefaultVldbControllerVersion = "v0.2.1"
@@ -166,8 +170,8 @@ type RuntimeInstallOptions struct {
 	// LuaSkillsVersion is the LuaSkills release tag.
 	// LuaSkillsVersion 是 LuaSkills 发布标签。
 	LuaSkillsVersion string
-	// LuaRuntimeVersion is the Lua runtime release tag.
-	// LuaRuntimeVersion 是 Lua runtime 发布标签。
+	// LuaRuntimeVersion is the runtime packages release tag.
+	// LuaRuntimeVersion 是 runtime packages 发布标签。
 	LuaRuntimeVersion string
 	// VldbControllerVersion is the vldb-controller release tag.
 	// VldbControllerVersion 是 vldb-controller 发布标签。
@@ -187,8 +191,8 @@ type RuntimeInstallOptions struct {
 	// LuaSkillsRepo is the GitHub repository that publishes LuaSkills assets.
 	// LuaSkillsRepo 是发布 LuaSkills 资产的 GitHub 仓库。
 	LuaSkillsRepo string
-	// LuaRuntimeRepo is the GitHub repository that publishes Lua runtime assets.
-	// LuaRuntimeRepo 是发布 Lua runtime 资产的 GitHub 仓库。
+	// LuaRuntimeRepo is the GitHub repository that publishes runtime packages assets.
+	// LuaRuntimeRepo 是发布 runtime packages 资产的 GitHub 仓库。
 	LuaRuntimeRepo string
 	// VldbControllerRepo is the GitHub repository that publishes vldb-controller assets.
 	// VldbControllerRepo 是发布 vldb-controller 资产的 GitHub 仓库。
@@ -301,7 +305,7 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) RuntimeInstal
 		options.LuaSkillsVersion = DefaultLuaSkillsVersion
 	}
 	if options.LuaRuntimeVersion == "" {
-		options.LuaRuntimeVersion = options.LuaSkillsVersion
+		options.LuaRuntimeVersion = DefaultLuaSkillsPackagesVersion
 	}
 	if options.VldbControllerVersion == "" {
 		options.VldbControllerVersion = DefaultVldbControllerVersion
@@ -316,7 +320,7 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) RuntimeInstal
 		options.LuaSkillsRepo = "LuaSkills/luaskills"
 	}
 	if options.LuaRuntimeRepo == "" {
-		options.LuaRuntimeRepo = options.LuaSkillsRepo
+		options.LuaRuntimeRepo = "LuaSkills/luaskills-packages"
 	}
 	if options.VldbControllerRepo == "" {
 		options.VldbControllerRepo = "OpenVulcan/vldb-controller"
@@ -365,7 +369,7 @@ func linuxRuntimeTarget(archPrefix string, platformKey string) RuntimePlatformTa
 func buildRuntimeAssetDescriptors(options RuntimeInstallOptions, target RuntimePlatformTarget) []RuntimeAssetDescriptor {
 	assets := []RuntimeAssetDescriptor{}
 	if !options.SkipLuaRuntime {
-		assetName := fmt.Sprintf("lua-runtime-%s.tar.gz", target.PlatformKey)
+		assetName := fmt.Sprintf("lua-runtime-packages-%s.tar.gz", target.PlatformKey)
 		assets = append(assets, releaseRuntimeAsset(RuntimeAssetLuaRuntime, options.LuaRuntimeRepo, options.LuaRuntimeVersion, assetName, stringPtr("resources/lua-runtime-manifest.json")))
 	}
 	if !options.SkipLuaSkillsFFI {

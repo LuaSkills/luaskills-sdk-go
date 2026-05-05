@@ -18,7 +18,7 @@ func TestBuildRuntimeInstallManifestIncludesLuaRuntime(t *testing.T) {
 	if manifest.Assets[0].Role != RuntimeAssetLuaRuntime {
 		t.Fatalf("expected first asset role %q, got %q", RuntimeAssetLuaRuntime, manifest.Assets[0].Role)
 	}
-	if manifest.Assets[0].AssetName != "lua-runtime-"+manifest.Platform.PlatformKey+".tar.gz" {
+	if manifest.Assets[0].AssetName != "lua-runtime-packages-"+manifest.Platform.PlatformKey+".tar.gz" {
 		t.Fatalf("unexpected lua runtime asset name: %s", manifest.Assets[0].AssetName)
 	}
 }

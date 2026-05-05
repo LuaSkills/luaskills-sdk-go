@@ -34,7 +34,10 @@ export LD_LIBRARY_PATH="/opt/luaskills-runtime/libs:${LD_LIBRARY_PATH}"
 
 ## Runtime Assets
 
-The Go SDK plans and consumes the shared SDK runtime manifest. It does not download release assets itself. Use the TypeScript or Python installer, or implement a host installer from the generated manifest.
+The Go SDK plans and consumes the shared SDK runtime manifest. It does not download release assets itself. Use the TypeScript or Python installer, or implement a host installer from the generated manifest. The shared manifest now points at:
+
+- `lua-runtime-packages-{platform}.tar.gz` from `LuaSkills/luaskills-packages`
+- `luaskills-ffi-sdk-{platform}.tar.gz` from `LuaSkills/luaskills`
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
@@ -273,7 +276,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.3.0`.
 
-For one unified ecosystem release, publish the core repository `LuaSkills/luaskills` first, then publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
+For one unified ecosystem release, publish `LuaSkills/luaskills` and the matching `LuaSkills/luaskills-packages` release first, then publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
 Before publishing:
 
