@@ -48,6 +48,12 @@ go run .\examples\call
 go run .\examples\lifecycle
 ```
 
+`runtime_session` 演示一个持久运行时租约、绑定 authority 的 system 查询，以及复用同一个交互式子进程句柄的连续 `Eval` 调用。
+
+```powershell
+go run .\examples\runtime_session
+```
+
 `provider_callback` 展示 Go provider 与宿主工具 callback API 边界。除非宿主添加受控 cgo callback bridge，否则当前会返回需要宿主桥接的错误。
 
 ```powershell

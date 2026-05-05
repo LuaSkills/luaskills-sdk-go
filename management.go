@@ -8,10 +8,56 @@ type SkillManagementClient struct {
 	authority   Authority
 }
 
-// SystemSkillManagementClient is the system lifecycle namespace with host-injected authority.
-// SystemSkillManagementClient 是携带宿主注入权限的 system 生命周期命名空间。
+// SystemSkillManagementClient is the system engine namespace with host-injected authority.
+// SystemSkillManagementClient 是携带宿主注入权限的 system 引擎命名空间。
 type SystemSkillManagementClient struct {
 	SkillManagementClient
+}
+
+// RuntimeSessions returns one authority-bound runtime-session namespace.
+// RuntimeSessions 返回一个绑定 authority 的运行时会话命名空间。
+func (m *SystemSkillManagementClient) RuntimeSessions() *RuntimeSessionClient {
+	return &RuntimeSessionClient{
+		client:        m.client,
+		authority:     m.resolveAuthority(""),
+		bindAuthority: true,
+	}
+}
+
+// ListEntries lists runtime entries visible to the bound authority.
+// ListEntries 列出当前绑定 authority 可见的运行时入口。
+func (m *SystemSkillManagementClient) ListEntries() ([]map[string]any, error) {
+	return m.client.ListEntries(m.resolveAuthority(""))
+}
+
+// ListSkillHelp lists runtime help trees visible to the bound authority.
+// ListSkillHelp 列出当前绑定 authority 可见的运行时帮助树。
+func (m *SystemSkillManagementClient) ListSkillHelp() ([]map[string]any, error) {
+	return m.client.ListSkillHelp(m.resolveAuthority(""))
+}
+
+// RenderSkillHelpDetail renders one help flow detail visible to the bound authority.
+// RenderSkillHelpDetail 渲染当前绑定 authority 可见的单个帮助流程详情。
+func (m *SystemSkillManagementClient) RenderSkillHelpDetail(skillID string, flowName string, requestContext any) (map[string]any, error) {
+	return m.client.RenderSkillHelpDetail(skillID, flowName, m.resolveAuthority(""), requestContext)
+}
+
+// PromptArgumentCompletions queries prompt argument completions visible to the bound authority.
+// PromptArgumentCompletions 查询当前绑定 authority 可见的 prompt 参数补全项。
+func (m *SystemSkillManagementClient) PromptArgumentCompletions(promptName string, argumentName string) ([]string, error) {
+	return m.client.PromptArgumentCompletions(promptName, argumentName, m.resolveAuthority(""))
+}
+
+// IsSkill returns whether one canonical tool name resolves to one visible skill entry.
+// IsSkill 返回某个 canonical 工具名是否解析为一个可见技能入口。
+func (m *SystemSkillManagementClient) IsSkill(toolName string) (bool, error) {
+	return m.client.IsSkill(toolName, m.resolveAuthority(""))
+}
+
+// SkillNameForTool resolves the visible owning skill id for one canonical tool name when available.
+// SkillNameForTool 在可见时解析某个 canonical 工具名所属的技能标识。
+func (m *SystemSkillManagementClient) SkillNameForTool(toolName string) (*string, error) {
+	return m.client.SkillNameForTool(toolName, m.resolveAuthority(""))
 }
 
 // Disable disables one skill through formal root-chain lifecycle state.
@@ -104,6 +150,12 @@ func (m *SkillManagementClient) addAuthority(payload map[string]any, override Au
 	if !m.systemPlane {
 		return
 	}
+	payload["authority"] = m.resolveAuthority(override)
+}
+
+// resolveAuthority resolves one override or bound authority to the concrete JSON payload value.
+// resolveAuthority 将单个覆盖值或绑定 authority 解析为具体 JSON 载荷值。
+func (m *SkillManagementClient) resolveAuthority(override Authority) Authority {
 	authority := override
 	if authority == "" {
 		authority = m.authority
@@ -111,5 +163,5 @@ func (m *SkillManagementClient) addAuthority(payload map[string]any, override Au
 	if authority == "" {
 		authority = AuthoritySystem
 	}
-	payload["authority"] = authority
+	return authority
 }

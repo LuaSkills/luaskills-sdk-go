@@ -72,6 +72,7 @@ jobs:
           npx @luaskills/sdk@$VERSION install-runtime --database none --runtime-root examples/fixture-runtime
           CGO_ENABLED=1 go run ./examples/basic
           CGO_ENABLED=1 go run ./examples/query
+          CGO_ENABLED=1 go run ./examples/runtime_session
           \`\`\`
 
           Main repository: https://github.com/LuaSkills/luaskills
@@ -110,6 +111,7 @@ jobs:
           go run ./examples/query
           go run ./examples/call
           go run ./examples/lifecycle
+          go run ./examples/runtime_session
           go run ./examples/provider_callback
 
       - name: Package examples asset
@@ -141,7 +143,7 @@ jobs:
 
           This release contains a standalone examples package for the published Go module \`github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG\`.
 
-          The package was smoke-tested by installing LuaSkills runtime assets with the published TypeScript installer and running the bundled Go examples against the published module tag.
+          The package was smoke-tested by installing LuaSkills runtime assets with the published TypeScript installer and running the bundled Go examples against the published module tag, including the persistent runtime-session flow.
 
           Main repository: https://github.com/LuaSkills/luaskills
 
@@ -149,7 +151,7 @@ jobs:
 
           本 Release 包含面向已发布 Go module \`github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG\` 的独立示例包。
 
-          工作流已通过正式 TypeScript 安装器安装 LuaSkills runtime 资产，并基于正式 Go module tag 运行内置示例完成冒烟验证。
+          工作流已通过正式 TypeScript 安装器安装 LuaSkills runtime 资产，并基于正式 Go module tag 运行内置示例完成冒烟验证，其中包含持久 runtime-session 流程。
           MARKDOWN
 
       - name: Publish GitHub Release

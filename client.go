@@ -64,6 +64,14 @@ func (c *Client) System(authority Authority) *SystemSkillManagementClient {
 	}
 }
 
+// RuntimeSessions returns one runtime-session namespace over the public JSON FFI surface.
+// RuntimeSessions 返回一个基于公共 JSON FFI 接口的运行时会话命名空间。
+func (c *Client) RuntimeSessions() *RuntimeSessionClient {
+	return &RuntimeSessionClient{
+		client: c,
+	}
+}
+
 // LoadFromRoots loads skills from the formal ordered root chain.
 // LoadFromRoots 从正式有序 root 链加载 skills。
 func (c *Client) LoadFromRoots(skillRoots []RuntimeSkillRoot) (map[string]any, error) {
@@ -285,7 +293,10 @@ func DefaultHostOptions(runtimeRoot string) map[string]any {
 		"runlua_pool_config":      nil,
 		"reserved_entry_names":    []string{},
 		"ignored_skill_ids":       []string{},
-		"capabilities":            map[string]any{"enable_skill_management_bridge": false},
+		"capabilities": map[string]any{
+			"enable_skill_management_bridge": false,
+			"enable_managed_io_compat":       true,
+		},
 	}
 	if manifest, err := LoadRuntimeInstallManifest(root); err == nil && manifest != nil {
 		return mergeHostOptions(baseOptions, HostOptionsFromRuntimeManifest(manifest))

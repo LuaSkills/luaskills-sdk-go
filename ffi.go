@@ -22,9 +22,7 @@ FfiOwnedBuffer luaskills_ffi_version_json(void);
 FfiOwnedBuffer luaskills_ffi_describe_json(void);
 FfiOwnedBuffer luaskills_ffi_engine_new_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_engine_free_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_load_from_dirs_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_load_from_roots_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_reload_from_dirs_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_reload_from_roots_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_list_entries_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_list_skill_help_json(FfiBorrowedBuffer input_json);
@@ -38,9 +36,7 @@ FfiOwnedBuffer luaskills_ffi_skill_config_set_json(FfiBorrowedBuffer input_json)
 FfiOwnedBuffer luaskills_ffi_skill_config_delete_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_call_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_run_lua_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_disable_skill_in_dirs_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_disable_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_disable_skill_in_dirs_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_disable_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_enable_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_enable_skill_json(FfiBorrowedBuffer input_json);
@@ -50,6 +46,16 @@ FfiOwnedBuffer luaskills_ffi_install_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_install_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_update_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_update_skill_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_session_create_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_session_eval_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_session_status_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_session_list_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_session_close_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_session_create_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_session_eval_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_session_status_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_session_list_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_session_close_json(FfiBorrowedBuffer input_json);
 */
 import "C"
 
@@ -119,12 +125,8 @@ func callJSON(functionName string, payload any, out any) error {
 		buffer = C.luaskills_ffi_engine_new_json(borrowed)
 	case "luaskills_ffi_engine_free_json":
 		buffer = C.luaskills_ffi_engine_free_json(borrowed)
-	case "luaskills_ffi_load_from_dirs_json":
-		buffer = C.luaskills_ffi_load_from_dirs_json(borrowed)
 	case "luaskills_ffi_load_from_roots_json":
 		buffer = C.luaskills_ffi_load_from_roots_json(borrowed)
-	case "luaskills_ffi_reload_from_dirs_json":
-		buffer = C.luaskills_ffi_reload_from_dirs_json(borrowed)
 	case "luaskills_ffi_reload_from_roots_json":
 		buffer = C.luaskills_ffi_reload_from_roots_json(borrowed)
 	case "luaskills_ffi_list_entries_json":
@@ -151,12 +153,8 @@ func callJSON(functionName string, payload any, out any) error {
 		buffer = C.luaskills_ffi_call_skill_json(borrowed)
 	case "luaskills_ffi_run_lua_json":
 		buffer = C.luaskills_ffi_run_lua_json(borrowed)
-	case "luaskills_ffi_disable_skill_in_dirs_json":
-		buffer = C.luaskills_ffi_disable_skill_in_dirs_json(borrowed)
 	case "luaskills_ffi_disable_skill_json":
 		buffer = C.luaskills_ffi_disable_skill_json(borrowed)
-	case "luaskills_ffi_system_disable_skill_in_dirs_json":
-		buffer = C.luaskills_ffi_system_disable_skill_in_dirs_json(borrowed)
 	case "luaskills_ffi_system_disable_skill_json":
 		buffer = C.luaskills_ffi_system_disable_skill_json(borrowed)
 	case "luaskills_ffi_enable_skill_json":
@@ -175,6 +173,26 @@ func callJSON(functionName string, payload any, out any) error {
 		buffer = C.luaskills_ffi_update_skill_json(borrowed)
 	case "luaskills_ffi_system_update_skill_json":
 		buffer = C.luaskills_ffi_system_update_skill_json(borrowed)
+	case "luaskills_ffi_runtime_session_create_json":
+		buffer = C.luaskills_ffi_runtime_session_create_json(borrowed)
+	case "luaskills_ffi_runtime_session_eval_json":
+		buffer = C.luaskills_ffi_runtime_session_eval_json(borrowed)
+	case "luaskills_ffi_runtime_session_status_json":
+		buffer = C.luaskills_ffi_runtime_session_status_json(borrowed)
+	case "luaskills_ffi_runtime_session_list_json":
+		buffer = C.luaskills_ffi_runtime_session_list_json(borrowed)
+	case "luaskills_ffi_runtime_session_close_json":
+		buffer = C.luaskills_ffi_runtime_session_close_json(borrowed)
+	case "luaskills_ffi_system_runtime_session_create_json":
+		buffer = C.luaskills_ffi_system_runtime_session_create_json(borrowed)
+	case "luaskills_ffi_system_runtime_session_eval_json":
+		buffer = C.luaskills_ffi_system_runtime_session_eval_json(borrowed)
+	case "luaskills_ffi_system_runtime_session_status_json":
+		buffer = C.luaskills_ffi_system_runtime_session_status_json(borrowed)
+	case "luaskills_ffi_system_runtime_session_list_json":
+		buffer = C.luaskills_ffi_system_runtime_session_list_json(borrowed)
+	case "luaskills_ffi_system_runtime_session_close_json":
+		buffer = C.luaskills_ffi_system_runtime_session_close_json(borrowed)
 	default:
 		return fmt.Errorf("unsupported JSON FFI function: %s", functionName)
 	}

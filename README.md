@@ -125,18 +125,51 @@ go run .\examples\basic
 go run .\examples\call
 go run .\examples\query
 go run .\examples\lifecycle
+go run .\examples\runtime_session
 go run .\examples\provider_callback
 ```
 
 `provider_callback` covers both JSON provider callbacks and the `vulcan.host.*` host-tool callback boundary. It returns bridge-required errors until a host-owned cgo callback bridge is installed.
 
-The query and lifecycle examples use the bundled fixture skill at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. Prepare runtime assets with a TypeScript or Python installer first:
+The query, lifecycle, and runtime-session examples use the bundled fixture skill at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. Prepare runtime assets with a TypeScript or Python installer first:
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root .\examples\fixture-runtime
 ```
 
 See [examples/README.md](examples/README.md) for the full example index and runtime notes. The Chinese example guide is [examples/README_cn.md](examples/README_cn.md).
+
+## Persistent Runtime Sessions
+
+Use `client.RuntimeSessions()` for the public lease endpoints, or `client.System(authority).RuntimeSessions()` when the host wants fixed authority injection through the dedicated system runtime-session exports provided by the latest native library.
+
+```go
+client, err := luaskills.NewClient(luaskills.ClientOptions{RuntimeRoot: "D:/runtime/luaskills"})
+if err != nil {
+	log.Fatal(err)
+}
+defer client.Close()
+
+sessions := client.System(luaskills.AuthoritySystem).RuntimeSessions()
+session, err := sessions.CreateHandle("demo-session", 600, true)
+if err != nil {
+	log.Fatal(err)
+}
+
+result, err := session.Eval("counter = (counter or 0) + 1; return { counter = counter }", nil, 60000)
+if err != nil {
+	log.Fatal(err)
+}
+
+fmt.Println(result["result"])
+```
+
+## Migration Notes
+
+- Existing `client.System(authority)` lifecycle calls keep working; the returned wrapper now also exposes query helpers and `RuntimeSessions()`.
+- `RuntimeSessionHandle` persists `lease_id + sid + generation` and automatically reattaches identity guards on `Eval`, `Status`, and `Close`.
+- Authority-bound runtime-session helpers dispatch directly to dedicated `luaskills_ffi_system_runtime_session_*` entrypoints.
+- Go hosts should deploy the matching latest LuaSkills native library when using these APIs, because cgo links directly against the current exported symbol set.
 
 ## Authority And Management
 
@@ -238,7 +271,9 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.2.6`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.3.0`.
+
+For one unified ecosystem release, publish the core repository `LuaSkills/luaskills` first, then publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
 Before publishing:
 
@@ -250,8 +285,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.2.6
-git push origin v0.2.6
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:
@@ -260,3 +295,5 @@ After the Go module tag is available, run the GitHub Actions workflow **Examples
 - `luaskills-sdk-go-examples-{VERSION}.zip.sha256`
 
 The examples release tag intentionally uses the `examples-v` prefix so it does not interfere with Go module semver tags.
+
+Recommended unified publish order: `luaskills` core release -> TypeScript SDK -> Python SDK -> Go SDK -> SDK examples releases.
