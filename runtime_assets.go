@@ -11,7 +11,7 @@ import (
 
 // DefaultLuaSkillsVersion is the release tag used by SDK runtime installation.
 // DefaultLuaSkillsVersion 是 SDK 运行时安装使用的 LuaSkills 发布标签。
-const DefaultLuaSkillsVersion = "v0.3.0"
+const DefaultLuaSkillsVersion = "v0.3.1"
 
 // DefaultLuaSkillsPackagesVersion is the release tag used by SDK runtime package installation.
 // DefaultLuaSkillsPackagesVersion 是 SDK 运行时 package 安装使用的 luaskills-packages 发布标签。
