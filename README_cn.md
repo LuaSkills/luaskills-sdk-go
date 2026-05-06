@@ -41,6 +41,15 @@ Go SDK 会规划并消费共享 SDK runtime manifest，但它本身不下载 rel
 
 默认情况下，这份共享 manifest 会把 LuaSkills core 固定到 SDK 对应版本，并从兼容的 `0.1` 协议线中自动解析最新已发布的 runtime packages patch 版本。
 
+## 从 `0.2` 升级到 `0.3`
+
+如果你正在从 `0.2.x` 升级：
+
+- 让 SDK 与 LuaSkills core 保持同一条 `0.3.x` 版本线
+- 接受 Lua runtime packages 与 native deps 来自 `LuaSkills/luaskills-packages`，而不是只来自主仓库 release
+- 共享 manifest 默认会从兼容的 `0.1` packages 协议线自动解析最新 patch；只有显式指定时才会固定到具体版本
+- 如果你的接入代码复制过旧的 runtime 资产假设，需要先改成 `core + packages` 的拆分模型再发布
+
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
 ```
