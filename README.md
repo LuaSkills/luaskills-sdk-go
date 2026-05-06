@@ -39,6 +39,8 @@ The Go SDK plans and consumes the shared SDK runtime manifest. It does not downl
 - `lua-runtime-packages-{platform}.tar.gz` from `LuaSkills/luaskills-packages`
 - `luaskills-ffi-sdk-{platform}.tar.gz` from `LuaSkills/luaskills`
 
+By default, the shared manifest keeps LuaSkills core aligned with the SDK release and resolves runtime packages from the compatible `0.1` series by selecting the newest published patch automatically.
+
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
 ```
@@ -276,7 +278,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.3.1`.
 
-For one unified ecosystem release, publish `LuaSkills/luaskills` and the matching `LuaSkills/luaskills-packages` release first, then publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
+For one unified ecosystem release, publish `LuaSkills/luaskills-packages` first, then publish `LuaSkills/luaskills`, and publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
 Before publishing:
 
@@ -299,4 +301,4 @@ After the Go module tag is available, run the GitHub Actions workflow **Examples
 
 The examples release tag intentionally uses the `examples-v` prefix so it does not interfere with Go module semver tags.
 
-Recommended unified publish order: `luaskills` core release -> TypeScript SDK -> Python SDK -> Go SDK -> SDK examples releases.
+Recommended unified publish order: `luaskills-packages` -> `luaskills` core release -> TypeScript SDK -> Python SDK -> Go SDK -> SDK examples releases.

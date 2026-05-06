@@ -39,6 +39,8 @@ Go SDK 会规划并消费共享 SDK runtime manifest，但它本身不下载 rel
 - `LuaSkills/luaskills-packages` 的 `lua-runtime-packages-{platform}.tar.gz`
 - `LuaSkills/luaskills` 的 `luaskills-ffi-sdk-{platform}.tar.gz`
 
+默认情况下，这份共享 manifest 会把 LuaSkills core 固定到 SDK 对应版本，并从兼容的 `0.1` 协议线中自动解析最新已发布的 runtime packages patch 版本。
+
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
 ```
@@ -276,7 +278,7 @@ go test ./...
 
 发布版本记录在 `VERSION`。Go 用户通过 `v0.3.1` 这类 Go module tag 消费 SDK 版本。
 
-如果要做生态统一发布，必须先发布 `LuaSkills/luaskills` 与匹配的 `LuaSkills/luaskills-packages`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
+如果要做生态统一发布，必须先发布 `LuaSkills/luaskills-packages`，再发布 `LuaSkills/luaskills`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
 
 发布前执行：
 
@@ -299,4 +301,4 @@ Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release*
 
 示例 release tag 故意使用 `examples-v` 前缀，避免干扰 Go module 的语义版本 tag。
 
-推荐统一发布顺序：`luaskills` 核心仓库 -> TypeScript SDK -> Python SDK -> Go SDK -> 各 SDK 的 examples release。
+推荐统一发布顺序：`luaskills-packages` -> `luaskills` 核心仓库 -> TypeScript SDK -> Python SDK -> Go SDK -> 各 SDK 的 examples release。
