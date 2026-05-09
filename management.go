@@ -14,10 +14,10 @@ type SystemSkillManagementClient struct {
 	SkillManagementClient
 }
 
-// RuntimeSessions returns one authority-bound runtime-session namespace.
-// RuntimeSessions 返回一个绑定 authority 的运行时会话命名空间。
-func (m *SystemSkillManagementClient) RuntimeSessions() *RuntimeSessionClient {
-	return &RuntimeSessionClient{
+// RuntimeLeases returns one authority-bound runtime-lease namespace.
+// RuntimeLeases 返回一个绑定 authority 的运行时租约命名空间。
+func (m *SystemSkillManagementClient) RuntimeLeases() *RuntimeLeaseClient {
+	return &RuntimeLeaseClient{
 		client:        m.client,
 		authority:     m.resolveAuthority(""),
 		bindAuthority: true,

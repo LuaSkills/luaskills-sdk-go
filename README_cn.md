@@ -139,13 +139,13 @@ go run .\examples\basic
 go run .\examples\call
 go run .\examples\query
 go run .\examples\lifecycle
-go run .\examples\runtime_session
+go run .\examples\runtime_lease
 go run .\examples\provider_callback
 ```
 
 `provider_callback` 同时覆盖 JSON provider callback 与 `vulcan.host.*` 宿主工具 callback 边界。在宿主安装自有 cgo callback bridge 前，它会返回需要宿主桥接的错误。
 
-query、lifecycle 与 runtime-session 示例使用内置夹具 skill：`examples/fixture-runtime/user_skills/demo-standard-ffi-skill`。请先使用 TypeScript 或 Python 安装器准备 runtime 资产：
+query、lifecycle 与持久 runtime-lease 示例使用内置夹具 skill：`examples/fixture-runtime/user_skills/demo-standard-ffi-skill`。请先使用 TypeScript 或 Python 安装器准备 runtime 资产：
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root .\examples\fixture-runtime
@@ -153,9 +153,9 @@ npx @luaskills/sdk install-runtime --database none --runtime-root .\examples\fix
 
 完整示例索引与 runtime 注意事项见 [examples/README_cn.md](examples/README_cn.md)。英文示例指南见 [examples/README.md](examples/README.md)。
 
-## 持久运行时会话
+## 持久运行时租约
 
-普通租约入口请使用 `client.RuntimeSessions()`；如果宿主希望通过最新原生库提供的专用 system runtime-session 导出固定注入 authority，请使用 `client.System(authority).RuntimeSessions()`。
+普通租约入口请使用 `client.RuntimeLeases()`；如果宿主希望通过最新原生库提供的专用 system runtime-lease 导出固定注入 authority，请使用 `client.System(authority).RuntimeLeases()`。
 
 ```go
 client, err := luaskills.NewClient(luaskills.ClientOptions{RuntimeRoot: "D:/runtime/luaskills"})
@@ -164,8 +164,14 @@ if err != nil {
 }
 defer client.Close()
 
-sessions := client.System(luaskills.AuthoritySystem).RuntimeSessions()
-session, err := sessions.CreateHandle("demo-session", 600, true)
+leases := client.System(luaskills.AuthoritySystem).RuntimeLeases()
+cwd := "D:/runtime/luaskills/system_lua_lib"
+ttlSec := 600
+session, err := leases.CreateHandleWithOptions("demo-session", true, &luaskills.RuntimeLeaseCreateOptions{
+	TTLSec: &ttlSec,
+	CWD:    &cwd,
+	Mounts: map[string]any{"channel": "demo"},
+})
 if err != nil {
 	log.Fatal(err)
 }
@@ -180,9 +186,11 @@ fmt.Println(result["result"])
 
 ## 迁移说明
 
-- 现有 `client.System(authority)` 生命周期调用保持兼容；返回的 wrapper 现在额外暴露查询辅助方法和 `RuntimeSessions()`。
-- `RuntimeSessionHandle` 会持久化 `lease_id + sid + generation`，并在 `Eval`、`Status`、`Close` 时自动补回身份护栏。
-- 绑定 authority 的运行时会话辅助层会直接分发到专用 `luaskills_ffi_system_runtime_session_*` 入口。
+- 现有 `client.System(authority)` 生命周期调用保持兼容；返回的 wrapper 现在额外暴露查询辅助方法和 `RuntimeLeases()`。
+- `RuntimeLeaseHandle` 会持久化 `lease_id + sid + generation`，并在 `Eval`、`Status`、`Close` 时自动补回身份护栏。
+- 绑定 authority 的运行时租约辅助层会直接分发到专用 `luaskills_ffi_system_runtime_lease_*` 入口。
+- 当宿主在 `request_context.client_capabilities.host_result` 中显式开启结构化结果后，`CallSkill` 会返回可选 `HostResult`，供 IDE 原生结构化结果消费。
+- `CreateWithOptions` 与 `CreateHandleWithOptions` 暴露了 `cwd`、`workspace_root`、`lua_roots`、`c_roots`、`mounts` 等宿主路径选项。
 - Go 宿主在使用这些 API 时应部署匹配的最新 LuaSkills 原生动态库，因为 cgo 会直接按当前导出符号集合完成链接。
 
 ## 权限与管理
@@ -285,7 +293,7 @@ go test ./...
 
 ## 发布
 
-发布版本记录在 `VERSION`。Go 用户通过 `v0.3.1` 这类 Go module tag 消费 SDK 版本。
+发布版本记录在 `VERSION`。Go 用户通过 `v0.4.0` 这类 Go module tag 消费 SDK 版本。
 
 如果要做生态统一发布，必须先发布 `LuaSkills/luaskills-packages`，再发布 `LuaSkills/luaskills`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
 
@@ -299,8 +307,8 @@ go test ./...
 推送匹配的 Go module tag 即完成 SDK 发布：
 
 ```powershell
-git tag v0.3.1
-git push origin v0.3.1
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：

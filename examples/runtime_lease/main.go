@@ -12,7 +12,7 @@ import (
 
 // runtimeSessionSID is the stable session id reused by the example lease lifecycle.
 // runtimeSessionSID 是示例租约生命周期复用的稳定会话标识。
-const runtimeSessionSID = "go-sdk-runtime-session-demo"
+const runtimeSessionSID = "go-sdk-runtime-lease-demo"
 
 // exampleRuntimeRoot resolves the fixture runtime root used by this example.
 // exampleRuntimeRoot 解析当前示例使用的夹具 runtime root。
@@ -27,8 +27,8 @@ func exampleRuntimeRoot() string {
 	return filepath.Join(filepath.Dir(filepath.Dir(currentFile)), "fixture-runtime")
 }
 
-// main runs one persistent runtime-session smoke flow through the high-level Go SDK surface.
-// main 通过高级 Go SDK 接口执行一条持久运行时会话烟测链路。
+// main runs one persistent runtime-lease smoke flow through the high-level Go SDK surface.
+// main 通过高级 Go SDK 接口执行一条持久运行时租约烟测链路。
 func main() {
 	runtimeRoot := exampleRuntimeRoot()
 	skillRoots := luaskills.StandardRoots(runtimeRoot)
@@ -61,14 +61,20 @@ func main() {
 		fmt.Println("Visible skill ownership:", *skillID)
 	}
 
-	sessions := system.RuntimeSessions()
-	usesSystemEndpoints, err := sessions.UsesSystemRuntimeSessionEndpoints()
+	sessions := system.RuntimeLeases()
+	usesSystemEndpoints, err := sessions.UsesSystemRuntimeLeaseEndpoints()
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Uses dedicated system runtime-session endpoints:", usesSystemEndpoints)
+	fmt.Println("Uses dedicated system runtime-lease endpoints:", usesSystemEndpoints)
 
-	session, err := sessions.CreateHandle(runtimeSessionSID, 600, true)
+	systemLuaLib := filepath.Join(runtimeRoot, "system_lua_lib")
+	ttlSec := 600
+	session, err := sessions.CreateHandleWithOptions(runtimeSessionSID, true, &luaskills.RuntimeLeaseCreateOptions{
+		TTLSec: &ttlSec,
+		CWD:    &systemLuaLib,
+		Mounts: map[string]any{"example": "go-runtime-lease"},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,13 +107,13 @@ if not proc then
   proc = vulcan.process.session.open(spec)
 end
 counter = (counter or 0) + 1
-proc:write((args.input or "runtime-session-demo") .. "\n")
+proc:write((args.input or "runtime-lease-demo") .. "\n")
 return {
   opened = true,
   counter = counter,
   input = args.input,
 }
-`, map[string]any{"input": "runtime-session-demo"}, 60000)
+`, map[string]any{"input": "runtime-lease-demo"}, 60000)
 	if err != nil {
 		log.Fatal(err)
 	}

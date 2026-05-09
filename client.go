@@ -64,10 +64,10 @@ func (c *Client) System(authority Authority) *SystemSkillManagementClient {
 	}
 }
 
-// RuntimeSessions returns one runtime-session namespace over the public JSON FFI surface.
-// RuntimeSessions 返回一个基于公共 JSON FFI 接口的运行时会话命名空间。
-func (c *Client) RuntimeSessions() *RuntimeSessionClient {
-	return &RuntimeSessionClient{
+// RuntimeLeases returns one runtime-lease namespace over the public JSON FFI surface.
+// RuntimeLeases 返回一个基于公共 JSON FFI 接口的运行时租约命名空间。
+func (c *Client) RuntimeLeases() *RuntimeLeaseClient {
+	return &RuntimeLeaseClient{
 		client: c,
 	}
 }
@@ -274,6 +274,7 @@ func DefaultHostOptions(runtimeRoot string) map[string]any {
 		"host_provided_tool_root": normalizePath(filepath.Join(root, "bin", "tools")),
 		"host_provided_lua_root":  normalizePath(filepath.Join(root, "lua_packages")),
 		"host_provided_ffi_root":  normalizePath(filepath.Join(root, "libs")),
+		"system_lua_lib_dir":      nil,
 		"download_cache_root":     normalizePath(filepath.Join(root, "temp", "downloads")),
 		"dependency_dir_name":     "dependencies",
 		"state_dir_name":          "state",

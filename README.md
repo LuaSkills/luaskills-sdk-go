@@ -139,13 +139,13 @@ go run .\examples\basic
 go run .\examples\call
 go run .\examples\query
 go run .\examples\lifecycle
-go run .\examples\runtime_session
+go run .\examples\runtime_lease
 go run .\examples\provider_callback
 ```
 
 `provider_callback` covers both JSON provider callbacks and the `vulcan.host.*` host-tool callback boundary. It returns bridge-required errors until a host-owned cgo callback bridge is installed.
 
-The query, lifecycle, and runtime-session examples use the bundled fixture skill at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. Prepare runtime assets with a TypeScript or Python installer first:
+The query, lifecycle, and persistent runtime-lease examples use the bundled fixture skill at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. Prepare runtime assets with a TypeScript or Python installer first:
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root .\examples\fixture-runtime
@@ -153,9 +153,9 @@ npx @luaskills/sdk install-runtime --database none --runtime-root .\examples\fix
 
 See [examples/README.md](examples/README.md) for the full example index and runtime notes. The Chinese example guide is [examples/README_cn.md](examples/README_cn.md).
 
-## Persistent Runtime Sessions
+## Persistent Runtime Leases
 
-Use `client.RuntimeSessions()` for the public lease endpoints, or `client.System(authority).RuntimeSessions()` when the host wants fixed authority injection through the dedicated system runtime-session exports provided by the latest native library.
+Use `client.RuntimeLeases()` for the public lease endpoints, or `client.System(authority).RuntimeLeases()` when the host wants fixed authority injection through the dedicated system runtime-lease exports provided by the latest native library.
 
 ```go
 client, err := luaskills.NewClient(luaskills.ClientOptions{RuntimeRoot: "D:/runtime/luaskills"})
@@ -164,8 +164,14 @@ if err != nil {
 }
 defer client.Close()
 
-sessions := client.System(luaskills.AuthoritySystem).RuntimeSessions()
-session, err := sessions.CreateHandle("demo-session", 600, true)
+leases := client.System(luaskills.AuthoritySystem).RuntimeLeases()
+cwd := "D:/runtime/luaskills/system_lua_lib"
+ttlSec := 600
+session, err := leases.CreateHandleWithOptions("demo-session", true, &luaskills.RuntimeLeaseCreateOptions{
+	TTLSec: &ttlSec,
+	CWD:    &cwd,
+	Mounts: map[string]any{"channel": "demo"},
+})
 if err != nil {
 	log.Fatal(err)
 }
@@ -180,9 +186,11 @@ fmt.Println(result["result"])
 
 ## Migration Notes
 
-- Existing `client.System(authority)` lifecycle calls keep working; the returned wrapper now also exposes query helpers and `RuntimeSessions()`.
-- `RuntimeSessionHandle` persists `lease_id + sid + generation` and automatically reattaches identity guards on `Eval`, `Status`, and `Close`.
-- Authority-bound runtime-session helpers dispatch directly to dedicated `luaskills_ffi_system_runtime_session_*` entrypoints.
+- Existing `client.System(authority)` lifecycle calls keep working; the returned wrapper now also exposes query helpers and `RuntimeLeases()`.
+- `RuntimeLeaseHandle` persists `lease_id + sid + generation` and automatically reattaches identity guards on `Eval`, `Status`, and `Close`.
+- Authority-bound runtime-lease helpers dispatch directly to dedicated `luaskills_ffi_system_runtime_lease_*` entrypoints.
+- `CallSkill` now returns optional `HostResult` when the host enables `request_context.client_capabilities.host_result` and one Lua tool emits a fourth structured return value.
+- `CreateWithOptions` and `CreateHandleWithOptions` expose `cwd`, `workspace_root`, `lua_roots`, `c_roots`, and `mounts` for host-owned runtime-lease contexts.
 - Go hosts should deploy the matching latest LuaSkills native library when using these APIs, because cgo links directly against the current exported symbol set.
 
 ## Authority And Management
@@ -285,7 +293,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.3.1`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.4.0`.
 
 For one unified ecosystem release, publish `LuaSkills/luaskills-packages` first, then publish `LuaSkills/luaskills`, and publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
@@ -299,8 +307,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.3.1
-git push origin v0.3.1
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

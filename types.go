@@ -63,14 +63,22 @@ type LifecycleOptions struct {
 	Authority  Authority         `json:"authority,omitempty"`
 }
 
+// RuntimeHostResult is the optional structured host_result returned by call_skill.
+// RuntimeHostResult 是 call_skill 返回的可选结构化 host_result。
+type RuntimeHostResult struct {
+	Kind    string `json:"kind"`
+	Payload any    `json:"payload"`
+}
+
 // RuntimeInvocationResult is the JSON FFI result returned by call_skill.
 // RuntimeInvocationResult 是 call_skill 返回的 JSON FFI 结果。
 type RuntimeInvocationResult struct {
-	Content      string  `json:"content"`
-	OverflowMode *string `json:"overflow_mode"`
-	TemplateHint *string `json:"template_hint"`
-	ContentBytes int     `json:"content_bytes"`
-	ContentLines int     `json:"content_lines"`
+	Content      string             `json:"content"`
+	OverflowMode *string            `json:"overflow_mode"`
+	TemplateHint *string            `json:"template_hint"`
+	ContentBytes int                `json:"content_bytes"`
+	ContentLines int                `json:"content_lines"`
+	HostResult   *RuntimeHostResult `json:"host_result"`
 }
 
 // ClientOptions controls creation of one LuaSkills client and native engine.

@@ -48,10 +48,10 @@ go run .\examples\call
 go run .\examples\lifecycle
 ```
 
-`runtime_session` demonstrates one persistent runtime lease, authority-bound system queries, and repeated `Eval` calls that reuse one interactive child-process handle.
+`runtime_lease` demonstrates one persistent runtime lease, authority-bound system queries, and repeated `Eval` calls that reuse one interactive child-process handle.
 
 ```powershell
-go run .\examples\runtime_session
+go run .\examples\runtime_lease
 ```
 
 `provider_callback` shows the Go provider and host-tool callback API boundaries. They currently return bridge-required errors unless the host adds a controlled cgo callback bridge.

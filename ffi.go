@@ -46,16 +46,16 @@ FfiOwnedBuffer luaskills_ffi_install_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_install_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_update_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_update_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_session_create_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_session_eval_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_session_status_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_session_list_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_session_close_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_session_create_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_session_eval_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_session_status_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_session_list_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_session_close_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_lease_create_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_lease_eval_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_lease_status_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_lease_list_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_runtime_lease_close_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_lease_create_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_lease_eval_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_lease_status_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_lease_list_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_system_runtime_lease_close_json(FfiBorrowedBuffer input_json);
 */
 import "C"
 
@@ -173,26 +173,26 @@ func callJSON(functionName string, payload any, out any) error {
 		buffer = C.luaskills_ffi_update_skill_json(borrowed)
 	case "luaskills_ffi_system_update_skill_json":
 		buffer = C.luaskills_ffi_system_update_skill_json(borrowed)
-	case "luaskills_ffi_runtime_session_create_json":
-		buffer = C.luaskills_ffi_runtime_session_create_json(borrowed)
-	case "luaskills_ffi_runtime_session_eval_json":
-		buffer = C.luaskills_ffi_runtime_session_eval_json(borrowed)
-	case "luaskills_ffi_runtime_session_status_json":
-		buffer = C.luaskills_ffi_runtime_session_status_json(borrowed)
-	case "luaskills_ffi_runtime_session_list_json":
-		buffer = C.luaskills_ffi_runtime_session_list_json(borrowed)
-	case "luaskills_ffi_runtime_session_close_json":
-		buffer = C.luaskills_ffi_runtime_session_close_json(borrowed)
-	case "luaskills_ffi_system_runtime_session_create_json":
-		buffer = C.luaskills_ffi_system_runtime_session_create_json(borrowed)
-	case "luaskills_ffi_system_runtime_session_eval_json":
-		buffer = C.luaskills_ffi_system_runtime_session_eval_json(borrowed)
-	case "luaskills_ffi_system_runtime_session_status_json":
-		buffer = C.luaskills_ffi_system_runtime_session_status_json(borrowed)
-	case "luaskills_ffi_system_runtime_session_list_json":
-		buffer = C.luaskills_ffi_system_runtime_session_list_json(borrowed)
-	case "luaskills_ffi_system_runtime_session_close_json":
-		buffer = C.luaskills_ffi_system_runtime_session_close_json(borrowed)
+	case "luaskills_ffi_runtime_lease_create_json":
+		buffer = C.luaskills_ffi_runtime_lease_create_json(borrowed)
+	case "luaskills_ffi_runtime_lease_eval_json":
+		buffer = C.luaskills_ffi_runtime_lease_eval_json(borrowed)
+	case "luaskills_ffi_runtime_lease_status_json":
+		buffer = C.luaskills_ffi_runtime_lease_status_json(borrowed)
+	case "luaskills_ffi_runtime_lease_list_json":
+		buffer = C.luaskills_ffi_runtime_lease_list_json(borrowed)
+	case "luaskills_ffi_runtime_lease_close_json":
+		buffer = C.luaskills_ffi_runtime_lease_close_json(borrowed)
+	case "luaskills_ffi_system_runtime_lease_create_json":
+		buffer = C.luaskills_ffi_system_runtime_lease_create_json(borrowed)
+	case "luaskills_ffi_system_runtime_lease_eval_json":
+		buffer = C.luaskills_ffi_system_runtime_lease_eval_json(borrowed)
+	case "luaskills_ffi_system_runtime_lease_status_json":
+		buffer = C.luaskills_ffi_system_runtime_lease_status_json(borrowed)
+	case "luaskills_ffi_system_runtime_lease_list_json":
+		buffer = C.luaskills_ffi_system_runtime_lease_list_json(borrowed)
+	case "luaskills_ffi_system_runtime_lease_close_json":
+		buffer = C.luaskills_ffi_system_runtime_lease_close_json(borrowed)
 	default:
 		return fmt.Errorf("unsupported JSON FFI function: %s", functionName)
 	}
