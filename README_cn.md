@@ -41,14 +41,11 @@ Go SDK 会规划并消费共享 SDK runtime manifest，但它本身不下载 rel
 
 默认情况下，这份共享 manifest 会把 LuaSkills core 固定到 SDK 对应版本，并从兼容的 `0.1` 协议线中自动解析最新已发布的 runtime packages patch 版本。
 
-## 从 `0.2` 升级到 `0.3`
+## 版本对齐
 
-如果你正在从 `0.2.x` 升级：
-
-- 让 SDK 与 LuaSkills core 保持同一条 `0.3.x` 版本线
-- 接受 Lua runtime packages 与 native deps 来自 `LuaSkills/luaskills-packages`，而不是只来自主仓库 release
-- 共享 manifest 默认会从兼容的 `0.1` packages 协议线自动解析最新 patch；只有显式指定时才会固定到具体版本
-- 如果你的接入代码复制过旧的 runtime 资产假设，需要先改成 `core + packages` 的拆分模型再发布
+- 尽量让 SDK 与 LuaSkills core 保持同一条当前发布版本线。
+- 当前 SDK 默认指向 LuaSkills core 标签 `v0.4.1`。
+- runtime packages 与 native deps 仍然来自拆分后的 `LuaSkills/luaskills-packages` 及相关发布资产。
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
@@ -190,6 +187,9 @@ fmt.Println(result["result"])
 - `RuntimeLeaseHandle` 会持久化 `lease_id + sid + generation`，并在 `Eval`、`Status`、`Close` 时自动补回身份护栏。
 - 绑定 authority 的运行时租约辅助层会直接分发到专用 `luaskills_ffi_system_runtime_lease_*` 入口。
 - 当宿主在 `request_context.client_capabilities.host_result` 中显式开启结构化结果后，`CallSkill` 会返回可选 `HostResult`，供 IDE 原生结构化结果消费。
+- 当 `HostResult.Kind == "change_set"` 时，宿主应把 `HostResult.Payload` 解析为 `RuntimeChangeSetPayload`。
+- canonical `change_set` 现在使用文件生命周期记录；`modify` 通过 hunk 级 `before + delete[] + insert[] + after` 表达具体修改。
+- `create` 与 `delete` 文件记录直接携带整文件 `content`，`rename` 记录携带 `old_path` 与 `new_path`。
 - `CreateWithOptions` 与 `CreateHandleWithOptions` 暴露了 `cwd`、`workspace_root`、`lua_roots`、`c_roots`、`mounts` 等宿主路径选项。
 - Go 宿主在使用这些 API 时应部署匹配的最新 LuaSkills 原生动态库，因为 cgo 会直接按当前导出符号集合完成链接。
 
@@ -293,7 +293,7 @@ go test ./...
 
 ## 发布
 
-发布版本记录在 `VERSION`。Go 用户通过 `v0.4.0` 这类 Go module tag 消费 SDK 版本。
+发布版本记录在 `VERSION`。Go 用户通过 `v0.4.1` 这类 Go module tag 消费 SDK 版本。
 
 如果要做生态统一发布，必须先发布 `LuaSkills/luaskills-packages`，再发布 `LuaSkills/luaskills`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
 
@@ -307,8 +307,8 @@ go test ./...
 推送匹配的 Go module tag 即完成 SDK 发布：
 
 ```powershell
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.4.1
+git push origin v0.4.1
 ```
 
 Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：

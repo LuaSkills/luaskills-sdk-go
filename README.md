@@ -41,14 +41,11 @@ The Go SDK plans and consumes the shared SDK runtime manifest. It does not downl
 
 By default, the shared manifest keeps LuaSkills core aligned with the SDK release and resolves runtime packages from the compatible `0.1` series by selecting the newest published patch automatically.
 
-## Upgrading from `0.2` to `0.3`
+## Version Alignment
 
-If you are upgrading from the `0.2.x` line:
-
-- keep the SDK and LuaSkills core on the same `0.3.x` version line
-- expect Lua runtime packages and native deps to come from `LuaSkills/luaskills-packages`, not only from the main `luaskills` release
-- expect the shared manifest to resolve the newest published patch from the compatible `0.1` packages series unless you pin an exact packages version
-- if your integration copied older runtime asset assumptions, update it to the split `core + packages` model before releasing
+- Keep the SDK and LuaSkills core on the same current release line whenever possible.
+- The current SDK defaults to LuaSkills core tag `v0.4.1`.
+- Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
@@ -190,6 +187,9 @@ fmt.Println(result["result"])
 - `RuntimeLeaseHandle` persists `lease_id + sid + generation` and automatically reattaches identity guards on `Eval`, `Status`, and `Close`.
 - Authority-bound runtime-lease helpers dispatch directly to dedicated `luaskills_ffi_system_runtime_lease_*` entrypoints.
 - `CallSkill` now returns optional `HostResult` when the host enables `request_context.client_capabilities.host_result` and one Lua tool emits a fourth structured return value.
+- When `HostResult.Kind == "change_set"`, hosts should decode `HostResult.Payload` into `RuntimeChangeSetPayload`.
+- Canonical `change_set` payloads now use file lifecycle records plus hunk-level `before + delete[] + insert[] + after` blocks for `modify` changes.
+- `create` and `delete` file records carry full-file `content`, while `rename` records carry `old_path` and `new_path`.
 - `CreateWithOptions` and `CreateHandleWithOptions` expose `cwd`, `workspace_root`, `lua_roots`, `c_roots`, and `mounts` for host-owned runtime-lease contexts.
 - Go hosts should deploy the matching latest LuaSkills native library when using these APIs, because cgo links directly against the current exported symbol set.
 
@@ -293,7 +293,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.4.0`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.4.1`.
 
 For one unified ecosystem release, publish `LuaSkills/luaskills-packages` first, then publish `LuaSkills/luaskills`, and publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
@@ -307,8 +307,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.4.1
+git push origin v0.4.1
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

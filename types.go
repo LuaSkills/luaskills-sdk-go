@@ -66,8 +66,94 @@ type LifecycleOptions struct {
 // RuntimeHostResult is the optional structured host_result returned by call_skill.
 // RuntimeHostResult 是 call_skill 返回的可选结构化 host_result。
 type RuntimeHostResult struct {
-	Kind    string `json:"kind"`
-	Payload any    `json:"payload"`
+	// Kind is the stable host-result kind identifier.
+	// Kind 是稳定的宿主结果类型标识。
+	Kind string `json:"kind"`
+	// Payload is the arbitrary JSON payload consumed by the host. Use RuntimeChangeSetPayload when Kind is change_set.
+	// Payload 是由宿主消费的任意 JSON 载荷。当 Kind 为 change_set 时应使用 RuntimeChangeSetPayload。
+	Payload any `json:"payload"`
+}
+
+// RuntimeChangeSetLine is one canonical change-set line record.
+// RuntimeChangeSetLine 是单条 canonical change_set 行记录。
+type RuntimeChangeSetLine struct {
+	// Line is the 1-based file line number.
+	// Line 是从 1 开始的文件行号。
+	Line int `json:"line"`
+	// Content is the exact line content stored for this record.
+	// Content 是当前记录保存的精确行内容。
+	Content string `json:"content"`
+}
+
+// RuntimeChangeSetHunk is one canonical change-set modify hunk.
+// RuntimeChangeSetHunk 是单个 canonical change_set modify hunk。
+type RuntimeChangeSetHunk struct {
+	// Before is the contiguous context immediately before the changed block.
+	// Before 是紧贴修改块之前的连续上下文。
+	Before string `json:"before"`
+	// Delete contains deleted old-file lines in ascending order.
+	// Delete 包含按升序排列的旧文件删除行。
+	Delete []RuntimeChangeSetLine `json:"delete"`
+	// Insert contains inserted new-file lines in ascending order.
+	// Insert 包含按升序排列的新文件插入行。
+	Insert []RuntimeChangeSetLine `json:"insert"`
+	// After is the contiguous context immediately after the changed block.
+	// After 是紧贴修改块之后的连续上下文。
+	After string `json:"after"`
+}
+
+// RuntimeChangeSetDiagnostic is one canonical change-set diagnostic record.
+// RuntimeChangeSetDiagnostic 是单条 canonical change_set 诊断记录。
+type RuntimeChangeSetDiagnostic struct {
+	// Level is the structured diagnostic level.
+	// Level 是结构化诊断级别。
+	Level string `json:"level"`
+	// Message is the human-readable diagnostic message.
+	// Message 是人类可读诊断消息。
+	Message string `json:"message"`
+}
+
+// RuntimeChangeSetFile is one canonical change-set file record.
+// RuntimeChangeSetFile 是单个 canonical change_set 文件记录。
+type RuntimeChangeSetFile struct {
+	// Change is the file lifecycle change kind.
+	// Change 是文件生命周期变更类型。
+	Change string `json:"change"`
+	// Path is the absolute file path used by create, modify, and delete records.
+	// Path 是 create、modify、delete 记录使用的绝对文件路径。
+	Path string `json:"path,omitempty"`
+	// OldPath is the absolute old path used by rename records.
+	// OldPath 是 rename 记录使用的旧绝对路径。
+	OldPath string `json:"old_path,omitempty"`
+	// NewPath is the absolute new path used by rename records.
+	// NewPath 是 rename 记录使用的新绝对路径。
+	NewPath string `json:"new_path,omitempty"`
+	// Content is the full-file content used by create and delete records.
+	// Content 是 create 与 delete 记录使用的整文件内容。
+	Content string `json:"content,omitempty"`
+	// Hunks contains explicit modify hunks used by modify records.
+	// Hunks 包含 modify 记录使用的显式修改 hunk 列表。
+	Hunks []RuntimeChangeSetHunk `json:"hunks,omitempty"`
+	// Patch is one optional human-readable patch mirror.
+	// Patch 是可选的人类可读 patch 镜像。
+	Patch *string `json:"patch,omitempty"`
+}
+
+// RuntimeChangeSetPayload is the canonical change-set payload consumed by IDE-aware hosts.
+// RuntimeChangeSetPayload 是 IDE 感知宿主消费的 canonical change_set 载荷。
+type RuntimeChangeSetPayload struct {
+	// Mode reports whether the result is preview or applied.
+	// Mode 表示当前结果是预览态还是已应用态。
+	Mode string `json:"mode"`
+	// Summary is the optional high-level change summary.
+	// Summary 是可选的高层变更摘要。
+	Summary *string `json:"summary,omitempty"`
+	// Files contains the required file lifecycle records.
+	// Files 包含必填的文件生命周期记录列表。
+	Files []RuntimeChangeSetFile `json:"files"`
+	// Diagnostics contains optional diagnostics returned alongside the change-set.
+	// Diagnostics 包含随 change_set 一并返回的可选诊断列表。
+	Diagnostics []RuntimeChangeSetDiagnostic `json:"diagnostics,omitempty"`
 }
 
 // RuntimeInvocationResult is the JSON FFI result returned by call_skill.
