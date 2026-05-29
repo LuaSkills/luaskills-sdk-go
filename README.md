@@ -44,8 +44,10 @@ By default, the shared manifest keeps LuaSkills core aligned with the SDK releas
 ## Version Alignment
 
 - Keep the SDK and LuaSkills core on the same current release line whenever possible.
-- The current SDK defaults to LuaSkills core tag `v0.4.4`.
+- The current SDK defaults to LuaSkills core tag `v0.4.5`.
 - Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
+- SDK default host options now pass only `runtime_root`; LuaSkills derives `bin`, `libs`, `lua_packages`, `resources`, `skills`, `temp`, `dependencies`, `state`, `databases`, `config`, and `system_lua_lib`.
+- Host tools live directly under `runtime_root/bin`, not `runtime_root/bin/tools`.
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
@@ -293,7 +295,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.4.4`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.4.5`.
 
 For one unified ecosystem release, publish `LuaSkills/luaskills-packages` first, then publish `LuaSkills/luaskills`, and publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
@@ -307,8 +309,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.4.4
-git push origin v0.4.4
+git tag v0.4.5
+git push origin v0.4.5
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

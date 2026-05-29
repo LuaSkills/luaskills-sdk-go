@@ -67,11 +67,13 @@ func EnsureRuntimeLayout(runtimeRoot string, skillRoots []RuntimeSkillRoot) erro
 		filepath.Join(root, "temp", "downloads"),
 		filepath.Join(root, "resources"),
 		filepath.Join(root, "lua_packages"),
-		filepath.Join(root, "bin", "tools"),
+		filepath.Join(root, "bin"),
 		filepath.Join(root, "libs"),
 		filepath.Join(root, "dependencies"),
 		filepath.Join(root, "state"),
 		filepath.Join(root, "databases"),
+		filepath.Join(root, "config"),
+		filepath.Join(root, "system_lua_lib"),
 	}
 	for _, skillRoot := range skillRoots {
 		directories = append(directories, filepath.FromSlash(skillRoot.SkillsDir))
