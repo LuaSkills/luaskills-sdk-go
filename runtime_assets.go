@@ -37,19 +37,19 @@ const DefaultVldbLanceDBVersion = "v0.1.5"
 
 // DefaultManagedPythonVersion is the managed CPython version used by Lua-driven child runtimes.
 // DefaultManagedPythonVersion 是 Lua 调度子运行时使用的受管 CPython 版本。
-const DefaultManagedPythonVersion = "3.12.7"
+const DefaultManagedPythonVersion = "3.14.4"
 
 // DefaultManagedUvVersion is the standalone uv version used by managed Python.
 // DefaultManagedUvVersion 是受管 Python 使用的独立 uv 版本。
-const DefaultManagedUvVersion = "0.11.17"
+const DefaultManagedUvVersion = "0.11.28"
 
 // DefaultManagedNodeVersion is the managed Node.js version used by Lua-driven child runtimes.
 // DefaultManagedNodeVersion 是 Lua 调度子运行时使用的受管 Node.js 版本。
-const DefaultManagedNodeVersion = "22.11.0"
+const DefaultManagedNodeVersion = "24.18.0"
 
 // DefaultManagedPnpmVersion is the pnpm version used by managed Node.js.
 // DefaultManagedPnpmVersion 是受管 Node.js 使用的 pnpm 版本。
-const DefaultManagedPnpmVersion = "9.15.0"
+const DefaultManagedPnpmVersion = "11.11.0"
 
 // RuntimeManifestFileName is the manifest name stored under runtime resources.
 // RuntimeManifestFileName 是存放在 runtime resources 下的清单文件名。

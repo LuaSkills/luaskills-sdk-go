@@ -68,7 +68,7 @@ cgo 与 no-cgo 桥接文件继续留在根 package，因为它们通过互斥构
 
 受管子运行时支持 Windows x64、Linux x64/ARM64 与 macOS x64/ARM64。Windows ARM 会在任何下载或目标目录创建前被明确拒绝。仓库还分发独立拉取与布局校验工具，供不使用 Python 或 TypeScript 安装器的宿主准备 debug 运行时：
 
-当前受管依赖精确版本为 Python `3.12.7`、uv `0.11.17`、Node.js `22.11.0`、pnpm `9.15.0`。除非宿主有意安装其他受支持版本，否则包内 `dependencies.yaml` 必须声明相同的运行时与包管理器精确版本。
+当前受管依赖精确版本为 Python `3.14.4`、uv `0.11.28`、Node.js `24.18.0`、pnpm `11.11.0`。除非宿主有意安装其他受支持版本，否则包内 `dependencies.yaml` 必须声明相同的运行时与包管理器精确版本。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/fetch_managed_runtimes.ps1 -RuntimeRoot D:\runtime\luaskills -Target all

@@ -68,7 +68,7 @@ The cgo and no-cgo bridge files remain in the root package because they implemen
 
 Managed child runtimes support Windows x64, Linux x64/ARM64, and macOS x64/ARM64. Windows ARM is explicitly rejected before any download or target-directory creation. The repository also ships standalone fetch and layout-validation tools for hosts that prepare debug runtimes without a Python or TypeScript installer:
 
-The current exact managed dependency versions are Python `3.12.7`, uv `0.11.17`, Node.js `22.11.0`, and pnpm `9.15.0`. Package `dependencies.yaml` files must declare the same exact runtime and package-manager versions unless the host deliberately installs another supported version.
+The current exact managed dependency versions are Python `3.14.4`, uv `0.11.28`, Node.js `24.18.0`, and pnpm `11.11.0`. Package `dependencies.yaml` files must declare the same exact runtime and package-manager versions unless the host deliberately installs another supported version.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/fetch_managed_runtimes.ps1 -RuntimeRoot D:\runtime\luaskills -Target all
