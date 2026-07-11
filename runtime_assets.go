@@ -16,7 +16,7 @@ import (
 
 // DefaultLuaSkillsVersion is the release tag used by SDK runtime installation.
 // DefaultLuaSkillsVersion 是 SDK 运行时安装使用的 LuaSkills 发布标签。
-const DefaultLuaSkillsVersion = "v0.4.6"
+const DefaultLuaSkillsVersion = "v0.5.0"
 
 // DefaultLuaSkillsPackagesSeries is the release series used by SDK runtime package installation.
 // DefaultLuaSkillsPackagesSeries 是 SDK 运行时 package 安装使用的 luaskills-packages 发布协议线。
@@ -33,6 +33,22 @@ const DefaultVldbSQLiteVersion = "v0.1.5"
 // DefaultVldbLanceDBVersion is the release tag used by SDK runtime installation.
 // DefaultVldbLanceDBVersion 是 SDK 运行时安装使用的 vldb-lancedb 发布标签。
 const DefaultVldbLanceDBVersion = "v0.1.5"
+
+// DefaultManagedPythonVersion is the managed CPython version used by Lua-driven child runtimes.
+// DefaultManagedPythonVersion 是 Lua 调度子运行时使用的受管 CPython 版本。
+const DefaultManagedPythonVersion = "3.12.7"
+
+// DefaultManagedUvVersion is the standalone uv version used by managed Python.
+// DefaultManagedUvVersion 是受管 Python 使用的独立 uv 版本。
+const DefaultManagedUvVersion = "0.11.17"
+
+// DefaultManagedNodeVersion is the managed Node.js version used by Lua-driven child runtimes.
+// DefaultManagedNodeVersion 是 Lua 调度子运行时使用的受管 Node.js 版本。
+const DefaultManagedNodeVersion = "22.11.0"
+
+// DefaultManagedPnpmVersion is the pnpm version used by managed Node.js.
+// DefaultManagedPnpmVersion 是受管 Node.js 使用的 pnpm 版本。
+const DefaultManagedPnpmVersion = "9.15.0"
 
 // RuntimeManifestFileName is the manifest name stored under runtime resources.
 // RuntimeManifestFileName 是存放在 runtime resources 下的清单文件名。
@@ -77,6 +93,28 @@ const (
 	// RuntimeAssetVldbLanceDBLib identifies the vldb-lancedb dynamic library archive.
 	// RuntimeAssetVldbLanceDBLib 标识 vldb-lancedb 动态库归档。
 	RuntimeAssetVldbLanceDBLib RuntimeAssetRole = "vldb_lancedb_lib"
+)
+
+// ManagedRuntimeTarget is one SDK-level managed child runtime installation mode.
+// ManagedRuntimeTarget 是单个 SDK 级受管子运行时安装模式。
+type ManagedRuntimeTarget string
+
+const (
+	// ManagedRuntimeNone omits managed child runtimes.
+	// ManagedRuntimeNone 省略受管子运行时。
+	ManagedRuntimeNone ManagedRuntimeTarget = "none"
+	// ManagedRuntimeAll includes Python, uv, Node.js, and pnpm.
+	// ManagedRuntimeAll 包含 Python、uv、Node.js 与 pnpm。
+	ManagedRuntimeAll ManagedRuntimeTarget = "all"
+	// ManagedRuntimePython includes Python and uv.
+	// ManagedRuntimePython 包含 Python 与 uv。
+	ManagedRuntimePython ManagedRuntimeTarget = "python"
+	// ManagedRuntimeNode includes Node.js and pnpm.
+	// ManagedRuntimeNode 包含 Node.js 与 pnpm。
+	ManagedRuntimeNode ManagedRuntimeTarget = "node"
+	// ManagedRuntimePackageManagers includes uv and pnpm, plus Node.js for pnpm.
+	// ManagedRuntimePackageManagers 包含 uv 与 pnpm，并包含 pnpm 所需的 Node.js。
+	ManagedRuntimePackageManagers ManagedRuntimeTarget = "package-managers"
 )
 
 // RuntimePlatformTarget describes release asset naming for one platform.
@@ -137,6 +175,55 @@ type RuntimeAssetDescriptor struct {
 	InstalledPath *string `json:"installed_path"`
 }
 
+// ManagedRuntimePlatformTarget describes managed child runtime upstream assets.
+// ManagedRuntimePlatformTarget 描述受管子运行时上游资产。
+type ManagedRuntimePlatformTarget struct {
+	// PlatformKey is the stable LuaSkills managed-runtime platform key.
+	// PlatformKey 是稳定的 LuaSkills 受管运行时平台键。
+	PlatformKey string `json:"platform_key"`
+	// UvAssetName is the uv release asset name for this platform.
+	// UvAssetName 是当前平台对应的 uv 发布资产名。
+	UvAssetName string `json:"uv_asset_name"`
+	// NodeAssetTemplate is the Node.js release asset template.
+	// NodeAssetTemplate 是 Node.js 发布资产模板。
+	NodeAssetTemplate string `json:"node_asset_template"`
+	// NodeExtractTemplate is the Node.js archive top-level directory template.
+	// NodeExtractTemplate 是 Node.js 归档顶层目录模板。
+	NodeExtractTemplate string `json:"node_extract_template"`
+	// UvExecutable is the relative uv executable path.
+	// UvExecutable 是 uv 可执行文件相对路径。
+	UvExecutable string `json:"uv_executable"`
+	// NodeExecutable is the relative Node.js executable path.
+	// NodeExecutable 是 Node.js 可执行文件相对路径。
+	NodeExecutable string `json:"node_executable"`
+}
+
+// ManagedRuntimeInstallPlan describes planned managed child runtimes.
+// ManagedRuntimeInstallPlan 描述已规划的受管子运行时。
+type ManagedRuntimeInstallPlan struct {
+	// Target is the requested managed runtime group.
+	// Target 是请求的受管运行时分组。
+	Target ManagedRuntimeTarget `json:"target"`
+	// Platform contains managed runtime platform metadata.
+	// Platform 包含受管运行时平台元数据。
+	Platform ManagedRuntimePlatformTarget `json:"platform"`
+	// PythonVersion is the managed Python version.
+	// PythonVersion 是受管 Python 版本。
+	PythonVersion string `json:"python_version"`
+	// UvVersion is the managed uv version.
+	// UvVersion 是受管 uv 版本。
+	UvVersion string `json:"uv_version"`
+	// NodeVersion is the managed Node.js version.
+	// NodeVersion 是受管 Node.js 版本。
+	NodeVersion string `json:"node_version"`
+	// PnpmVersion is the managed pnpm version.
+	// PnpmVersion 是受管 pnpm 版本。
+	PnpmVersion string `json:"pnpm_version"`
+	// InstalledPaths are relative installation paths under runtime root.
+	// InstalledPaths 是 runtime root 下的相对安装路径。
+	InstalledPaths map[string]string `json:"installed_paths"`
+}
+
 // RuntimeInstallManifest is the shared SDK runtime installation manifest.
 // RuntimeInstallManifest 是共享 SDK 运行时安装清单。
 type RuntimeInstallManifest struct {
@@ -161,6 +248,9 @@ type RuntimeInstallManifest struct {
 	// HostOptionsPatch is derived from installed runtime assets.
 	// HostOptionsPatch 是从已安装运行时资产派生的宿主选项补丁。
 	HostOptionsPatch map[string]any `json:"host_options_patch"`
+	// ManagedRuntimes describes planned managed Python and Node.js child runtimes.
+	// ManagedRuntimes 描述规划中的受管 Python 与 Node.js 子运行时。
+	ManagedRuntimes *ManagedRuntimeInstallPlan `json:"managed_runtimes,omitempty"`
 }
 
 // RuntimeInstallOptions controls runtime asset planning.
@@ -211,6 +301,21 @@ type RuntimeInstallOptions struct {
 	// VldbLanceDBRepo is the GitHub repository that publishes vldb-lancedb assets.
 	// VldbLanceDBRepo 是发布 vldb-lancedb 资产的 GitHub 仓库。
 	VldbLanceDBRepo string
+	// ManagedRuntimes selects managed child runtimes for SDK installers.
+	// ManagedRuntimes 为 SDK 安装器选择受管子运行时。
+	ManagedRuntimes ManagedRuntimeTarget
+	// ManagedPythonVersion is the managed Python version.
+	// ManagedPythonVersion 是受管 Python 版本。
+	ManagedPythonVersion string
+	// ManagedUvVersion is the managed uv version.
+	// ManagedUvVersion 是受管 uv 版本。
+	ManagedUvVersion string
+	// ManagedNodeVersion is the managed Node.js version.
+	// ManagedNodeVersion 是受管 Node.js 版本。
+	ManagedNodeVersion string
+	// ManagedPnpmVersion is the managed pnpm version.
+	// ManagedPnpmVersion 是受管 pnpm 版本。
+	ManagedPnpmVersion string
 }
 
 // ResolveRuntimePlatformTarget returns the release target for the current Go process.
@@ -261,6 +366,10 @@ func BuildRuntimeInstallManifest(options RuntimeInstallOptions) (*RuntimeInstall
 		return nil, err
 	}
 	assets := buildRuntimeAssetDescriptors(normalized, target)
+	managedRuntimes, err := buildManagedRuntimeInstallPlan(normalized)
+	if err != nil {
+		return nil, err
+	}
 	manifest := &RuntimeInstallManifest{
 		SchemaVersion:    1,
 		GeneratedAt:      time.Now().UTC().Format(time.RFC3339),
@@ -269,17 +378,18 @@ func BuildRuntimeInstallManifest(options RuntimeInstallOptions) (*RuntimeInstall
 		Platform:         target,
 		Assets:           assets,
 		HostOptionsPatch: buildRuntimeHostOptionsPatch(normalized.RuntimeRoot, normalized.Database, target, assets),
+		ManagedRuntimes:  managedRuntimes,
 	}
 	return manifest, nil
 }
 
 // HostOptionsFromRuntimeManifest converts one runtime manifest into host option overrides.
 // HostOptionsFromRuntimeManifest 将单个运行时清单转换为宿主选项覆盖。
-func HostOptionsFromRuntimeManifest(manifest *RuntimeInstallManifest) map[string]any {
+func HostOptionsFromRuntimeManifest(manifest *RuntimeInstallManifest) (map[string]any, error) {
 	if manifest == nil {
-		return map[string]any{}
+		return map[string]any{}, nil
 	}
-	return mergeMaps(map[string]any{}, manifest.HostOptionsPatch)
+	return sanitizeRuntimeManifestHostOptions(manifest.RuntimeRoot, manifest.HostOptionsPatch)
 }
 
 // LoadRuntimeInstallManifest reads one SDK runtime install manifest from a runtime root.
@@ -291,19 +401,127 @@ func LoadRuntimeInstallManifest(runtimeRoot string) (*RuntimeInstallManifest, er
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("read runtime install manifest %s: %w", manifestPath, err)
 	}
-	var manifest RuntimeInstallManifest
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		return nil, err
-	}
-	return &manifest, nil
+	return decodeRuntimeInstallManifest(manifestPath, raw)
 }
 
 // RuntimeManifestPath returns the expected manifest path under one runtime root.
 // RuntimeManifestPath 返回单个 runtime root 下的预期清单路径。
 func RuntimeManifestPath(runtimeRoot string) string {
 	return filepath.Join(runtimeRoot, "resources", RuntimeManifestFileName)
+}
+
+// sanitizeRuntimeManifestHostOptions validates runtime-root path fields from one manifest patch.
+// sanitizeRuntimeManifestHostOptions 校验单个 manifest patch 中受 runtime-root 约束的路径字段。
+func sanitizeRuntimeManifestHostOptions(runtimeRoot string, patch map[string]any) (map[string]any, error) {
+	if strings.TrimSpace(runtimeRoot) == "" {
+		return nil, fmt.Errorf("runtime manifest runtime_root must be a string path")
+	}
+	sanitized := mergeMaps(map[string]any{}, patch)
+	for _, key := range []string{"sqlite_library_path", "lancedb_library_path"} {
+		path, err := sanitizeRuntimeManifestPath(runtimeRoot, sanitized[key], key)
+		if err != nil {
+			return nil, err
+		}
+		if path != nil {
+			sanitized[key] = *path
+		}
+	}
+	if rawSpaceController, ok := sanitized["space_controller"]; ok && rawSpaceController != nil {
+		spaceController, ok := rawSpaceController.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("host_options_patch.space_controller must be one object")
+		}
+		spaceCopy := mergeMaps(map[string]any{}, spaceController)
+		path, err := sanitizeRuntimeManifestPath(runtimeRoot, spaceCopy["executable_path"], "space_controller.executable_path")
+		if err != nil {
+			return nil, err
+		}
+		if path != nil {
+			spaceCopy["executable_path"] = *path
+		}
+		sanitized["space_controller"] = spaceCopy
+	}
+	return sanitized, nil
+}
+
+// sanitizeRuntimeManifestPath validates one runtime-root-scoped host option path.
+// sanitizeRuntimeManifestPath 校验单个受 runtime-root 约束的宿主选项路径。
+func sanitizeRuntimeManifestPath(runtimeRoot string, value any, context string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	pathText, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("host_options_patch.%s must be a string path", context)
+	}
+	if strings.TrimSpace(pathText) == "" || strings.ContainsRune(pathText, '\x00') {
+		return nil, fmt.Errorf("host_options_patch.%s must be a path inside runtime root", context)
+	}
+	rootPath, err := filepath.Abs(runtimeRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve runtime root for host_options_patch.%s: %w", context, err)
+	}
+	candidatePath := pathText
+	if !filepath.IsAbs(candidatePath) {
+		if hasUnsafeRelativePathSegment(candidatePath) {
+			return nil, fmt.Errorf("host_options_patch.%s must be a path inside runtime root", context)
+		}
+		candidatePath = filepath.Join(rootPath, candidatePath)
+	}
+	candidatePath, err = filepath.Abs(candidatePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve host_options_patch.%s: %w", context, err)
+	}
+	if !pathInsideRoot(rootPath, candidatePath) {
+		return nil, fmt.Errorf("host_options_patch.%s escapes runtime root: %s", context, pathText)
+	}
+	normalized := normalizePath(candidatePath)
+	return &normalized, nil
+}
+
+// hasUnsafeRelativePathSegment returns whether one relative path contains ambiguous segments.
+// hasUnsafeRelativePathSegment 返回单个相对路径是否包含不明确片段。
+func hasUnsafeRelativePathSegment(pathText string) bool {
+	normalized := strings.ReplaceAll(pathText, "\\", "/")
+	for _, segment := range strings.Split(normalized, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+// pathInsideRoot returns whether one path is strictly inside one root directory.
+// pathInsideRoot 返回单个路径是否严格位于 root 目录内部。
+func pathInsideRoot(rootPath string, candidatePath string) bool {
+	relativePath, err := filepath.Rel(rootPath, candidatePath)
+	if err != nil {
+		return false
+	}
+	return relativePath != "." && relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator))
+}
+
+// decodeRuntimeInstallManifest decodes one runtime install manifest with path-aware diagnostics.
+// decodeRuntimeInstallManifest 使用带路径上下文的诊断解码单个运行时安装清单。
+func decodeRuntimeInstallManifest(manifestPath string, raw []byte) (*RuntimeInstallManifest, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return nil, fmt.Errorf("runtime install manifest %s is empty", manifestPath)
+	}
+	var decoded any
+	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
+		return nil, fmt.Errorf("runtime install manifest %s is invalid JSON: %w", manifestPath, err)
+	}
+	if _, ok := decoded.(map[string]any); !ok {
+		return nil, fmt.Errorf("runtime install manifest %s must be one JSON object", manifestPath)
+	}
+	var manifest RuntimeInstallManifest
+	if err := json.Unmarshal([]byte(trimmed), &manifest); err != nil {
+		return nil, fmt.Errorf("runtime install manifest %s has invalid schema: %w", manifestPath, err)
+	}
+	return &manifest, nil
 }
 
 // normalizeRuntimeInstallOptions fills default release repositories and versions.
@@ -349,7 +567,125 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) (RuntimeInsta
 	if options.VldbLanceDBRepo == "" {
 		options.VldbLanceDBRepo = "OpenVulcan/vldb-lancedb"
 	}
+	if options.ManagedRuntimes == "" {
+		options.ManagedRuntimes = ManagedRuntimeNone
+	}
+	if err := validateManagedRuntimeTarget(options.ManagedRuntimes); err != nil {
+		return RuntimeInstallOptions{}, err
+	}
+	if options.ManagedPythonVersion == "" {
+		options.ManagedPythonVersion = DefaultManagedPythonVersion
+	}
+	if options.ManagedUvVersion == "" {
+		options.ManagedUvVersion = DefaultManagedUvVersion
+	}
+	if options.ManagedNodeVersion == "" {
+		options.ManagedNodeVersion = DefaultManagedNodeVersion
+	}
+	if options.ManagedPnpmVersion == "" {
+		options.ManagedPnpmVersion = DefaultManagedPnpmVersion
+	}
 	return options, nil
+}
+
+// ResolveManagedRuntimePlatformTarget returns the managed-runtime target for the current Go process.
+// ResolveManagedRuntimePlatformTarget 返回当前 Go 进程对应的受管运行时目标。
+func ResolveManagedRuntimePlatformTarget() (ManagedRuntimePlatformTarget, error) {
+	return ResolveManagedRuntimePlatformTargetFor(runtime.GOOS, runtime.GOARCH)
+}
+
+// ResolveManagedRuntimePlatformTargetFor returns the managed-runtime target for explicit platform values.
+// ResolveManagedRuntimePlatformTargetFor 返回显式平台值对应的受管运行时目标。
+func ResolveManagedRuntimePlatformTargetFor(goos string, goarch string) (ManagedRuntimePlatformTarget, error) {
+	if goos == "windows" && goarch == "amd64" {
+		return ManagedRuntimePlatformTarget{
+			PlatformKey:         "windows-x64",
+			UvAssetName:         "uv-x86_64-pc-windows-msvc.zip",
+			NodeAssetTemplate:   "node-v{version}-win-x64.zip",
+			NodeExtractTemplate: "node-v{version}-win-x64",
+			UvExecutable:        "uv.exe",
+			NodeExecutable:      "node.exe",
+		}, nil
+	}
+	if goos == "darwin" && goarch == "amd64" {
+		return managedUnixRuntimeTarget("macos-x64", "x86_64", "x64", "darwin", ".tar.gz"), nil
+	}
+	if goos == "darwin" && goarch == "arm64" {
+		return managedUnixRuntimeTarget("macos-arm64", "aarch64", "arm64", "darwin", ".tar.gz"), nil
+	}
+	if goos == "linux" && goarch == "amd64" {
+		return managedUnixRuntimeTarget("linux-x64", "x86_64", "x64", "linux", ".tar.xz"), nil
+	}
+	if goos == "linux" && goarch == "arm64" {
+		return managedUnixRuntimeTarget("linux-arm64", "aarch64", "arm64", "linux", ".tar.xz"), nil
+	}
+	return ManagedRuntimePlatformTarget{}, fmt.Errorf("unsupported managed runtime platform: %s/%s", goos, goarch)
+}
+
+// buildManagedRuntimeInstallPlan builds one managed runtime section for the SDK manifest.
+// buildManagedRuntimeInstallPlan 为 SDK 清单构造一个受管运行时片段。
+func buildManagedRuntimeInstallPlan(options RuntimeInstallOptions) (*ManagedRuntimeInstallPlan, error) {
+	if options.ManagedRuntimes == ManagedRuntimeNone {
+		return nil, nil
+	}
+	target, err := ResolveManagedRuntimePlatformTarget()
+	if err != nil {
+		return nil, err
+	}
+	return &ManagedRuntimeInstallPlan{
+		Target:        options.ManagedRuntimes,
+		Platform:      target,
+		PythonVersion: options.ManagedPythonVersion,
+		UvVersion:     options.ManagedUvVersion,
+		NodeVersion:   options.ManagedNodeVersion,
+		PnpmVersion:   options.ManagedPnpmVersion,
+		InstalledPaths: managedRuntimeInstalledPaths(
+			target,
+			options.ManagedPythonVersion,
+			options.ManagedUvVersion,
+			options.ManagedNodeVersion,
+			options.ManagedPnpmVersion,
+		),
+	}, nil
+}
+
+// validateManagedRuntimeTarget rejects unknown managed runtime target values.
+// validateManagedRuntimeTarget 拒绝未知的受管运行时目标值。
+func validateManagedRuntimeTarget(target ManagedRuntimeTarget) error {
+	switch target {
+	case ManagedRuntimeNone, ManagedRuntimeAll, ManagedRuntimePython, ManagedRuntimeNode, ManagedRuntimePackageManagers:
+		return nil
+	default:
+		return fmt.Errorf("unsupported managed runtime target: %s", target)
+	}
+}
+
+// managedUnixRuntimeTarget builds one Unix-like managed runtime target descriptor.
+// managedUnixRuntimeTarget 构造一个类 Unix 受管运行时目标描述。
+func managedUnixRuntimeTarget(platformKey string, rustArch string, nodeArch string, nodeOS string, nodeArchiveExt string) ManagedRuntimePlatformTarget {
+	uvOS := "unknown-linux-gnu"
+	if nodeOS == "darwin" {
+		uvOS = "apple-darwin"
+	}
+	return ManagedRuntimePlatformTarget{
+		PlatformKey:         platformKey,
+		UvAssetName:         fmt.Sprintf("uv-%s-%s.tar.gz", rustArch, uvOS),
+		NodeAssetTemplate:   fmt.Sprintf("node-v{version}-%s-%s%s", nodeOS, nodeArch, nodeArchiveExt),
+		NodeExtractTemplate: fmt.Sprintf("node-v{version}-%s-%s", nodeOS, nodeArch),
+		UvExecutable:        "uv",
+		NodeExecutable:      "bin/node",
+	}
+}
+
+// managedRuntimeInstalledPaths builds relative managed runtime installation paths.
+// managedRuntimeInstalledPaths 构造受管运行时相对安装路径。
+func managedRuntimeInstalledPaths(target ManagedRuntimePlatformTarget, pythonVersion string, uvVersion string, nodeVersion string, pnpmVersion string) map[string]string {
+	return map[string]string{
+		"python": fmt.Sprintf("dependencies/runtimes/python/cpython-%s-%s", pythonVersion, target.PlatformKey),
+		"uv":     fmt.Sprintf("dependencies/runtimes/python/uv-%s-%s", uvVersion, target.PlatformKey),
+		"node":   fmt.Sprintf("dependencies/runtimes/node/node-%s-%s", nodeVersion, target.PlatformKey),
+		"pnpm":   fmt.Sprintf("dependencies/runtimes/node/pnpm-%s", pnpmVersion),
+	}
 }
 
 // LuaRuntimeRepoOrDefault returns the configured runtime packages repository or the SDK default.

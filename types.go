@@ -21,9 +21,15 @@ const (
 	// SkillInstallSourceGithub resolves one managed skill from GitHub release metadata.
 	// SkillInstallSourceGithub 通过 GitHub release 元数据解析受管 skill。
 	SkillInstallSourceGithub SkillInstallSourceType = "github"
+	// SkillInstallSourceOfficialHub resolves one managed skill from the configured official LuaSkills Hub.
+	// SkillInstallSourceOfficialHub 通过已配置的官方 LuaSkills Hub 解析受管 skill。
+	SkillInstallSourceOfficialHub SkillInstallSourceType = "official_hub"
 	// SkillInstallSourceURL resolves one managed skill from one remote source descriptor URL.
 	// SkillInstallSourceURL 通过远程 source 描述文件 URL 解析受管 skill。
 	SkillInstallSourceURL SkillInstallSourceType = "url"
+	// SkillInstallSourcePrivateURLManifest resolves one managed skill from a host-private URL manifest.
+	// SkillInstallSourcePrivateURLManifest 通过宿主私有 URL manifest 解析受管 skill。
+	SkillInstallSourcePrivateURLManifest SkillInstallSourceType = "private_url_manifest"
 )
 
 // RuntimeSkillRoot is one named runtime skill root in the formal ROOT, PROJECT, USER chain.

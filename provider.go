@@ -40,6 +40,95 @@ type HostToolJSONRequest struct {
 // HostToolJSONCallback 是宿主工具 JSON callback 使用的宿主函数形状。
 type HostToolJSONCallback func(request HostToolJSONRequest) (any, error)
 
+// SkillOperationProgressPlane is a skill operation plane emitted by progress callbacks.
+// SkillOperationProgressPlane 是进度 callback 发出的 skill 操作平面。
+type SkillOperationProgressPlane string
+
+const (
+	// SkillOperationProgressPlaneSkills identifies ordinary skill lifecycle operations.
+	// SkillOperationProgressPlaneSkills 标识普通 skill 生命周期操作。
+	SkillOperationProgressPlaneSkills SkillOperationProgressPlane = "Skills"
+	// SkillOperationProgressPlaneSystem identifies host-system skill lifecycle operations.
+	// SkillOperationProgressPlaneSystem 标识宿主 system skill 生命周期操作。
+	SkillOperationProgressPlaneSystem SkillOperationProgressPlane = "System"
+)
+
+// SkillOperationProgressAction is a lifecycle action emitted by progress callbacks.
+// SkillOperationProgressAction 是进度 callback 发出的生命周期动作。
+type SkillOperationProgressAction string
+
+const (
+	// SkillOperationProgressActionInstall identifies an install operation.
+	// SkillOperationProgressActionInstall 标识安装操作。
+	SkillOperationProgressActionInstall SkillOperationProgressAction = "Install"
+	// SkillOperationProgressActionUpdate identifies an update operation.
+	// SkillOperationProgressActionUpdate 标识更新操作。
+	SkillOperationProgressActionUpdate SkillOperationProgressAction = "Update"
+	// SkillOperationProgressActionReload identifies a reload operation.
+	// SkillOperationProgressActionReload 标识重载操作。
+	SkillOperationProgressActionReload SkillOperationProgressAction = "Reload"
+	// SkillOperationProgressActionUninstall identifies an uninstall operation.
+	// SkillOperationProgressActionUninstall 标识卸载操作。
+	SkillOperationProgressActionUninstall SkillOperationProgressAction = "Uninstall"
+	// SkillOperationProgressActionEnable identifies an enable operation.
+	// SkillOperationProgressActionEnable 标识启用操作。
+	SkillOperationProgressActionEnable SkillOperationProgressAction = "Enable"
+	// SkillOperationProgressActionDisable identifies a disable operation.
+	// SkillOperationProgressActionDisable 标识停用操作。
+	SkillOperationProgressActionDisable SkillOperationProgressAction = "Disable"
+)
+
+// SkillOperationProgressEvent is the event delivered to skill operation progress callbacks.
+// SkillOperationProgressEvent 是传递给 skill 操作进度 callback 的事件。
+type SkillOperationProgressEvent struct {
+	// OperationID is shared by all events from one lifecycle operation.
+	// OperationID 由同一个生命周期操作的全部事件共享。
+	OperationID string `json:"operation_id"`
+	// Sequence is monotonic inside the current operation.
+	// Sequence 在当前操作内单调递增。
+	Sequence uint64 `json:"sequence"`
+	// Plane is the operation plane that owns the lifecycle operation.
+	// Plane 是拥有该生命周期操作的操作平面。
+	Plane SkillOperationProgressPlane `json:"plane"`
+	// Action is the lifecycle action represented by the event.
+	// Action 是该事件表示的生命周期动作。
+	Action SkillOperationProgressAction `json:"action"`
+	// Phase is the machine-readable progress phase.
+	// Phase 是机器可读的进度阶段。
+	Phase string `json:"phase"`
+	// Status is the machine-readable progress status.
+	// Status 是机器可读的进度状态。
+	Status string `json:"status"`
+	// SkillID is the optional target skill id.
+	// SkillID 是可选目标 skill 标识。
+	SkillID *string `json:"skill_id"`
+	// RootName is the optional target root name.
+	// RootName 是可选目标 root 名称。
+	RootName *string `json:"root_name"`
+	// SourceType is the optional source type involved in the current phase.
+	// SourceType 是当前阶段涉及的可选来源类型。
+	SourceType *SkillInstallSourceType `json:"source_type"`
+	// SourceLocator is the optional source locator involved in the current phase.
+	// SourceLocator 是当前阶段涉及的可选来源定位值。
+	SourceLocator *string `json:"source_locator"`
+	// BytesDone is the optional completed byte count for download phases.
+	// BytesDone 是下载阶段的可选已完成字节数。
+	BytesDone *uint64 `json:"bytes_done"`
+	// BytesTotal is the optional total byte count for download phases.
+	// BytesTotal 是下载阶段的可选总字节数。
+	BytesTotal *uint64 `json:"bytes_total"`
+	// Percent is the optional determinate progress percentage.
+	// Percent 是可选确定性进度百分比。
+	Percent *float64 `json:"percent"`
+	// Message is the optional human-readable progress message.
+	// Message 是可选人类可读进度消息。
+	Message *string `json:"message"`
+}
+
+// SkillOperationProgressCallback is the host function shape used by progress callbacks.
+// SkillOperationProgressCallback 是进度 callback 使用的宿主函数形状。
+type SkillOperationProgressCallback func(event SkillOperationProgressEvent) error
+
 // ModelJSONCapability is a standard model capability emitted by vulcan.models.*.
 // ModelJSONCapability 是 vulcan.models.* 发出的标准模型能力。
 type ModelJSONCapability string
@@ -212,6 +301,10 @@ var ErrProviderCallbacksRequireHostBridge = errors.New("luaskills Go SDK provide
 // ErrHostToolCallbacksRequireHostBridge 说明 Go 当前为何尚不直接注册宿主工具 callback。
 var ErrHostToolCallbacksRequireHostBridge = errors.New("luaskills Go SDK host tool callbacks require a host-owned cgo callback bridge")
 
+// ErrSkillOperationProgressCallbacksRequireHostBridge explains why Go does not register progress callbacks directly yet.
+// ErrSkillOperationProgressCallbacksRequireHostBridge 说明 Go 当前为何不直接注册进度 callback。
+var ErrSkillOperationProgressCallbacksRequireHostBridge = errors.New("luaskills Go SDK skill operation progress callbacks require a host-owned cgo callback bridge")
+
 // ErrModelCallbacksRequireHostBridge explains why Go does not register model callbacks directly yet.
 // ErrModelCallbacksRequireHostBridge 说明 Go 当前为何尚不直接注册模型 callback。
 var ErrModelCallbacksRequireHostBridge = errors.New("luaskills Go SDK model callbacks require a host-owned cgo callback bridge")
@@ -252,6 +345,18 @@ func ClearHostToolJSONCallback() error {
 	return SetHostToolJSONCallback(nil)
 }
 
+// SetSkillOperationProgressJSONCallback reports the required host bridge for skill operation progress callbacks.
+// SetSkillOperationProgressJSONCallback 返回 skill 操作进度 callback 需要的宿主桥接。
+func SetSkillOperationProgressJSONCallback(callback SkillOperationProgressCallback) error {
+	return ErrSkillOperationProgressCallbacksRequireHostBridge
+}
+
+// ClearSkillOperationProgressJSONCallback reports the required host bridge for clearing progress callbacks.
+// ClearSkillOperationProgressJSONCallback 返回清理进度 callback 需要的宿主桥接。
+func ClearSkillOperationProgressJSONCallback() error {
+	return SetSkillOperationProgressJSONCallback(nil)
+}
+
 // SetModelEmbedJSONCallback reports the required host bridge for model embedding JSON callbacks.
 // SetModelEmbedJSONCallback 报告模型 embedding JSON callback 所需的宿主桥接。
 func SetModelEmbedJSONCallback(callback ModelEmbedJSONCallback) error {
@@ -274,4 +379,17 @@ func SetModelLLMJSONCallback(callback ModelLLMJSONCallback) error {
 // ClearModelLLMJSONCallback 报告清理模型 LLM callback 所需的宿主桥接。
 func ClearModelLLMJSONCallback() error {
 	return SetModelLLMJSONCallback(nil)
+}
+
+// ClearJSONCallbacks reports all host-bridge requirements for process-wide JSON callback cleanup.
+// ClearJSONCallbacks 汇总报告进程级 JSON callback 清理所需的宿主桥接。
+func ClearJSONCallbacks() error {
+	return errors.Join(
+		ClearSQLiteProviderJSONCallback(),
+		ClearLanceDBProviderJSONCallback(),
+		ClearHostToolJSONCallback(),
+		ClearSkillOperationProgressJSONCallback(),
+		ClearModelEmbedJSONCallback(),
+		ClearModelLLMJSONCallback(),
+	)
 }

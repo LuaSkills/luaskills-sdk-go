@@ -19,7 +19,38 @@ type RuntimeLeaseCreateOptions struct {
 	LuaRoots      []string
 	CRoots        []string
 	Mounts        any
+	SystemPackage *SystemRuntimePackage
 }
+
+// SystemRuntimePackage identifies one trusted System Plugin package for a System lease.
+// SystemRuntimePackage 标识 System 租约使用的可信 System Plugin 包。
+type SystemRuntimePackage struct {
+	ID               string `json:"id"`
+	Root             string `json:"root"`
+	DependenciesFile string `json:"dependencies_file"`
+}
+
+// RuntimeLeaseAction is one supported runtime-lease JSON FFI action.
+// RuntimeLeaseAction 是一个受支持的运行时租约 JSON FFI 动作。
+type RuntimeLeaseAction string
+
+const (
+	// RuntimeLeaseCreateAction creates or replaces one runtime lease.
+	// RuntimeLeaseCreateAction 创建或替换单个运行时租约。
+	RuntimeLeaseCreateAction RuntimeLeaseAction = "create"
+	// RuntimeLeaseEvalAction evaluates one Lua chunk inside one runtime lease.
+	// RuntimeLeaseEvalAction 在单个运行时租约内执行一段 Lua 代码。
+	RuntimeLeaseEvalAction RuntimeLeaseAction = "eval"
+	// RuntimeLeaseStatusAction reads one runtime lease status.
+	// RuntimeLeaseStatusAction 读取单个运行时租约状态。
+	RuntimeLeaseStatusAction RuntimeLeaseAction = "status"
+	// RuntimeLeaseListAction lists active runtime leases.
+	// RuntimeLeaseListAction 列出活跃运行时租约。
+	RuntimeLeaseListAction RuntimeLeaseAction = "list"
+	// RuntimeLeaseCloseAction closes one runtime lease.
+	// RuntimeLeaseCloseAction 关闭单个运行时租约。
+	RuntimeLeaseCloseAction RuntimeLeaseAction = "close"
+)
 
 // RuntimeLeaseClient is the stateful runtime-lease namespace over the JSON FFI runtime-lease entrypoints.
 // RuntimeLeaseClient 是覆盖 JSON FFI 运行时租约入口的有状态运行时租约命名空间。
@@ -31,13 +62,13 @@ type RuntimeLeaseClient struct {
 
 // CallRaw dispatches one raw runtime-lease JSON request without applying success checks.
 // CallRaw 分发单个原始运行时租约 JSON 请求而不附加成功校验。
-func (c *RuntimeLeaseClient) CallRaw(action string, payload map[string]any) (map[string]any, error) {
+func (c *RuntimeLeaseClient) CallRaw(action RuntimeLeaseAction, payload map[string]any) (map[string]any, error) {
 	functionName, err := c.runtimeLeaseFunctionName(action)
 	if err != nil {
 		return nil, err
 	}
 	requestPayload := mergeMaps(payload, map[string]any{
-		"engine_id": c.client.EngineID,
+		"engine_id": c.client.engineID,
 	})
 	if c.bindAuthority {
 		requestPayload["authority"] = c.authority
@@ -71,6 +102,9 @@ func (c *RuntimeLeaseClient) CreateWithOptions(
 		"replace": replace,
 	}
 	if options != nil {
+		if c.bindAuthority && (len(options.LuaRoots) > 0 || len(options.CRoots) > 0) {
+			return nil, fmt.Errorf("system runtime lease create does not accept lua_roots or c_roots")
+		}
 		if options.TTLSec != nil && *options.TTLSec > 0 {
 			payload["ttl_sec"] = *options.TTLSec
 		}
@@ -89,8 +123,19 @@ func (c *RuntimeLeaseClient) CreateWithOptions(
 		if options.Mounts != nil {
 			payload["mounts"] = options.Mounts
 		}
+		if c.bindAuthority && options.SystemPackage != nil {
+			payload["system_package"] = options.SystemPackage
+		}
 	}
-	result, err := c.CallRaw("create", payload)
+	if c.bindAuthority {
+		if options == nil || options.SystemPackage == nil {
+			return nil, fmt.Errorf("system runtime lease create requires system_package")
+		}
+		if options.SystemPackage.ID == "" || options.SystemPackage.Root == "" || options.SystemPackage.DependenciesFile == "" {
+			return nil, fmt.Errorf("system_package requires id, root, and dependencies_file")
+		}
+	}
+	result, err := c.CallRaw(RuntimeLeaseCreateAction, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +208,7 @@ func (c *RuntimeLeaseClient) EvalWithContext(
 	if generation != 0 {
 		payload["generation"] = generation
 	}
-	result, err := c.CallRaw("eval", payload)
+	result, err := c.CallRaw(RuntimeLeaseEvalAction, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +227,7 @@ func (c *RuntimeLeaseClient) Status(leaseID string, sid string, generation int) 
 	if generation != 0 {
 		payload["generation"] = generation
 	}
-	return c.CallRaw("status", payload)
+	return c.CallRaw(RuntimeLeaseStatusAction, payload)
 }
 
 // List lists active runtime leases and optionally filters by one SID.
@@ -192,7 +237,7 @@ func (c *RuntimeLeaseClient) List(sid string) (map[string]any, error) {
 	if sid != "" {
 		payload["sid"] = sid
 	}
-	return c.CallRaw("list", payload)
+	return c.CallRaw(RuntimeLeaseListAction, payload)
 }
 
 // ListHandles lists active runtime-lease handles rebuilt from the current lease listing payload.
@@ -246,7 +291,7 @@ func (c *RuntimeLeaseClient) Close(leaseID string, sid string, generation int) (
 	if generation != 0 {
 		payload["generation"] = generation
 	}
-	return c.CallRaw("close", payload)
+	return c.CallRaw(RuntimeLeaseCloseAction, payload)
 }
 
 // UsesSystemRuntimeLeaseEndpoints returns whether this helper will dispatch requests to dedicated system runtime-lease entrypoints.
@@ -260,12 +305,31 @@ func (c *RuntimeLeaseClient) UsesSystemRuntimeLeaseEndpoints() (bool, error) {
 
 // runtimeLeaseFunctionName resolves the concrete runtime-lease JSON FFI entrypoint name for one logical action.
 // runtimeLeaseFunctionName 为单个逻辑动作解析具体的运行时租约 JSON FFI 入口名称。
-func (c *RuntimeLeaseClient) runtimeLeaseFunctionName(action string) (string, error) {
-	publicName := "luaskills_ffi_runtime_lease_" + action + "_json"
+func (c *RuntimeLeaseClient) runtimeLeaseFunctionName(action RuntimeLeaseAction) (string, error) {
+	actionValue, err := runtimeLeaseActionValue(action)
+	if err != nil {
+		return "", err
+	}
+	publicName := "luaskills_ffi_runtime_lease_" + actionValue + "_json"
 	if !c.bindAuthority {
 		return publicName, nil
 	}
-	return "luaskills_ffi_system_runtime_lease_" + action + "_json", nil
+	return "luaskills_ffi_system_runtime_lease_" + actionValue + "_json", nil
+}
+
+// runtimeLeaseActionValue returns the validated raw action string used by native JSON FFI function names.
+// runtimeLeaseActionValue 返回原生 JSON FFI 函数名使用的已验证原始动作字符串。
+func runtimeLeaseActionValue(action RuntimeLeaseAction) (string, error) {
+	switch action {
+	case RuntimeLeaseCreateAction,
+		RuntimeLeaseEvalAction,
+		RuntimeLeaseStatusAction,
+		RuntimeLeaseListAction,
+		RuntimeLeaseCloseAction:
+		return string(action), nil
+	default:
+		return "", fmt.Errorf("unsupported runtime lease action: %s", action)
+	}
 }
 
 // RuntimeLeaseHandle is the stable host-side runtime-lease handle that carries lease identity guards automatically.

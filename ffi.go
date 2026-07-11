@@ -44,8 +44,14 @@ FfiOwnedBuffer luaskills_ffi_uninstall_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_uninstall_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_install_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_install_skill_json(FfiBorrowedBuffer input_json);
+// Install one private URL-manifest skill through the system-private JSON FFI endpoint.
+// 通过 system 私有 JSON FFI 入口安装单个私有 URL manifest 技能。
+FfiOwnedBuffer luaskills_ffi_system_private_install_skill_from_url_manifest_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_update_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_update_skill_json(FfiBorrowedBuffer input_json);
+// Update one private URL-manifest skill through the system-private JSON FFI endpoint.
+// 通过 system 私有 JSON FFI 入口更新单个私有 URL manifest 技能。
+FfiOwnedBuffer luaskills_ffi_system_private_update_skill_from_url_manifest_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_runtime_lease_create_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_runtime_lease_eval_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_runtime_lease_status_json(FfiBorrowedBuffer input_json);
@@ -56,6 +62,8 @@ FfiOwnedBuffer luaskills_ffi_system_runtime_lease_eval_json(FfiBorrowedBuffer in
 FfiOwnedBuffer luaskills_ffi_system_runtime_lease_status_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_runtime_lease_list_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_system_runtime_lease_close_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_managed_session_events_poll_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_managed_session_events_wait_json(FfiBorrowedBuffer input_json);
 */
 import "C"
 
@@ -64,14 +72,6 @@ import (
 	"fmt"
 	"unsafe"
 )
-
-// jsonEnvelope is the standard response wrapper returned by public JSON FFI functions.
-// jsonEnvelope 是公共 JSON FFI 函数返回的标准响应包络。
-type jsonEnvelope struct {
-	OK     bool            `json:"ok"`
-	Result json.RawMessage `json:"result"`
-	Error  string          `json:"error"`
-}
 
 // Version queries the public JSON FFI version without creating an engine.
 // Version 不创建引擎并查询公共 JSON FFI 版本。
@@ -169,10 +169,14 @@ func callJSON(functionName string, payload any, out any) error {
 		buffer = C.luaskills_ffi_install_skill_json(borrowed)
 	case "luaskills_ffi_system_install_skill_json":
 		buffer = C.luaskills_ffi_system_install_skill_json(borrowed)
+	case "luaskills_ffi_system_private_install_skill_from_url_manifest_json":
+		buffer = C.luaskills_ffi_system_private_install_skill_from_url_manifest_json(borrowed)
 	case "luaskills_ffi_update_skill_json":
 		buffer = C.luaskills_ffi_update_skill_json(borrowed)
 	case "luaskills_ffi_system_update_skill_json":
 		buffer = C.luaskills_ffi_system_update_skill_json(borrowed)
+	case "luaskills_ffi_system_private_update_skill_from_url_manifest_json":
+		buffer = C.luaskills_ffi_system_private_update_skill_from_url_manifest_json(borrowed)
 	case "luaskills_ffi_runtime_lease_create_json":
 		buffer = C.luaskills_ffi_runtime_lease_create_json(borrowed)
 	case "luaskills_ffi_runtime_lease_eval_json":
@@ -193,6 +197,10 @@ func callJSON(functionName string, payload any, out any) error {
 		buffer = C.luaskills_ffi_system_runtime_lease_list_json(borrowed)
 	case "luaskills_ffi_system_runtime_lease_close_json":
 		buffer = C.luaskills_ffi_system_runtime_lease_close_json(borrowed)
+	case "luaskills_ffi_managed_session_events_poll_json":
+		buffer = C.luaskills_ffi_managed_session_events_poll_json(borrowed)
+	case "luaskills_ffi_managed_session_events_wait_json":
+		buffer = C.luaskills_ffi_managed_session_events_wait_json(borrowed)
 	default:
 		return fmt.Errorf("unsupported JSON FFI function: %s", functionName)
 	}
@@ -220,18 +228,5 @@ func decodeJSONEnvelope(functionName string, buffer C.FfiOwnedBuffer, out any) e
 	if buffer.ptr != nil && buffer.len > 0 {
 		text = string(C.GoBytes(unsafe.Pointer(buffer.ptr), C.int(buffer.len)))
 	}
-	var envelope jsonEnvelope
-	if err := json.Unmarshal([]byte(text), &envelope); err != nil {
-		return err
-	}
-	if !envelope.OK {
-		if envelope.Error == "" {
-			envelope.Error = "unknown LuaSkills FFI error"
-		}
-		return fmt.Errorf("%s: %s", functionName, envelope.Error)
-	}
-	if out == nil {
-		return nil
-	}
-	return json.Unmarshal(envelope.Result, out)
+	return decodeJSONEnvelopeText(functionName, text, out)
 }

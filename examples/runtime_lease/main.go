@@ -161,7 +161,7 @@ return {
 	}
 	fmt.Println("Lease close result:", closedLease)
 
-	postClose, err := sessions.CallRaw("eval", map[string]any{
+	postClose, err := sessions.CallRaw(luaskills.RuntimeLeaseEvalAction, map[string]any{
 		"lease_id":   identity.LeaseID,
 		"sid":        identity.SID,
 		"generation": identity.Generation,

@@ -34,23 +34,51 @@ export LD_LIBRARY_PATH="/opt/luaskills-runtime/libs:${LD_LIBRARY_PATH}"
 
 ## Runtime Assets
 
-The Go SDK plans and consumes the shared SDK runtime manifest. It does not download release assets itself. Use the TypeScript or Python installer, or implement a host installer from the generated manifest. The shared manifest now points at:
+The repository includes a unified synchronization script that directly downloads LuaSkills FFI, Lua runtime packages, and VLDB without requiring the Python or TypeScript installer:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_assets.ps1 -Target all -Database vldb-controller -RuntimeRoot D:\runtime\luaskills
+```
+
+```bash
+RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
+```
+
+Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.5.0` by default and accept explicit release-version overrides.
+
+The Go SDK plans and consumes the shared SDK runtime manifest, while the repository scripts above directly download release assets. The shared manifest now points at:
 
 - `lua-runtime-packages-{platform}.tar.gz` from `LuaSkills/luaskills-packages`
 - `luaskills-ffi-sdk-{platform}.tar.gz` from `LuaSkills/luaskills`
+- optional managed Python, `uv`, Node.js, and `pnpm` paths under `runtime_root/dependencies/runtimes/...`
+
+Managed child runtimes support Windows x64, Linux x64/ARM64, and macOS x64/ARM64. Windows ARM is explicitly rejected before any download or target-directory creation. The repository also ships standalone fetch and layout-validation tools for hosts that prepare debug runtimes without a Python or TypeScript installer:
+
+The current exact managed dependency versions are Python `3.12.7`, uv `0.11.17`, Node.js `22.11.0`, and pnpm `9.15.0`. Package `dependencies.yaml` files must declare the same exact runtime and package-manager versions unless the host deliberately installs another supported version.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/fetch_managed_runtimes.ps1 -RuntimeRoot D:\runtime\luaskills -Target all
+python scripts/debug-tools/managed_runtime_layout_check.py D:\runtime\luaskills
+```
+
+```bash
+RUNTIME_ROOT=/opt/luaskills scripts/deps/fetch_managed_runtimes.sh all
+python3 scripts/debug-tools/managed_runtime_layout_check.py /opt/luaskills
+```
 
 By default, the shared manifest keeps LuaSkills core aligned with the SDK release and resolves runtime packages from the compatible `0.1` series by selecting the newest published patch automatically.
 
 ## Version Alignment
 
 - Keep the SDK and LuaSkills core on the same current release line whenever possible.
-- The current SDK defaults to LuaSkills core tag `v0.4.6`.
+- The current SDK defaults to LuaSkills core tag `v0.5.0`.
 - Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
 - SDK default host options now pass only `runtime_root`; LuaSkills derives `bin`, `libs`, `lua_packages`, `resources`, `skills`, `temp`, `dependencies`, `state`, `databases`, `config`, and `system_lua_lib`.
 - Host tools live directly under `runtime_root/bin`, not `runtime_root/bin/tools`.
 
 ```powershell
 npx @luaskills/sdk install-runtime --database none --runtime-root D:\runtime\luaskills
+npx @luaskills/sdk install-runtime --database none --managed-runtimes all --runtime-root D:\runtime\luaskills
 ```
 
 ```powershell
@@ -62,18 +90,22 @@ Go hosts can inspect the same asset plan:
 
 ```go
 manifest, err := luaskills.BuildRuntimeInstallManifest(luaskills.RuntimeInstallOptions{
-	RuntimeRoot:    "D:/runtime/luaskills",
-	Database:       luaskills.RuntimeDatabaseVldbDirect,
-	SkipLuaRuntime: false,
+	RuntimeRoot:      "D:/runtime/luaskills",
+	Database:         luaskills.RuntimeDatabaseVldbDirect,
+	SkipLuaRuntime:   false,
+	ManagedRuntimes: luaskills.ManagedRuntimeAll,
 })
 if err != nil {
 	panic(err)
 }
 
-hostOptions := luaskills.HostOptionsFromRuntimeManifest(manifest)
+hostOptions, err := luaskills.HostOptionsFromRuntimeManifest(manifest)
+if err != nil {
+	panic(err)
+}
 ```
 
-`DefaultHostOptions(runtimeRoot)` and `NewClient` automatically read `runtimeRoot/resources/luaskills-sdk-runtime-manifest.json` and merge `host_options_patch` when the manifest exists.
+`DefaultHostOptions(runtimeRoot)` returns host options plus an error. `DefaultHostOptions` and `NewClient` automatically read `runtimeRoot/resources/luaskills-sdk-runtime-manifest.json` and merge `host_options_patch` when the manifest exists. A missing manifest keeps SDK base defaults; a malformed manifest or host path that escapes `runtimeRoot` fails with a path-aware error.
 
 Database modes:
 
@@ -170,6 +202,7 @@ session, err := leases.CreateHandleWithOptions("demo-session", true, &luaskills.
 	TTLSec: &ttlSec,
 	CWD:    &cwd,
 	Mounts: map[string]any{"channel": "demo"},
+	SystemPackage: &luaskills.SystemRuntimePackage{ID: "debug-plugin", Root: "D:/runtime/luaskills/system_lua_lib/debug-plugin", DependenciesFile: "dependencies.json"},
 })
 if err != nil {
 	log.Fatal(err)
@@ -192,7 +225,8 @@ fmt.Println(result["result"])
 - When `HostResult.Kind == "change_set"`, hosts should decode `HostResult.Payload` into `RuntimeChangeSetPayload`.
 - Canonical `change_set` payloads now use file lifecycle records plus hunk-level `before + delete[] + insert[] + after` blocks for `modify` changes.
 - `create` and `delete` file records carry full-file `content`, while `rename` records carry `old_path` and `new_path`.
-- `CreateWithOptions` and `CreateHandleWithOptions` expose `cwd`, `workspace_root`, `lua_roots`, `c_roots`, and `mounts` for host-owned runtime-lease contexts.
+- Public leases accept `cwd`, `workspace_root`, `lua_roots`, `c_roots`, and `mounts`. System leases require `SystemPackage`, reject `lua_roots/c_roots`, and derive roots from the trusted package manifest.
+- `PollManagedSessionEvents`, `WaitManagedSessionEvents`, and `SetManagedSessionWakeCallback` expose the 0.5.0 managed-session event surface.
 - Go hosts should deploy the matching latest LuaSkills native library when using these APIs, because cgo links directly against the current exported symbol set.
 
 ## Authority And Management
@@ -295,7 +329,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.4.6`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.5.0`.
 
 For one unified ecosystem release, publish `LuaSkills/luaskills-packages` first, then publish `LuaSkills/luaskills`, and publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
@@ -309,8 +343,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.4.6
-git push origin v0.4.6
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

@@ -10,7 +10,7 @@ type ConfigClient struct {
 // List 列出扁平化配置记录，并可选限制到单个 skill id。
 func (c *ConfigClient) List(skillID string) ([]map[string]any, error) {
 	var result []map[string]any
-	payload := map[string]any{"engine_id": c.client.EngineID}
+	payload := map[string]any{"engine_id": c.client.engineID}
 	if skillID != "" {
 		payload["skill_id"] = skillID
 	}
@@ -23,7 +23,7 @@ func (c *ConfigClient) List(skillID string) ([]map[string]any, error) {
 func (c *ConfigClient) Get(skillID string, key string) (map[string]any, error) {
 	var result map[string]any
 	err := c.client.call("luaskills_ffi_skill_config_get_json", map[string]any{
-		"engine_id": c.client.EngineID,
+		"engine_id": c.client.engineID,
 		"skill_id":  skillID,
 		"key":       key,
 	}, &result)
@@ -35,7 +35,7 @@ func (c *ConfigClient) Get(skillID string, key string) (map[string]any, error) {
 func (c *ConfigClient) Set(skillID string, key string, value string) (map[string]any, error) {
 	var result map[string]any
 	err := c.client.call("luaskills_ffi_skill_config_set_json", map[string]any{
-		"engine_id": c.client.EngineID,
+		"engine_id": c.client.engineID,
 		"skill_id":  skillID,
 		"key":       key,
 		"value":     value,
@@ -48,7 +48,7 @@ func (c *ConfigClient) Set(skillID string, key string, value string) (map[string
 func (c *ConfigClient) Delete(skillID string, key string) (map[string]any, error) {
 	var result map[string]any
 	err := c.client.call("luaskills_ffi_skill_config_delete_json", map[string]any{
-		"engine_id": c.client.EngineID,
+		"engine_id": c.client.engineID,
 		"skill_id":  skillID,
 		"key":       key,
 	}, &result)
