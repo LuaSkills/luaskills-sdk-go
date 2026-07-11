@@ -52,6 +52,20 @@ The Go SDK plans and consumes the shared SDK runtime manifest, while the reposit
 - `luaskills-ffi-sdk-{platform}.tar.gz` from `LuaSkills/luaskills`
 - optional managed Python, `uv`, Node.js, and `pnpm` paths under `runtime_root/dependencies/runtimes/...`
 
+## Repository Structure
+
+The module root is the public `luaskills` package and contains exported API domains plus the thin native bridge required by Go build tags. Private implementation is isolated under `internal`:
+
+```text
+internal/protocol/       JSON FFI response-envelope decoding
+internal/runtimeassets/  Runtime-manifest path validation
+internal/sessionwake/    Concurrent managed-session wake callback ownership
+examples/                Independently buildable SDK examples
+scripts/                 Runtime asset and managed-runtime bootstrap tools
+```
+
+The cgo and no-cgo bridge files remain in the root package because they implement the same private functions behind mutually exclusive build tags. Internal packages never expose C types and cannot be imported by SDK consumers.
+
 Managed child runtimes support Windows x64, Linux x64/ARM64, and macOS x64/ARM64. Windows ARM is explicitly rejected before any download or target-directory creation. The repository also ships standalone fetch and layout-validation tools for hosts that prepare debug runtimes without a Python or TypeScript installer:
 
 The current exact managed dependency versions are Python `3.12.7`, uv `0.11.17`, Node.js `22.11.0`, and pnpm `9.15.0`. Package `dependencies.yaml` files must declare the same exact runtime and package-manager versions unless the host deliberately installs another supported version.

@@ -70,6 +70,7 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/LuaSkills/luaskills-sdk-go/internal/protocol"
 	"unsafe"
 )
 
@@ -228,5 +229,5 @@ func decodeJSONEnvelope(functionName string, buffer C.FfiOwnedBuffer, out any) e
 	if buffer.ptr != nil && buffer.len > 0 {
 		text = string(C.GoBytes(unsafe.Pointer(buffer.ptr), C.int(buffer.len)))
 	}
-	return decodeJSONEnvelopeText(functionName, text, out)
+	return protocol.DecodeEnvelope(functionName, text, out)
 }

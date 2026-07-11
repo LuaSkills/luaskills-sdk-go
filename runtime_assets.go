@@ -3,6 +3,7 @@ package luaskills
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/LuaSkills/luaskills-sdk-go/internal/runtimeassets"
 	"io"
 	"net/http"
 	"os"
@@ -465,7 +466,7 @@ func sanitizeRuntimeManifestPath(runtimeRoot string, value any, context string) 
 	}
 	candidatePath := pathText
 	if !filepath.IsAbs(candidatePath) {
-		if hasUnsafeRelativePathSegment(candidatePath) {
+		if runtimeassets.HasUnsafeRelativeSegment(candidatePath) {
 			return nil, fmt.Errorf("host_options_patch.%s must be a path inside runtime root", context)
 		}
 		candidatePath = filepath.Join(rootPath, candidatePath)
@@ -474,33 +475,11 @@ func sanitizeRuntimeManifestPath(runtimeRoot string, value any, context string) 
 	if err != nil {
 		return nil, fmt.Errorf("resolve host_options_patch.%s: %w", context, err)
 	}
-	if !pathInsideRoot(rootPath, candidatePath) {
+	if !runtimeassets.IsStrictlyInside(rootPath, candidatePath) {
 		return nil, fmt.Errorf("host_options_patch.%s escapes runtime root: %s", context, pathText)
 	}
 	normalized := normalizePath(candidatePath)
 	return &normalized, nil
-}
-
-// hasUnsafeRelativePathSegment returns whether one relative path contains ambiguous segments.
-// hasUnsafeRelativePathSegment 返回单个相对路径是否包含不明确片段。
-func hasUnsafeRelativePathSegment(pathText string) bool {
-	normalized := strings.ReplaceAll(pathText, "\\", "/")
-	for _, segment := range strings.Split(normalized, "/") {
-		if segment == "" || segment == "." || segment == ".." {
-			return true
-		}
-	}
-	return false
-}
-
-// pathInsideRoot returns whether one path is strictly inside one root directory.
-// pathInsideRoot 返回单个路径是否严格位于 root 目录内部。
-func pathInsideRoot(rootPath string, candidatePath string) bool {
-	relativePath, err := filepath.Rel(rootPath, candidatePath)
-	if err != nil {
-		return false
-	}
-	return relativePath != "." && relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator))
 }
 
 // decodeRuntimeInstallManifest decodes one runtime install manifest with path-aware diagnostics.

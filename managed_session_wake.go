@@ -31,13 +31,13 @@ import "C"
 
 import (
 	"fmt"
-	"sync"
+	"github.com/LuaSkills/luaskills-sdk-go/internal/sessionwake"
 	"unsafe"
 )
 
 // managedSessionWakeCallbacks owns live Go callbacks until native quiescent replacement completes.
 // managedSessionWakeCallbacks 在原生静默替换完成前持有存活的 Go 回调。
-var managedSessionWakeCallbacks sync.Map
+var managedSessionWakeCallbacks sessionwake.Registry
 
 // setNativeManagedSessionWakeCallback registers, replaces, or clears one engine-level wake callback.
 // setNativeManagedSessionWakeCallback 注册、替换或清除一个引擎级唤醒回调。
@@ -49,7 +49,7 @@ func setNativeManagedSessionWakeCallback(engineID uint64, callback ManagedSessio
 		enabled = 1
 		// Store before native registration because pending events may trigger catch-up before return.
 		// 在原生注册前保存，因为待处理事件可能在返回前触发补偿唤醒。
-		managedSessionWakeCallbacks.Store(engineID, callback)
+		managedSessionWakeCallbacks.Store(engineID, sessionwake.Callback(callback))
 	}
 	status := C.set_go_managed_session_wake_callback(C.uint64_t(engineID), enabled, &errorBuffer)
 	if status != 0 {
@@ -79,8 +79,7 @@ func goManagedSessionWake(engineID C.uint64_t, _ unsafe.Pointer, errorOut *C.Ffi
 	if !ok {
 		return 0
 	}
-	callback := callbackValue.(ManagedSessionWakeCallback)
-	if err := callback(uint64(engineID)); err != nil {
+	if err := callbackValue(uint64(engineID)); err != nil {
 		message := []byte(err.Error())
 		var cloneError C.FfiOwnedBuffer
 		var pointer *C.uint8_t

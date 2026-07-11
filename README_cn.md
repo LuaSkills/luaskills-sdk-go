@@ -52,6 +52,20 @@ Go SDK 会规划并消费共享 SDK runtime manifest；上述仓库脚本负责�
 - `LuaSkills/luaskills` 的 `luaskills-ffi-sdk-{platform}.tar.gz`
 - `runtime_root/dependencies/runtimes/...` 下可选的受管 Python、`uv`、Node.js 与 `pnpm` 路径
 
+## 仓库结构
+
+模块根目录是公共 `luaskills` package，保留导出的 API 领域以及 Go 构建标签要求的轻量原生桥。私有实现统一隔离在 `internal`：
+
+```text
+internal/protocol/       JSON FFI 响应包络解码
+internal/runtimeassets/  runtime manifest 路径校验
+internal/sessionwake/    并发受管会话唤醒回调所有权
+examples/                可独立构建的 SDK 示例
+scripts/                 运行时资产与受管运行时准备工具
+```
+
+cgo 与 no-cgo 桥接文件继续留在根 package，因为它们通过互斥构建标签实现同一组私有函数。内部 package 不暴露任何 C 类型，SDK 使用方也无法导入这些实现细节。
+
 受管子运行时支持 Windows x64、Linux x64/ARM64 与 macOS x64/ARM64。Windows ARM 会在任何下载或目标目录创建前被明确拒绝。仓库还分发独立拉取与布局校验工具，供不使用 Python 或 TypeScript 安装器的宿主准备 debug 运行时：
 
 当前受管依赖精确版本为 Python `3.12.7`、uv `0.11.17`、Node.js `22.11.0`、pnpm `9.15.0`。除非宿主有意安装其他受支持版本，否则包内 `dependencies.yaml` 必须声明相同的运行时与包管理器精确版本。
