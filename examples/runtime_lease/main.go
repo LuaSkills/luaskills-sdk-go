@@ -32,6 +32,16 @@ func exampleRuntimeRoot() string {
 func main() {
 	runtimeRoot := exampleRuntimeRoot()
 	skillRoots := luaskills.StandardRoots(runtimeRoot)
+	// systemPackageRoot is the trusted package root retained for the complete lease lifetime.
+	// systemPackageRoot 是在完整租约生命周期内保持可信的包根。
+	systemPackageRoot := filepath.Join(runtimeRoot, "system_lua_lib", "runtime-lease-example")
+	// systemPackage binds the stable package identity and exact dependency manifest.
+	// systemPackage 绑定稳定包身份与精确依赖清单。
+	systemPackage := &luaskills.SystemRuntimePackage{
+		ID:               "runtime-lease-example",
+		Root:             systemPackageRoot,
+		DependenciesFile: "dependencies.json",
+	}
 
 	client, err := luaskills.NewClient(luaskills.ClientOptions{
 		RuntimeRoot:         runtimeRoot,
@@ -68,12 +78,12 @@ func main() {
 	}
 	fmt.Println("Uses dedicated system runtime-lease endpoints:", usesSystemEndpoints)
 
-	systemLuaLib := filepath.Join(runtimeRoot, "system_lua_lib")
 	ttlSec := 600
 	session, err := sessions.CreateHandleWithOptions(runtimeSessionSID, true, &luaskills.RuntimeLeaseCreateOptions{
-		TTLSec: &ttlSec,
-		CWD:    &systemLuaLib,
-		Mounts: map[string]any{"example": "go-runtime-lease"},
+		TTLSec:        &ttlSec,
+		CWD:           &systemPackageRoot,
+		Mounts:        map[string]any{"example": "go-runtime-lease"},
+		SystemPackage: systemPackage,
 	})
 	if err != nil {
 		log.Fatal(err)
