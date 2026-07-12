@@ -412,38 +412,71 @@ func DefaultPoolConfig() map[string]any {
 	return map[string]any{"min_size": 1, "max_size": 4, "idle_ttl_secs": 60}
 }
 
+// DefaultManagedRuntimeConfig returns the stable managed Worker and persistent-session defaults.
+// DefaultManagedRuntimeConfig 返回稳定的受管 Worker 与持久会话默认值。
+func DefaultManagedRuntimeConfig() ManagedRuntimeConfig {
+	return ManagedRuntimeConfig{
+		WorkerPoolMaxSizePerEnvironment:                   4,
+		WorkerIdleTTLSecs:                                 60,
+		PersistentSessionLimitPerEngine:                   256,
+		PersistentSessionDefaultBufferLimitBytesPerStream: 1024 * 1024,
+		InvokeDefaultTimeoutMS:                            nil,
+	}
+}
+
+// validateManagedRuntimeResolveOptions validates host authority before any native FFI call.
+// validateManagedRuntimeResolveOptions 在任何原生 FFI 调用前校验宿主授权。
+//
+// The options parameter supplies the exact runtime family and absolute distribution root.
+// options 参数提供精确运行时类型与绝对发行根。
+//
+// The function returns nil for valid host input or one stable error without probing PATH.
+// 输入合法时返回 nil；否则在不探测 PATH 的情况下返回稳定错误。
+func validateManagedRuntimeResolveOptions(options ManagedRuntimeResolveOptions) error {
+	if options.Runtime != ManagedRuntimeKindPython && options.Runtime != ManagedRuntimeKindNode {
+		return fmt.Errorf("runtime must be either python or node")
+	}
+	if !filepath.IsAbs(options.DistributionRoot) {
+		return fmt.Errorf("distribution root must be an absolute path")
+	}
+	return nil
+}
+
 // DefaultHostOptions returns the SDK default host options for one runtime root.
 // DefaultHostOptions 返回单个 runtime root 对应的 SDK 默认宿主选项。
 func DefaultHostOptions(runtimeRoot string) (map[string]any, error) {
 	root := normalizePath(runtimeRoot)
 	baseOptions := map[string]any{
-		"runtime_root":            root,
-		"temp_dir":                nil,
-		"resources_dir":           nil,
-		"lua_packages_dir":        nil,
-		"host_provided_tool_root": nil,
-		"host_provided_lua_root":  nil,
-		"host_provided_ffi_root":  nil,
-		"system_lua_lib_dir":      nil,
-		"download_cache_root":     nil,
-		"dependency_dir_name":     "",
-		"state_dir_name":          "",
-		"database_dir_name":       "",
-		"skill_config_file_path":  nil,
-		"allow_network_download":  true,
-		"github_base_url":         nil,
-		"github_api_base_url":     nil,
-		"sqlite_library_path":     nil,
-		"sqlite_provider_mode":    "dynamic_library",
-		"sqlite_callback_mode":    "standard",
-		"lancedb_library_path":    nil,
-		"lancedb_provider_mode":   "dynamic_library",
-		"lancedb_callback_mode":   "standard",
-		"space_controller":        DefaultSpaceControllerOptions(),
-		"cache_config":            nil,
-		"runlua_pool_config":      nil,
-		"reserved_entry_names":    []string{},
-		"ignored_skill_ids":       []string{},
+		"runtime_root":                      root,
+		"managed_runtime_distribution_root": nil,
+		"managed_runtime_environment_root":  nil,
+		"managed_runtime_config":            DefaultManagedRuntimeConfig(),
+		"temp_dir":                          nil,
+		"resources_dir":                     nil,
+		"lua_packages_dir":                  nil,
+		"host_provided_tool_root":           nil,
+		"host_provided_lua_root":            nil,
+		"host_provided_ffi_root":            nil,
+		"system_lua_lib_dir":                nil,
+		"download_cache_root":               nil,
+		"dependency_dir_name":               "",
+		"state_dir_name":                    "",
+		"database_dir_name":                 "",
+		"skill_config_file_path":            nil,
+		"allow_network_download":            true,
+		"github_base_url":                   nil,
+		"github_api_base_url":               nil,
+		"sqlite_library_path":               nil,
+		"sqlite_provider_mode":              "dynamic_library",
+		"sqlite_callback_mode":              "standard",
+		"lancedb_library_path":              nil,
+		"lancedb_provider_mode":             "dynamic_library",
+		"lancedb_callback_mode":             "standard",
+		"space_controller":                  DefaultSpaceControllerOptions(),
+		"cache_config":                      nil,
+		"runlua_pool_config":                nil,
+		"reserved_entry_names":              []string{},
+		"ignored_skill_ids":                 []string{},
 		"capabilities": map[string]any{
 			"enable_skill_management_bridge": false,
 			"enable_managed_io_compat":       true,

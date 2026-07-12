@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
 ```
 
-目标支持 `all`、`luaskills`、`lua`、`vldb`；VLDB 模式支持 `none`、`vldb-controller`、`vldb-direct`、`host-callback`。脚本默认固定 LuaSkills `v0.5.0`，并允许显式覆盖发布版本。
+目标支持 `all`、`luaskills`、`lua`、`vldb`；VLDB 模式支持 `none`、`vldb-controller`、`vldb-direct`、`host-callback`。脚本默认固定 LuaSkills `v0.5.1`，并允许显式覆盖发布版本。
 
 Go SDK 会规划并消费共享 SDK runtime manifest；上述仓库脚本负责直接下载 release 资产。当前共享 manifest 会指向：
 
@@ -68,11 +68,44 @@ cgo 与 no-cgo 桥接文件继续留在根 package，因为它们通过互斥构
 
 受管子运行时支持 Windows x64、Linux x64/ARM64 与 macOS x64/ARM64。Windows ARM 会在任何下载或目标目录创建前被明确拒绝。仓库还分发独立拉取与布局校验工具，供不使用 Python 或 TypeScript 安装器的宿主准备 debug 运行时：
 
-当前受管依赖精确版本为 Python `3.14.4`、uv `0.11.28`、Node.js `24.18.0`、pnpm `11.11.0`。除非宿主有意安装其他受支持版本，否则包内 `dependencies.yaml` 必须声明相同的运行时与包管理器精确版本。
+当前受管依赖精确版本为 Python `3.14.6`、uv `0.11.28`、Node.js `24.18.0`、pnpm `11.11.0`。除非宿主有意安装其他受支持版本，否则包内 `dependencies.yaml` 必须声明相同的运行时与包管理器精确版本。
+
+LuaSkills 0.5.1 将 LuaSkills 数据根、只读解释器发行根和可写受管环境根拆分为三个边界。两个显式受管根都必须是绝对路径；未设置时继续使用兼容的 `runtime_root/dependencies/runtimes` 与 `runtime_root/dependencies/envs` 布局。
+
+```go
+invokeTimeoutMS := uint64(30_000)
+hostOptions := map[string]any{
+	"managed_runtime_distribution_root": "D:/VulcanCode/dependencies/runtimes",
+	"managed_runtime_environment_root":  "D:/VulcanCodeData/managed-runtime-envs",
+	"managed_runtime_config": luaskills.ManagedRuntimeConfig{
+		WorkerPoolMaxSizePerEnvironment:                   8,
+		WorkerIdleTTLSecs:                                 120,
+		PersistentSessionLimitPerEngine:                   128,
+		PersistentSessionDefaultBufferLimitBytesPerStream: 2 * 1024 * 1024,
+		InvokeDefaultTimeoutMS:                            &invokeTimeoutMS,
+	},
+}
+
+pythonInstall, err := luaskills.ResolveManagedRuntimeInstall(luaskills.ManagedRuntimeResolveOptions{
+	DistributionRoot: "D:/VulcanCode/dependencies/runtimes",
+	Runtime:          luaskills.ManagedRuntimeKindPython,
+	Version:          "3.14.6",
+	Platform:         "windows-x64",
+})
+if err != nil {
+	panic(err)
+}
+```
+
+`DefaultManagedRuntimeConfig()` 返回稳定引擎默认值：单个精确环境/包所有者池 `4` 个 Worker、空闲 `60` 秒、`256` 个持久会话、每个 Session 输出流 `1 MiB`，且默认 invoke 超时为 nil。需要有限引擎默认超时时，应复制该值并把 `InvokeDefaultTimeoutMS` 设置为正数 `*uint64`。所有配置数值必须为正；单次 `invoke.timeout_ms` 与单个 Session 的 `session.open.buffer_limit_bytes` 只覆盖各自对应的引擎默认值。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/fetch_managed_runtimes.ps1 -RuntimeRoot D:\runtime\luaskills -Target all
 python scripts/debug-tools/managed_runtime_layout_check.py D:\runtime\luaskills
+
+# 拆分宿主管理根
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/fetch_managed_runtimes.ps1 -RuntimeRoot D:\VulcanCodeData\luaskills -DistributionRoot D:\VulcanCode\dependencies\runtimes -Target all
+python scripts/debug-tools/managed_runtime_layout_check.py D:\VulcanCodeData\luaskills --distribution-root D:\VulcanCode\dependencies\runtimes --environment-root D:\VulcanCodeData\managed-runtime-envs
 ```
 
 ```bash
@@ -85,9 +118,9 @@ python3 scripts/debug-tools/managed_runtime_layout_check.py /opt/luaskills
 ## 版本对齐
 
 - 尽量让 SDK 与 LuaSkills core 保持同一条当前发布版本线。
-- 当前 SDK 默认指向 LuaSkills core 标签 `v0.5.0`。
+- 当前 SDK 默认指向 LuaSkills core 标签 `v0.5.1`。
 - runtime packages 与 native deps 仍然来自拆分后的 `LuaSkills/luaskills-packages` 及相关发布资产。
-- SDK 默认 host options 现在只传 `runtime_root`；LuaSkills 会自动推导 `bin`、`libs`、`lua_packages`、`resources`、`skills`、`temp`、`dependencies`、`state`、`databases`、`config` 与 `system_lua_lib`。
+- SDK 默认 host options 传入 `runtime_root`、两个空的受管根覆盖槽与完整稳定的 `managed_runtime_config`；宿主未显式覆盖时，LuaSkills 会推导固定数据布局。
 - 宿主工具直接放在 `runtime_root/bin`，不再放到 `runtime_root/bin/tools`。
 
 ```powershell
@@ -240,7 +273,7 @@ fmt.Println(result["result"])
 - canonical `change_set` 现在使用文件生命周期记录；`modify` 通过 hunk 级 `before + delete[] + insert[] + after` 表达具体修改。
 - `create` 与 `delete` 文件记录直接携带整文件 `content`，`rename` 记录携带 `old_path` 与 `new_path`。
 - 普通租约接受 `cwd`、`workspace_root`、`lua_roots`、`c_roots`、`mounts`。System 租约强制要求 `SystemPackage`，拒绝 `lua_roots/c_roots`，并从可信包清单推导根目录。
-- `PollManagedSessionEvents`、`WaitManagedSessionEvents`、`SetManagedSessionWakeCallback` 暴露 0.5.0 受管会话事件接口。
+- `PollManagedSessionEvents`、`WaitManagedSessionEvents`、`SetManagedSessionWakeCallback` 暴露 0.5.1 受管会话事件接口。
 - Go 宿主在使用这些 API 时应部署匹配的最新 LuaSkills 原生动态库，因为 cgo 会直接按当前导出符号集合完成链接。
 
 ## 权限与管理
@@ -343,7 +376,7 @@ go test ./...
 
 ## 发布
 
-发布版本记录在 `VERSION`。Go 用户通过 `v0.5.0` 这类 Go module tag 消费 SDK 版本。
+发布版本记录在 `VERSION`。Go 用户通过 `v0.5.1` 这类 Go module tag 消费 SDK 版本。
 
 如果要做生态统一发布，必须先发布 `LuaSkills/luaskills-packages`，再发布 `LuaSkills/luaskills`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
 
@@ -357,8 +390,8 @@ go test ./...
 推送匹配的 Go module tag 即完成 SDK 发布：
 
 ```powershell
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.5.1
+git push origin v0.5.1
 ```
 
 Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：

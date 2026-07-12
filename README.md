@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
 ```
 
-Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.5.0` by default and accept explicit release-version overrides.
+Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.5.1` by default and accept explicit release-version overrides.
 
 The Go SDK plans and consumes the shared SDK runtime manifest, while the repository scripts above directly download release assets. The shared manifest now points at:
 
@@ -68,11 +68,44 @@ The cgo and no-cgo bridge files remain in the root package because they implemen
 
 Managed child runtimes support Windows x64, Linux x64/ARM64, and macOS x64/ARM64. Windows ARM is explicitly rejected before any download or target-directory creation. The repository also ships standalone fetch and layout-validation tools for hosts that prepare debug runtimes without a Python or TypeScript installer:
 
-The current exact managed dependency versions are Python `3.14.4`, uv `0.11.28`, Node.js `24.18.0`, and pnpm `11.11.0`. Package `dependencies.yaml` files must declare the same exact runtime and package-manager versions unless the host deliberately installs another supported version.
+The current exact managed dependency versions are Python `3.14.6`, uv `0.11.28`, Node.js `24.18.0`, and pnpm `11.11.0`. Package `dependencies.yaml` files must declare the same exact runtime and package-manager versions unless the host deliberately installs another supported version.
+
+LuaSkills 0.5.1 separates the LuaSkills data root, read-only interpreter distribution root, and writable managed-environment root. Both explicit managed roots must be absolute; when omitted, LuaSkills keeps the compatible `runtime_root/dependencies/runtimes` and `runtime_root/dependencies/envs` layout.
+
+```go
+invokeTimeoutMS := uint64(30_000)
+hostOptions := map[string]any{
+	"managed_runtime_distribution_root": "D:/VulcanCode/dependencies/runtimes",
+	"managed_runtime_environment_root":  "D:/VulcanCodeData/managed-runtime-envs",
+	"managed_runtime_config": luaskills.ManagedRuntimeConfig{
+		WorkerPoolMaxSizePerEnvironment:                   8,
+		WorkerIdleTTLSecs:                                 120,
+		PersistentSessionLimitPerEngine:                   128,
+		PersistentSessionDefaultBufferLimitBytesPerStream: 2 * 1024 * 1024,
+		InvokeDefaultTimeoutMS:                            &invokeTimeoutMS,
+	},
+}
+
+pythonInstall, err := luaskills.ResolveManagedRuntimeInstall(luaskills.ManagedRuntimeResolveOptions{
+	DistributionRoot: "D:/VulcanCode/dependencies/runtimes",
+	Runtime:          luaskills.ManagedRuntimeKindPython,
+	Version:          "3.14.6",
+	Platform:         "windows-x64",
+})
+if err != nil {
+	panic(err)
+}
+```
+
+`DefaultManagedRuntimeConfig()` returns the stable engine defaults: `4` Workers per exact environment/package-owner pool, `60` idle seconds, `256` persistent sessions, `1 MiB` per session output stream, and a nil default invoke timeout. Copy that value and set `InvokeDefaultTimeoutMS` to a positive `*uint64` when a finite engine default is required. Every configured number must be positive; per-call `invoke.timeout_ms` and per-session `session.open.buffer_limit_bytes` override only their matching engine defaults.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/fetch_managed_runtimes.ps1 -RuntimeRoot D:\runtime\luaskills -Target all
 python scripts/debug-tools/managed_runtime_layout_check.py D:\runtime\luaskills
+
+# Split host-managed roots
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/fetch_managed_runtimes.ps1 -RuntimeRoot D:\VulcanCodeData\luaskills -DistributionRoot D:\VulcanCode\dependencies\runtimes -Target all
+python scripts/debug-tools/managed_runtime_layout_check.py D:\VulcanCodeData\luaskills --distribution-root D:\VulcanCode\dependencies\runtimes --environment-root D:\VulcanCodeData\managed-runtime-envs
 ```
 
 ```bash
@@ -85,9 +118,9 @@ By default, the shared manifest keeps LuaSkills core aligned with the SDK releas
 ## Version Alignment
 
 - Keep the SDK and LuaSkills core on the same current release line whenever possible.
-- The current SDK defaults to LuaSkills core tag `v0.5.0`.
+- The current SDK defaults to LuaSkills core tag `v0.5.1`.
 - Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
-- SDK default host options now pass only `runtime_root`; LuaSkills derives `bin`, `libs`, `lua_packages`, `resources`, `skills`, `temp`, `dependencies`, `state`, `databases`, `config`, and `system_lua_lib`.
+- SDK default host options pass `runtime_root`, null managed-root override slots, and the complete stable `managed_runtime_config`; LuaSkills derives the fixed data layout until the host explicitly overrides roots or policy.
 - Host tools live directly under `runtime_root/bin`, not `runtime_root/bin/tools`.
 
 ```powershell
@@ -240,7 +273,7 @@ fmt.Println(result["result"])
 - Canonical `change_set` payloads now use file lifecycle records plus hunk-level `before + delete[] + insert[] + after` blocks for `modify` changes.
 - `create` and `delete` file records carry full-file `content`, while `rename` records carry `old_path` and `new_path`.
 - Public leases accept `cwd`, `workspace_root`, `lua_roots`, `c_roots`, and `mounts`. System leases require `SystemPackage`, reject `lua_roots/c_roots`, and derive roots from the trusted package manifest.
-- `PollManagedSessionEvents`, `WaitManagedSessionEvents`, and `SetManagedSessionWakeCallback` expose the 0.5.0 managed-session event surface.
+- `PollManagedSessionEvents`, `WaitManagedSessionEvents`, and `SetManagedSessionWakeCallback` expose the 0.5.1 managed-session event surface.
 - Go hosts should deploy the matching latest LuaSkills native library when using these APIs, because cgo links directly against the current exported symbol set.
 
 ## Authority And Management
@@ -343,7 +376,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.5.0`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.5.1`.
 
 For one unified ecosystem release, publish `LuaSkills/luaskills-packages` first, then publish `LuaSkills/luaskills`, and publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
@@ -357,8 +390,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.5.1
+git push origin v0.5.1
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

@@ -16,6 +16,15 @@ func Describe() (map[string]any, error) {
 	return nil, errCgoRequired()
 }
 
+// ResolveManagedRuntimeInstall reports that the read-only resolver requires a cgo-enabled build.
+// ResolveManagedRuntimeInstall 报告只读解析器需要启用 cgo 的构建。
+func ResolveManagedRuntimeInstall(options ManagedRuntimeResolveOptions) (*ManagedRuntimeInstallDescriptor, error) {
+	if err := validateManagedRuntimeResolveOptions(options); err != nil {
+		return nil, err
+	}
+	return nil, errCgoRequired()
+}
+
 // callJSON reports that JSON FFI calls require a cgo-enabled build.
 // callJSON 报告 JSON FFI 调用需要启用 cgo 的构建。
 func callJSON(functionName string, payload any, out any) error {

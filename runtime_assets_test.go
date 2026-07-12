@@ -94,6 +94,94 @@ func TestDefaultHostOptionsAllowsMissingManifest(t *testing.T) {
 	if options["runtime_root"] != normalizePath(root) {
 		t.Fatalf("unexpected runtime root: %v", options["runtime_root"])
 	}
+	if value, exists := options["managed_runtime_distribution_root"]; !exists || value != nil {
+		t.Fatalf("unexpected managed runtime distribution root: %#v", value)
+	}
+	if value, exists := options["managed_runtime_environment_root"]; !exists || value != nil {
+		t.Fatalf("unexpected managed runtime environment root: %#v", value)
+	}
+	if value, exists := options["managed_runtime_config"]; !exists || value != DefaultManagedRuntimeConfig() {
+		t.Fatalf("unexpected managed runtime config: %#v", value)
+	}
+}
+
+// TestCreateEngineOptionsPreservesManagedRuntimeConfig verifies B3-B7 host overrides remain exact.
+// TestCreateEngineOptionsPreservesManagedRuntimeConfig 验证 B3-B7 宿主覆盖保持精确值。
+func TestCreateEngineOptionsPreservesManagedRuntimeConfig(t *testing.T) {
+	// TimeoutMS is a positive engine default retained by the pointer-valued JSON field.
+	// TimeoutMS 是由指针型 JSON 字段保留的正数引擎默认超时。
+	timeoutMS := uint64(15_000)
+	// Config uses nondefault values so an accidental SDK fallback remains observable.
+	// Config 使用非默认值，使 SDK 意外回退行为保持可观察。
+	config := ManagedRuntimeConfig{
+		WorkerPoolMaxSizePerEnvironment:                   8,
+		WorkerIdleTTLSecs:                                 90,
+		PersistentSessionLimitPerEngine:                   128,
+		PersistentSessionDefaultBufferLimitBytesPerStream: 2 * 1024 * 1024,
+		InvokeDefaultTimeoutMS:                            &timeoutMS,
+	}
+	// Options is built through the public SDK merge path used by real clients.
+	// Options 通过真实客户端使用的公开 SDK 合并路径构造。
+	options, err := CreateEngineOptions(
+		t.TempDir(),
+		map[string]any{"managed_runtime_config": config},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("unexpected engine options error: %v", err)
+	}
+	// HostOptions is the complete JSON object submitted to the native engine constructor.
+	// HostOptions 是提交到原生引擎构造器的完整 JSON 对象。
+	hostOptions := options["host_options"].(map[string]any)
+	if value := hostOptions["managed_runtime_config"]; value != config {
+		t.Fatalf("unexpected managed runtime config: %#v", value)
+	}
+}
+
+// TestResolveManagedRuntimeInstallRejectsInvalidInputs verifies validation precedes native lookup.
+// TestResolveManagedRuntimeInstallRejectsInvalidInputs 验证输入校验先于原生库查找。
+func TestResolveManagedRuntimeInstallRejectsInvalidInputs(t *testing.T) {
+	// AbsoluteRoot is a platform-native absolute path used to isolate runtime-name validation.
+	// AbsoluteRoot 是用于隔离运行时名称校验的平台原生绝对路径。
+	absoluteRoot := t.TempDir()
+	// TestCases covers an unknown runtime and a relative distribution authority independently.
+	// TestCases 分别覆盖未知运行时与相对发行授权。
+	testCases := []struct {
+		name    string
+		options ManagedRuntimeResolveOptions
+		want    string
+	}{
+		{
+			name: "unknown runtime",
+			options: ManagedRuntimeResolveOptions{
+				DistributionRoot: absoluteRoot,
+				Runtime:          ManagedRuntimeKind("ruby"),
+				Version:          "3.3.0",
+				Platform:         "windows-x64",
+			},
+			want: "runtime must be either python or node",
+		},
+		{
+			name: "relative distribution root",
+			options: ManagedRuntimeResolveOptions{
+				DistributionRoot: filepath.Join("relative", "runtimes"),
+				Runtime:          ManagedRuntimeKindPython,
+				Version:          "3.14.4",
+				Platform:         "windows-x64",
+			},
+			want: "distribution root must be an absolute path",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			// Error is returned before either the cgo bridge or no-cgo fallback can load a library.
+			// Error 会在 cgo 桥或 no-cgo 回退加载库之前返回。
+			_, err := ResolveManagedRuntimeInstall(testCase.options)
+			if err == nil || !strings.Contains(err.Error(), testCase.want) {
+				t.Fatalf("unexpected validation error: %v", err)
+			}
+		})
+	}
 }
 
 // TestCreateEngineOptionsPropagatesManifestErrors verifies malformed manifests fail the engine option path.

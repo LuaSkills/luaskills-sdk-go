@@ -20,6 +20,7 @@ typedef struct FfiOwnedBuffer {
 void luaskills_ffi_buffer_free(FfiOwnedBuffer value);
 FfiOwnedBuffer luaskills_ffi_version_json(void);
 FfiOwnedBuffer luaskills_ffi_describe_json(void);
+FfiOwnedBuffer luaskills_ffi_managed_runtime_resolve_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_engine_new_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_engine_free_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_load_from_roots_json(FfiBorrowedBuffer input_json);
@@ -94,6 +95,33 @@ func Describe() (map[string]any, error) {
 	return result, nil
 }
 
+// ResolveManagedRuntimeInstall resolves one host-shared managed runtime without creating an engine.
+// ResolveManagedRuntimeInstall 不创建引擎并解析一个由宿主共享的受管运行时。
+//
+// The options must contain an existing absolute distribution root, an exact python or node kind,
+// one semantic version, and one normalized LuaSkills platform key. The returned descriptor contains
+// canonical paths plus the manifest and executable SHA-256 identities validated by LuaSkills.
+// options 必须包含现有绝对发行根、精确 python 或 node 类型、语义化版本与规范化 LuaSkills 平台键。
+// 返回描述符包含 LuaSkills 校验后的规范路径、清单 SHA-256 身份与可执行文件 SHA-256 身份。
+func ResolveManagedRuntimeInstall(options ManagedRuntimeResolveOptions) (*ManagedRuntimeInstallDescriptor, error) {
+	if err := validateManagedRuntimeResolveOptions(options); err != nil {
+		return nil, err
+	}
+	// Descriptor comes from the authoritative Rust manifest and file-identity validator.
+	// Descriptor 来自权威 Rust 清单与文件身份校验器。
+	descriptor := &ManagedRuntimeInstallDescriptor{}
+	err := callJSON("luaskills_ffi_managed_runtime_resolve_json", map[string]any{
+		"distribution_root": normalizePath(options.DistributionRoot),
+		"runtime":           options.Runtime,
+		"version":           options.Version,
+		"platform":          options.Platform,
+	}, descriptor)
+	if err != nil {
+		return nil, err
+	}
+	return descriptor, nil
+}
+
 // callJSONNoInput calls one JSON FFI function that does not accept input.
 // callJSONNoInput 调用一个不接收输入的 JSON FFI 函数。
 func callJSONNoInput(functionName string, out any) error {
@@ -122,6 +150,8 @@ func callJSON(functionName string, payload any, out any) error {
 	}
 	var buffer C.FfiOwnedBuffer
 	switch functionName {
+	case "luaskills_ffi_managed_runtime_resolve_json":
+		buffer = C.luaskills_ffi_managed_runtime_resolve_json(borrowed)
 	case "luaskills_ffi_engine_new_json":
 		buffer = C.luaskills_ffi_engine_new_json(borrowed)
 	case "luaskills_ffi_engine_free_json":

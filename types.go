@@ -173,6 +173,82 @@ type RuntimeInvocationResult struct {
 	HostResult   *RuntimeHostResult `json:"host_result"`
 }
 
+// ManagedRuntimeKind identifies the host-selected managed interpreter family.
+// ManagedRuntimeKind 标识宿主选择的受管解释器类型。
+type ManagedRuntimeKind string
+
+const (
+	// ManagedRuntimeKindPython selects one managed CPython installation.
+	// ManagedRuntimeKindPython 选择一个受管 CPython 安装。
+	ManagedRuntimeKindPython ManagedRuntimeKind = "python"
+	// ManagedRuntimeKindNode selects one managed Node.js installation.
+	// ManagedRuntimeKindNode 选择一个受管 Node.js 安装。
+	ManagedRuntimeKindNode ManagedRuntimeKind = "node"
+)
+
+// ManagedRuntimeConfig is the host-selected managed Worker and persistent-session resource policy.
+// ManagedRuntimeConfig 是宿主选择的受管 Worker 与持久会话资源策略。
+type ManagedRuntimeConfig struct {
+	// WorkerPoolMaxSizePerEnvironment is the maximum live Worker count for one exact pool key.
+	// WorkerPoolMaxSizePerEnvironment 是单个精确池键的最大活动 Worker 数量。
+	WorkerPoolMaxSizePerEnvironment int `json:"worker_pool_max_size_per_environment"`
+	// WorkerIdleTTLSecs is the idle lifetime before one unused Worker may be retired.
+	// WorkerIdleTTLSecs 是未使用 Worker 可被回收前的空闲秒数。
+	WorkerIdleTTLSecs uint64 `json:"worker_idle_ttl_secs"`
+	// PersistentSessionLimitPerEngine bounds launching and live sessions owned by one engine.
+	// PersistentSessionLimitPerEngine 限制单个引擎拥有的启动中与活动会话数量。
+	PersistentSessionLimitPerEngine int `json:"persistent_session_limit_per_engine"`
+	// PersistentSessionDefaultBufferLimitBytesPerStream is the omitted session.open stream limit.
+	// PersistentSessionDefaultBufferLimitBytesPerStream 是 session.open 省略时的每流缓冲上限。
+	PersistentSessionDefaultBufferLimitBytesPerStream int `json:"persistent_session_default_buffer_limit_bytes_per_stream"`
+	// InvokeDefaultTimeoutMS is the omitted invoke timeout; nil means unlimited.
+	// InvokeDefaultTimeoutMS 是 invoke 省略时的超时；nil 表示无限制。
+	InvokeDefaultTimeoutMS *uint64 `json:"invoke_default_timeout_ms"`
+}
+
+// ManagedRuntimeResolveOptions identifies one host-shared managed runtime installation.
+// ManagedRuntimeResolveOptions 标识一个由宿主共享的受管运行时安装。
+type ManagedRuntimeResolveOptions struct {
+	// DistributionRoot is the existing absolute root that directly contains python and node.
+	// DistributionRoot 是直接包含 python 与 node 的现有绝对根。
+	DistributionRoot string
+	// Runtime is the exact managed interpreter family.
+	// Runtime 是精确受管解释器类型。
+	Runtime ManagedRuntimeKind
+	// Version is the exact semantic runtime version.
+	// Version 是精确语义化运行时版本。
+	Version string
+	// Platform is the exact normalized LuaSkills platform key.
+	// Platform 是精确规范化 LuaSkills 平台键。
+	Platform string
+}
+
+// ManagedRuntimeInstallDescriptor is one runtime installation validated by LuaSkills.
+// ManagedRuntimeInstallDescriptor 是一份经 LuaSkills 校验的运行时安装描述符。
+type ManagedRuntimeInstallDescriptor struct {
+	// Runtime is the exact managed interpreter family.
+	// Runtime 是精确受管解释器类型。
+	Runtime ManagedRuntimeKind `json:"runtime"`
+	// Version is the exact semantic runtime version.
+	// Version 是精确语义化运行时版本。
+	Version string `json:"version"`
+	// Platform is the normalized LuaSkills platform key.
+	// Platform 是规范化 LuaSkills 平台键。
+	Platform string `json:"platform"`
+	// InstallRoot is the canonical installation directory.
+	// InstallRoot 是规范安装目录。
+	InstallRoot string `json:"install_root"`
+	// Executable is the canonical interpreter executable path.
+	// Executable 是规范解释器可执行文件路径。
+	Executable string `json:"executable"`
+	// ManifestHash is the SHA-256 digest of runtime-manifest.json.
+	// ManifestHash 是 runtime-manifest.json 的 SHA-256 摘要。
+	ManifestHash string `json:"manifest_hash"`
+	// ExecutableHash is the SHA-256 digest of the interpreter executable.
+	// ExecutableHash 是解释器可执行文件的 SHA-256 摘要。
+	ExecutableHash string `json:"executable_hash"`
+}
+
 // ClientOptions controls creation of one LuaSkills client and native engine.
 // ClientOptions 控制单个 LuaSkills 客户端与原生引擎的创建。
 type ClientOptions struct {

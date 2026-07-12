@@ -17,7 +17,7 @@ import (
 
 // DefaultLuaSkillsVersion is the release tag used by SDK runtime installation.
 // DefaultLuaSkillsVersion 是 SDK 运行时安装使用的 LuaSkills 发布标签。
-const DefaultLuaSkillsVersion = "v0.5.0"
+const DefaultLuaSkillsVersion = "v0.5.1"
 
 // DefaultLuaSkillsPackagesSeries is the release series used by SDK runtime package installation.
 // DefaultLuaSkillsPackagesSeries 是 SDK 运行时 package 安装使用的 luaskills-packages 发布协议线。
@@ -37,7 +37,7 @@ const DefaultVldbLanceDBVersion = "v0.1.5"
 
 // DefaultManagedPythonVersion is the managed CPython version used by Lua-driven child runtimes.
 // DefaultManagedPythonVersion 是 Lua 调度子运行时使用的受管 CPython 版本。
-const DefaultManagedPythonVersion = "3.14.4"
+const DefaultManagedPythonVersion = "3.14.6"
 
 // DefaultManagedUvVersion is the standalone uv version used by managed Python.
 // DefaultManagedUvVersion 是受管 Python 使用的独立 uv 版本。
