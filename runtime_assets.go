@@ -25,11 +25,11 @@ const DefaultLuaSkillsPackagesSeries = "0.1"
 
 // DefaultVldbControllerVersion is the release tag used by SDK runtime installation.
 // DefaultVldbControllerVersion 是 SDK 运行时安装使用的 vldb-controller 发布标签。
-const DefaultVldbControllerVersion = "v0.2.1"
+const DefaultVldbControllerVersion = "v0.2.3"
 
 // DefaultVldbSQLiteVersion is the release tag used by SDK runtime installation.
 // DefaultVldbSQLiteVersion 是 SDK 运行时安装使用的 vldb-sqlite 发布标签。
-const DefaultVldbSQLiteVersion = "v0.1.5"
+const DefaultVldbSQLiteVersion = "v0.1.6"
 
 // DefaultVldbLanceDBVersion is the release tag used by SDK runtime installation.
 // DefaultVldbLanceDBVersion 是 SDK 运行时安装使用的 vldb-lancedb 发布标签。
