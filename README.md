@@ -6,7 +6,7 @@ Main LuaSkills repository: [LuaSkills/luaskills](https://github.com/LuaSkills/lu
 
 Go SDK for integrating the LuaSkills runtime through the public JSON FFI surface.
 
-`0.5.4` is the stable patch line. It preserves the `0.5.3` host API and defaults runtime assets to LuaSkills core `v0.5.4`, vldb-controller `v0.2.3`, and vldb-sqlite `v0.1.6`.
+`0.5.5` is the current release line. It adopts the strict package-level skill configuration contract and defaults runtime assets to LuaSkills core `v0.5.5`, vldb-controller `v0.2.3`, and vldb-sqlite `v0.1.6`.
 
 The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, provider callback boundaries, host-tool callback boundaries, and runtime manifest helpers.
 
@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
 ```
 
-Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.5.4` by default and accept explicit release-version overrides.
+Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.5.5` by default and accept explicit release-version overrides.
 
 The Go SDK plans and consumes the shared SDK runtime manifest, while the repository scripts above directly download release assets. The shared manifest now points at:
 
@@ -120,7 +120,7 @@ By default, the shared manifest keeps LuaSkills core aligned with the SDK releas
 ## Version Alignment
 
 - Keep the SDK and LuaSkills core on the same current release line whenever possible.
-- The current SDK defaults to LuaSkills core tag `v0.5.4`.
+- The current SDK defaults to LuaSkills core tag `v0.5.5`.
 - Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
 - SDK default host options pass `runtime_root`, null managed-root override slots, and the complete stable `managed_runtime_config`; LuaSkills derives the fixed data layout until the host explicitly overrides roots or policy.
 - Host tools live directly under `runtime_root/bin`, not `runtime_root/bin/tools`.
@@ -286,7 +286,42 @@ Query APIs should use `AuthorityDelegatedTool` by default, so ROOT skills are hi
 
 `CallSkill` and `RunLua` are runtime execution surfaces. They are not ROOT visibility filters.
 
-Skill config is a plain `skill_id + key` storage surface. Configuration only affects behavior when the Lua skill reads it.
+## Skill Package Config
+
+Configuration belongs to the effective skill package identified by `skill_id`, not to an individual entry inside that package. Packages declare their accepted keys, types, descriptions, defaults, and constraints in `skill.yaml`; `Set` rejects undeclared keys and values that do not satisfy the declaration.
+
+```go
+schema, err := client.Config.Describe(luaskills.SkillPackageConfigDescribeOptions{
+    SkillID: "example.settings",
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+status, err := client.Config.Validate("example.settings")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(schema, status.Complete)
+
+write, err := client.Config.SetValues(
+    "example.settings",
+    map[string]any{"api_key": "value", "retry_count": 3},
+    "",
+)
+if err != nil {
+    log.Fatal(err)
+}
+_, err = client.Config.Set("example.settings", "retry_count", 4, write.Revision)
+```
+
+Set `skill_config_root` in `ClientOptions.HostOptions` to an absolute user-level directory. LuaSkills stores ordinary and ROOT-owned package configuration separately under `skills/config.json` and `system-skills/config.json`. Every raw `List` entry includes `StoreScope`, so retained records with the same package id remain unambiguous across both files. Strict versioned documents use decimal-string revisions, cross-process companion locks, atomic replacement, cached snapshots, and file-watch reloads. Old unversioned documents are rejected.
+
+`Describe` exposes parameter names, stable types (`integer`, `string`, `float`, `enum`, and `boolean`), constraints, UI hints, package-authored enum metadata, effective-value state, and completeness. `DescribeInstalled` discovers every physical package without executing Lua. Package authors choose one language for human-readable fields; English is recommended but not enforced.
+
+Values are excluded by default. `IncludeValues: true` returns unmasked effective values. The host must allow, deny, replace, or ask the user to authorize disclosure and mutations; LuaSkills and this SDK intentionally do not implement that policy. Lua code can modify only its own package configuration, while host-level SDK calls are intentionally unrestricted.
+
+`SetValues` is the canonical atomic batch operation; `Set` wraps one key into that transaction. The revision argument enables compare-and-swap writes and deletes. `PollEvents`, `WaitEvents`, and `WatchEvents` expose ordered local-write and external-reload events. A missing configuration should be handled by showing `Describe` output and asking the user or an authorized AI tool for declared parameters. Configuration survives package uninstall; explicit cleanup belongs to the host.
 
 ## JSON Provider Callback
 
@@ -378,7 +413,7 @@ Full native FFI checks need `CGO_ENABLED=1` and a cgo-compatible compiler. On Wi
 
 ## Publishing
 
-The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.5.4`.
+The release version is stored in `VERSION`. Go users consume SDK versions through Go module tags such as `v0.5.5`.
 
 For one unified ecosystem release, publish `LuaSkills/luaskills-packages` first, then publish `LuaSkills/luaskills`, and publish the TypeScript SDK before the Go examples release flow because the Go examples workflow installs runtime assets through the published TypeScript package.
 
@@ -392,8 +427,8 @@ go test ./...
 Publish the SDK by pushing the matching Go module tag:
 
 ```powershell
-git tag v0.5.4
-git push origin v0.5.4
+git tag v0.5.5
+git push origin v0.5.5
 ```
 
 After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:

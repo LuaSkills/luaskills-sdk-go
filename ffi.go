@@ -32,9 +32,17 @@ FfiOwnedBuffer luaskills_ffi_prompt_argument_completions_json(FfiBorrowedBuffer 
 FfiOwnedBuffer luaskills_ffi_is_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_skill_name_for_tool_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_skill_config_list_json(FfiBorrowedBuffer input_json);
+// Describe declared package configuration structure through the public JSON FFI endpoint.
+// 通过公共 JSON FFI 端点描述已声明的技能包配置结构。
+FfiOwnedBuffer luaskills_ffi_skill_config_describe_json(FfiBorrowedBuffer input_json);
+// Validate one effective package configuration through the public JSON FFI endpoint.
+// 通过公共 JSON FFI 端点校验单个有效技能包配置。
+FfiOwnedBuffer luaskills_ffi_skill_config_validate_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_skill_config_get_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_skill_config_set_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_skill_config_delete_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_skill_config_refresh_json(FfiBorrowedBuffer input_json);
+FfiOwnedBuffer luaskills_ffi_skill_config_events_poll_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_call_skill_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_run_lua_json(FfiBorrowedBuffer input_json);
 FfiOwnedBuffer luaskills_ffi_disable_skill_json(FfiBorrowedBuffer input_json);
@@ -174,12 +182,20 @@ func callJSON(functionName string, payload any, out any) error {
 		buffer = C.luaskills_ffi_skill_name_for_tool_json(borrowed)
 	case "luaskills_ffi_skill_config_list_json":
 		buffer = C.luaskills_ffi_skill_config_list_json(borrowed)
+	case "luaskills_ffi_skill_config_describe_json":
+		buffer = C.luaskills_ffi_skill_config_describe_json(borrowed)
+	case "luaskills_ffi_skill_config_validate_json":
+		buffer = C.luaskills_ffi_skill_config_validate_json(borrowed)
 	case "luaskills_ffi_skill_config_get_json":
 		buffer = C.luaskills_ffi_skill_config_get_json(borrowed)
 	case "luaskills_ffi_skill_config_set_json":
 		buffer = C.luaskills_ffi_skill_config_set_json(borrowed)
 	case "luaskills_ffi_skill_config_delete_json":
 		buffer = C.luaskills_ffi_skill_config_delete_json(borrowed)
+	case "luaskills_ffi_skill_config_refresh_json":
+		buffer = C.luaskills_ffi_skill_config_refresh_json(borrowed)
+	case "luaskills_ffi_skill_config_events_poll_json":
+		buffer = C.luaskills_ffi_skill_config_events_poll_json(borrowed)
 	case "luaskills_ffi_call_skill_json":
 		buffer = C.luaskills_ffi_call_skill_json(borrowed)
 	case "luaskills_ffi_run_lua_json":

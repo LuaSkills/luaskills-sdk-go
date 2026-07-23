@@ -6,7 +6,7 @@ LuaSkills 主仓库：[LuaSkills/luaskills](https://github.com/LuaSkills/luaskil
 
 Go SDK，用于通过公共 JSON FFI 接入 LuaSkills 运行时。
 
-`0.5.4` 是当前稳定补丁版本。它保持 `0.5.3` 宿主 API 不变，并把运行时资产默认值切换到 LuaSkills core `v0.5.4`、vldb-controller `v0.2.3` 与 vldb-sqlite `v0.1.6`。
+`0.5.5` 是当前发布版本。它采用严格的技能包级配置契约，并把运行时资产默认值切换到 LuaSkills core `v0.5.5`、vldb-controller `v0.2.3` 与 vldb-sqlite `v0.1.6`。
 
 SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config、provider callback 边界、宿主工具 callback 边界与 runtime manifest 辅助能力。
 
@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
 ```
 
-目标支持 `all`、`luaskills`、`lua`、`vldb`；VLDB 模式支持 `none`、`vldb-controller`、`vldb-direct`、`host-callback`。脚本默认固定 LuaSkills `v0.5.4`，并允许显式覆盖发布版本。
+目标支持 `all`、`luaskills`、`lua`、`vldb`；VLDB 模式支持 `none`、`vldb-controller`、`vldb-direct`、`host-callback`。脚本默认固定 LuaSkills `v0.5.5`，并允许显式覆盖发布版本。
 
 Go SDK 会规划并消费共享 SDK runtime manifest；上述仓库脚本负责直接下载 release 资产。当前共享 manifest 会指向：
 
@@ -120,7 +120,7 @@ python3 scripts/debug-tools/managed_runtime_layout_check.py /opt/luaskills
 ## 版本对齐
 
 - 尽量让 SDK 与 LuaSkills core 保持同一条当前发布版本线。
-- 当前 SDK 默认指向 LuaSkills core 标签 `v0.5.4`。
+- 当前 SDK 默认指向 LuaSkills core 标签 `v0.5.5`。
 - runtime packages 与 native deps 仍然来自拆分后的 `LuaSkills/luaskills-packages` 及相关发布资产。
 - SDK 默认 host options 传入 `runtime_root`、两个空的受管根覆盖槽与完整稳定的 `managed_runtime_config`；宿主未显式覆盖时，LuaSkills 会推导固定数据布局。
 - 宿主工具直接放在 `runtime_root/bin`，不再放到 `runtime_root/bin/tools`。
@@ -286,7 +286,33 @@ fmt.Println(result["result"])
 
 `CallSkill` 与 `RunLua` 是运行时执行面，不作为 ROOT 可见性过滤。
 
-skill config 是普通的 `skill_id + key` 配置存储面。配置只有在 Lua skill 主动读取时才会影响行为。
+## 技能包配置
+
+配置归属于 `skill_id` 标识的有效技能包，而不是包内单个入口。宿主必须在 `ClientOptions.HostOptions` 中把 `skill_config_root` 设置为绝对用户级目录；普通技能包与 ROOT 所属技能包分别保存到 `skills/config.json` 和 `system-skills/config.json`。每条原始 `List` 记录都包含 `StoreScope`，因此两个文件中同名技能包的保留记录仍可明确区分。严格版本化文档使用十进制字符串修订号、跨进程伴随锁、原子替换、缓存快照与文件监听重载；旧的无版本文档会被拒绝。
+
+```go
+schema, err := client.Config.Describe(luaskills.SkillPackageConfigDescribeOptions{
+	SkillID: "example.settings",
+})
+status, err := client.Config.Validate("example.settings")
+write, err := client.Config.SetValues(
+	"example.settings",
+	map[string]any{"api_key": "value", "retry_count": 3},
+	"",
+)
+_, err = client.Config.Set(
+	"example.settings",
+	"retry_count",
+	4,
+	write.Revision,
+)
+```
+
+`Describe` 返回参数名、五种稳定类型、约束、UI 提示、技能包作者提供的枚举元数据、有效值状态与完整性；`DescribeInstalled` 可在不执行 Lua 的情况下发现全部物理技能包。人类可读字段由技能包作者自行选择一种语言，建议广泛分发时使用英文，但不强制。
+
+默认不返回配置值。`IncludeValues: true` 返回未遮罩有效值；宿主必须对读取和修改执行允许、拒绝、强制覆盖或用户授权策略，LuaSkills 与 SDK 不实现该策略。Lua 代码只能修改自身技能包配置，宿主 SDK 调用则有意不加跨包限制。
+
+`SetValues` 是规范的原子批量操作，`Set` 把单个键包装到同一事务。修订号参数为写入与删除启用比较并交换。`PollEvents`、`WaitEvents`、`WatchEvents` 提供有序的本地写入与外部重载事件。配置缺失时，应展示 `Describe` 结果，并要求用户或已授权 AI 工具提供声明中的参数。技能包卸载后配置仍会保留，显式清理由宿主负责。
 
 ## JSON Provider Callback
 
@@ -378,7 +404,7 @@ go test ./...
 
 ## 发布
 
-发布版本记录在 `VERSION`。Go 用户通过 `v0.5.4` 这类 Go module tag 消费 SDK 版本。
+发布版本记录在 `VERSION`。Go 用户通过 `v0.5.5` 这类 Go module tag 消费 SDK 版本。
 
 如果要做生态统一发布，必须先发布 `LuaSkills/luaskills-packages`，再发布 `LuaSkills/luaskills`；另外 Go 的 examples release 会通过已发布的 TypeScript 包安装 runtime 资产，因此 TypeScript SDK 也要先于 Go 示例工作流发布。
 
@@ -392,8 +418,8 @@ go test ./...
 推送匹配的 Go module tag 即完成 SDK 发布：
 
 ```powershell
-git tag v0.5.4
-git push origin v0.5.4
+git tag v0.5.5
+git push origin v0.5.5
 ```
 
 Go module tag 可用后，手动运行 GitHub Actions 里的 **Examples Release** 工作流。它会读取 `VERSION`，校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，运行 Go 示例冒烟测试，然后创建或更新 `examples-v{VERSION}` GitHub Release，并上传：
