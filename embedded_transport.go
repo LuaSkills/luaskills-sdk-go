@@ -172,6 +172,9 @@ type EmbeddedTransport struct {
 	// callbackPumps retain exact runtime owners and one independent native frame reservation per pump.
 	// callbackPumps 保留精确运行时所有者，并为每个泵预留一个独立原生帧。
 	callbackPumps map[string]*EmbeddedCallbackPump
+	// runtimeScopes retain exclusive slot-removal owners and their independent control-frame reservations.
+	// runtimeScopes 保留独占槽移除所有者及其独立控制帧预留。
+	runtimeScopes map[string]*EmbeddedRuntimeScope
 }
 
 // NewEmbeddedTransport validates config and allocates an independent root from the linked matching core.
@@ -364,7 +367,7 @@ func (t *EmbeddedTransport) Free() error {
 		t.mu.Unlock()
 		return &EmbeddedTransportError{"transport", EmbeddedNativeClosed}
 	}
-	if t.active != 0 || t.exclusive || len(t.results) != 0 || t.commandDriver != nil || len(t.callbackPumps) != 0 {
+	if t.active != 0 || t.exclusive || len(t.results) != 0 || t.commandDriver != nil || len(t.callbackPumps) != 0 || len(t.runtimeScopes) != 0 {
 		t.mu.Unlock()
 		return &EmbeddedTransportError{"transport", EmbeddedNativeBusy}
 	}

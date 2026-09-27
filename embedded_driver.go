@@ -223,6 +223,13 @@ func (d *EmbeddedCommandDriver) Submit(ctx context.Context, command EmbeddedInpu
 	if d.nextID == 0 {
 		return nil, &EmbeddedRuntimeError{"capacity_exceeded", "embedded receipt identity range is exhausted"}
 	}
+	// Scope adoption holds the same admission lock, so a queued free can never race into an adopted lifetime.
+	// 作用域接管持有相同入场锁，因此排队释放绝不会竞态进入已接管寿命。
+	if frozen["type"] == "runtime_free" {
+		if err := d.transport.checkUnmanagedRuntime(frozen["runtime_id"].(string)); err != nil {
+			return nil, err
+		}
+	}
 	receipt := &EmbeddedCommand{driver: d, identity: d.nextID, lane: lane, request: frame, state: EmbeddedCommandQueued, observed: make(chan struct{})}
 	d.nextID++
 	d.commands[receipt.identity] = receipt

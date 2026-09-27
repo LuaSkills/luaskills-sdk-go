@@ -34,7 +34,7 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 下游调用应传递提供的回调上下文或其派生上下文。受控回调依赖实现前，驱动提交及 SDK 等待拒绝该标记。主动丢弃上下文或直接调用非托管同步传输会绕过此护栏，它不是协程沙箱；非阻塞诊断及关闭请求仍可使用。
 
-`Unregister(ctx, registrationID)` 等待实际处理器返回、原生排空及元数据移除。`Close(ctx)` 退役全部已接纳注册并汇合实际处理器工作位，不强制终止应用代码。错误封闭新入场并保留所有权；`RetryAcknowledgements(ctx)` 显式释放保留缓冲，并根据精确请求、注册及操作证据核对失败确认，绝不重新运行处理器。仅请求解析器的 `INVALID_ARGUMENT` 已证明未分发时，允许一次保留原副作用证据的失败确认替换。注册、领取或退役响应丢失时保留原始所有权，不重放、不假定成功。`LiveEmbeddedCallbackPumps()` 保持可发现，传输 `Free()` 拒绝仍拥有的泵。恢复用于排空失败泵，不重新开放入场。拥有型运行时作用域仍在实施。
+`Unregister(ctx, registrationID)` 等待实际处理器返回、原生排空及元数据移除。`Close(ctx)` 退役全部已接纳注册并汇合实际处理器工作位，不强制终止应用代码。错误封闭新入场并保留所有权；`RetryAcknowledgements(ctx)` 显式释放保留缓冲，并根据精确请求、注册及操作证据核对失败确认，绝不重新运行处理器。仅请求解析器的 `INVALID_ARGUMENT` 已证明未分发时，允许一次保留原副作用证据的失败确认替换。注册、领取或退役响应丢失时保留原始所有权，不重放、不假定成功。`LiveEmbeddedCallbackPumps()` 保持可发现，传输 `Free()` 拒绝仍拥有的泵。恢复用于排空失败泵，不重新开放入场。下文运行时作用域负责有序关闭。
 
 `NewEmbeddedClient(driver)` 借用现有驱动器，提供 `EmbeddedRuntime`、`EmbeddedPlugin`、`EmbeddedPool`、`EmbeddedSession` 及 `EmbeddedOperation`。命令方法接受入场上下文，返回 `(*EmbeddedPending[T], error)`；`pending.Result(ctx)` 等待并按生成结果类型校验，`pending.DeliveredResult()` 只投影原始交付，可恢复释放失败前已经创建的句柄，不重放变更。`pending.Receipt()` 返回原驱动回执，`pending.Forget()` 仅归还 SDK 配额；句柄的 `Forget(ctx)` 或运行时 `Free(ctx)` 才操作核心记录。投影失败保留回执及原始字节，结果每次重新解码，不共享可变响应。
 
@@ -44,7 +44,15 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 `operation.Wait(ctx)` 使用 `EmbeddedDefaultPollInterval`，或以 `WaitInterval(ctx, 正 time.Duration)` 指定间隔。它通过短状态命令轮询，不占用阻塞原生等待工作位；仅 `succeeded/failed/cancelled` 属于终态，清理或取消意图不是完成。终态失败及取消作为包含副作用证据的快照返回；Go 错误表示入场、交付、投影或观察失败。成功只读轮询自动遗忘 SDK 回执，中断或失败的状态回执保留在 `client.Driver().Commands()`，调用方须观察并显式遗忘后归还配额。上下文超时不发送原生取消；用 `operation.Cancel(ctx)` 请求协作取消，并继续查询实际结束与迟到副作用。
 
-这些类型句柄借用驱动和运行时，不依赖 GC 清理。当前显式关闭顺序为停止业务提交、`runtime.RequestClose(ctx)`、排空回调泵、轮询 `runtime.Status(ctx)` 确认关闭、`runtime.Free(ctx)`，最后关闭驱动并处理回执、关闭及释放传输；每步交付失败均保留原证据。拥有型作用域将集中管理这条顺序以及超时后的持续清理。
+`NewEmbeddedRuntimeScope(runtime, pump, interval)` 现已集中管理原生关闭、回调排空、真实核心关闭及最终槽释放；没有回调泵时传入 `nil`，默认间隔使用 `EmbeddedDefaultPollInterval`。作用域拥有一个预先启动的控制协程及独立最坏响应预留，与普通驱动和泵共同核算数量／字节预算。即使普通驱动回执配额已满或驱动已关闭，作用域仍可独立清理；它借用驱动及传输，不会替其他运行时关闭这些共享对象。
+
+接管前须完成当前驱动命令并等待传输无活动调用或保留结果；已有泵的短轮询可能暂时返回忙错误。先创建泵，再把精确同一个实例传给作用域；不允许遗漏现有泵、跨传输或身份接管、重复作用域，或接管后再添加泵。清理帧在接管前按请求预算校验。驱动命令入场与作用域接管共享锁序，排队但尚未执行的释放也会阻止接管；接管之后，类型化 `Free` 和直接驱动 `runtime_free` 都被拒绝。同步底层传输属于非托管入口，调用方须自行遵守所有权边界。请通过构造器创建作用域且不要复制；GC 不替代清理。
+
+`scope.RequestClose()` 非阻塞启动清理；`scope.Close(ctx)` 即使观察上下文已经取消也启动同一条清理流程，随后等待实际完成和协调器退出。空上下文或回调标记会在启动前被拒绝。观察者超时／取消不释放处理器、运行时、响应预留，也不停止清理；可用 `Status()` 和 `LiveEmbeddedRuntimeScopes()` 查询保留所有者。关闭调用重复观察同一尝试；失败不会触发隐式重试。
+
+`scope.RetryClose(ctx)` 显式恢复保留分配、已接管泵的失败确认或已证明尚未进入变更的控制拒绝。原始成功回执即使释放失败，也先推进检查点；恢复后不会再次关闭或移除同一槽。原生请求入口容量拒绝和传输本地入口忙错误有明确未执行证据；只有核心释放命令的业务 `busy` 会因租约尚存而自动继续轮询。复制交付缺失、类型或身份错误、构造 `faulted`、协调器 panic／`Goexit` 均保留不确定所有权，不伪造成功、不授权重放。回调协调器已退出时不提供普通确认恢复。共享传输上的其他驱动或泵如有自己的暂停状态，仍须通过各自的恢复 API 继续。
+
+作用域成功关闭后再处理普通驱动回执、关闭驱动，并在全部作用域及泵排空后关闭和释放共享传输。未使用作用域的类型句柄仍由调用方显式依次请求原生关闭、排空泵、查询真实关闭、释放槽；每步交付失败须保留原始证据。
 
 包内契约还生成独立的 `EmbeddedInput*` 与 `EmbeddedOutput*` 类型、枚举常量、封闭命令分支及全部已声明响应解码器。`EncodeEmbeddedRequest` 冻结并校验类型化信封；调用方显式填写 `EmbeddedProtocolVersion` 和生成的命令判别值。`DecodeEmbeddedOutput*Response` 校验精确字段名、必需字段、枚举、整数位宽和已声明集合约束，不调用自定义序列化钩子。这是线结构校验；宿主完成的成功语义及运行时预算等业务规则，继续以核心校验为准。
 

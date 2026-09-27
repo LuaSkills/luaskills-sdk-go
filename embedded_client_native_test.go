@@ -36,11 +36,11 @@ func typedTake[T any](t *testing.T, pending *EmbeddedPending[T], submitErr error
 	return result
 }
 
-// nativeTypedRuntime constructs and initializes only through the public typed API and returns its package root.
-// nativeTypedRuntime 仅通过公开类型化 API 构造及初始化，并返回其包根目录。
+// nativeTypedRuntime uses the public typed API and returns the runtime, package root and explicit cleanup-transfer function.
+// nativeTypedRuntime 使用公开类型化 API，返回运行时、包根目录及显式清理转移函数。
 // Cleanup drains the exact runtime before the borrowed driver and transport are closed by earlier fixtures.
 // 清理先排空精确运行时，再由较早夹具关闭借用驱动器及传输。
-func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string) {
+func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string, func()) {
 	t.Helper()
 	// transport, driver and client establish separate native and SDK ownership boundaries.
 	// transport、driver 和 client 建立独立的原生与 SDK 所有权边界。
@@ -52,7 +52,13 @@ func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string) {
 	}
 	pending, err := client.Reserve(context.Background())
 	runtime := typedTake(t, pending, err)
+	// adopted explicitly transfers final native cleanup to a scope created by the calling test.
+	// adopted 将最终原生清理显式转移给调用测试创建的作用域。
+	adopted := false
 	t.Cleanup(func() {
+		if adopted {
+			return
+		}
 		embeddedRequest(t, transport, map[string]any{"type": "runtime_close", "runtime_id": runtime.RuntimeID()})
 		embeddedPoll(t, func() any {
 			return embeddedRequest(t, transport, map[string]any{"type": "runtime_status", "runtime_id": runtime.RuntimeID()})
@@ -83,7 +89,7 @@ func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string) {
 	}
 	registration, err := runtime.RegisterPlugin(context.Background(), "go-typed-test", EmbeddedInputEmbeddedPluginConfig{MaxRegisteredPools: budgets.MaxRegisteredPools, MaxSessions: budgets.MaxSessions, MaxResidentVms: budgets.MaxResidentVms, MaxRunningCalls: budgets.MaxRunningCalls, MaxQueuedCalls: budgets.MaxQueuedCalls, MaxQueuedBytes: budgets.MaxQueuedBytes, MaxOperations: budgets.MaxOperations})
 	typedTake(t, registration, err)
-	return runtime, packageRoot
+	return runtime, packageRoot, func() { adopted = true }
 }
 
 // typedPool registers source with explicit shared or dedicated-session policy and returns its acknowledged handle.
@@ -106,7 +112,7 @@ func typedPool(t *testing.T, runtime *EmbeddedRuntime, root, source string, sess
 func TestEmbeddedClientNativeCalls(t *testing.T) {
 	// runtime owns all call handles; each completed operation is explicitly forgotten.
 	// runtime 拥有全部调用句柄；每个已完成操作显式遗忘。
-	runtime, root := nativeTypedRuntime(t)
+	runtime, root, _ := nativeTypedRuntime(t)
 	pool := typedPool(t, runtime, root, "return {call=function(a) if a=='fail' then error('expected') end; return a end}", false)
 	for _, value := range []any{nil, false, json.Number("0.25"), "中文"} {
 		pending, err := pool.Submit(context.Background(), "call", value, EmbeddedInputLuaInvocationContext{}, 10000)
@@ -147,7 +153,7 @@ func TestEmbeddedClientNativeCalls(t *testing.T) {
 func TestEmbeddedClientNativeSession(t *testing.T) {
 	// opening retains both original identities from the single session reservation.
 	// opening 保留单次会话预留的两个原始身份。
-	runtime, root := nativeTypedRuntime(t)
+	runtime, root, _ := nativeTypedRuntime(t)
 	pool := typedPool(t, runtime, root, "local count=0; return {call=function(a) count=count+1; return count end}", true)
 	pending, err := pool.OpenSession(context.Background(), 10000)
 	opening := typedTake(t, pending, err)
@@ -202,7 +208,7 @@ func TestEmbeddedClientNativeSession(t *testing.T) {
 func TestEmbeddedClientNativeRecovery(t *testing.T) {
 	// original owns real native buffers; only the first post-fixture release is rejected.
 	// original 拥有真实原生缓冲；仅拒绝夹具建立后的首次释放。
-	runtime, root := nativeTypedRuntime(t)
+	runtime, root, _ := nativeTypedRuntime(t)
 	pool := typedPool(t, runtime, root, "return {call=function(a) return a end}", false)
 	transport := runtime.client.driver.transport
 	original := transport.native
@@ -259,7 +265,7 @@ func TestEmbeddedClientNativeRecovery(t *testing.T) {
 func TestEmbeddedClientNativeCancelledWait(t *testing.T) {
 	// started and finish keep the host function alive beyond a cancelled observer and cancellation request.
 	// started 和 finish 使宿主函数跨越已取消观察及取消请求继续存活。
-	runtime, root := nativeTypedRuntime(t)
+	runtime, root, _ := nativeTypedRuntime(t)
 	pump := nativePumpTest(t, runtime.client.driver.transport, runtime.RuntimeID(), EmbeddedCallbackPumpConfig{1, 2, 1})
 	started, finish := make(chan struct{}), make(chan struct{})
 	// release permits cleanup to signal the blocked handler even when an assertion fails.
