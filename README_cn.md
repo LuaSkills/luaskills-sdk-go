@@ -34,7 +34,17 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 下游调用应传递提供的回调上下文或其派生上下文。受控回调依赖实现前，驱动提交及 SDK 等待拒绝该标记。主动丢弃上下文或直接调用非托管同步传输会绕过此护栏，它不是协程沙箱；非阻塞诊断及关闭请求仍可使用。
 
-`Unregister(ctx, registrationID)` 等待实际处理器返回、原生排空及元数据移除。`Close(ctx)` 退役全部已接纳注册并汇合实际处理器工作位，不强制终止应用代码。错误封闭新入场并保留所有权；`RetryAcknowledgements(ctx)` 显式释放保留缓冲，并根据精确请求、注册及操作证据核对失败确认，绝不重新运行处理器。仅请求解析器的 `INVALID_ARGUMENT` 已证明未分发时，允许一次保留原副作用证据的失败确认替换。注册、领取或退役响应丢失时保留原始所有权，不重放、不假定成功。`LiveEmbeddedCallbackPumps()` 保持可发现，传输 `Free()` 拒绝仍拥有的泵。恢复用于排空失败泵，不重新开放入场。类型化运行时句柄及拥有型作用域仍在实施。
+`Unregister(ctx, registrationID)` 等待实际处理器返回、原生排空及元数据移除。`Close(ctx)` 退役全部已接纳注册并汇合实际处理器工作位，不强制终止应用代码。错误封闭新入场并保留所有权；`RetryAcknowledgements(ctx)` 显式释放保留缓冲，并根据精确请求、注册及操作证据核对失败确认，绝不重新运行处理器。仅请求解析器的 `INVALID_ARGUMENT` 已证明未分发时，允许一次保留原副作用证据的失败确认替换。注册、领取或退役响应丢失时保留原始所有权，不重放、不假定成功。`LiveEmbeddedCallbackPumps()` 保持可发现，传输 `Free()` 拒绝仍拥有的泵。恢复用于排空失败泵，不重新开放入场。拥有型运行时作用域仍在实施。
+
+`NewEmbeddedClient(driver)` 借用现有驱动器，提供 `EmbeddedRuntime`、`EmbeddedPlugin`、`EmbeddedPool`、`EmbeddedSession` 及 `EmbeddedOperation`。命令方法接受入场上下文，返回 `(*EmbeddedPending[T], error)`；`pending.Result(ctx)` 等待并按生成结果类型校验，`pending.DeliveredResult()` 只投影原始交付，可恢复释放失败前已经创建的句柄，不重放变更。`pending.Receipt()` 返回原驱动回执，`pending.Forget()` 仅归还 SDK 配额；句柄的 `Forget(ctx)` 或运行时 `Free(ctx)` 才操作核心记录。投影失败保留回执及原始字节，结果每次重新解码，不共享可变响应。
+
+用 `client.Reserve(ctx)` 取得实际槽身份，再以生成的 `EmbeddedInputLuaEngineOptions` 和 `EmbeddedInputEmbeddedRuntimeConfig` 调用 `runtime.Initialize(ctx, options, budgets)`。`RuntimeID()` 是 FFI 槽身份，状态里的 `CoreRuntimeId` 是另一层命名空间，不能混用。`client.Runtime(id)` 以及运行时上的 `Plugin/Pool/Session/Operation(id)` 可绑定已知非空精确身份，不探测或重新选择对象。配置由宿主显式提供；新的类型化入口不改变旧 `CreateEngineOptions` 的映射返回类型。
+
+池使用 `RegisterPool(ctx, definition, policy, permissions, executionRevision)` 注册不可变执行域。**先注册所需宿主能力，再注册池**：核心注册池时捕获能力快照，之后发布的新注册不会进入原池；需要使用新注册时创建新执行域并排空旧域。公共／专用、可复用／单次／固定会话模式由生成策略显式声明。`pool.Submit(ctx, export, arguments, invocation, timeoutMS)` 返回独立操作；`pool.OpenSession(ctx, timeoutMS)` 返回 `EmbeddedSessionOpen{Session, Initialization}`，必须单独查询初始化操作结果，之后由固定会话 `Submit` 维持模块状态。
+
+`operation.Wait(ctx)` 使用 `EmbeddedDefaultPollInterval`，或以 `WaitInterval(ctx, 正 time.Duration)` 指定间隔。它通过短状态命令轮询，不占用阻塞原生等待工作位；仅 `succeeded/failed/cancelled` 属于终态，清理或取消意图不是完成。终态失败及取消作为包含副作用证据的快照返回；Go 错误表示入场、交付、投影或观察失败。成功只读轮询自动遗忘 SDK 回执，中断或失败的状态回执保留在 `client.Driver().Commands()`，调用方须观察并显式遗忘后归还配额。上下文超时不发送原生取消；用 `operation.Cancel(ctx)` 请求协作取消，并继续查询实际结束与迟到副作用。
+
+这些类型句柄借用驱动和运行时，不依赖 GC 清理。当前显式关闭顺序为停止业务提交、`runtime.RequestClose(ctx)`、排空回调泵、轮询 `runtime.Status(ctx)` 确认关闭、`runtime.Free(ctx)`，最后关闭驱动并处理回执、关闭及释放传输；每步交付失败均保留原证据。拥有型作用域将集中管理这条顺序以及超时后的持续清理。
 
 包内契约还生成独立的 `EmbeddedInput*` 与 `EmbeddedOutput*` 类型、枚举常量、封闭命令分支及全部已声明响应解码器。`EncodeEmbeddedRequest` 冻结并校验类型化信封；调用方显式填写 `EmbeddedProtocolVersion` 和生成的命令判别值。`DecodeEmbeddedOutput*Response` 校验精确字段名、必需字段、枚举、整数位宽和已声明集合约束，不调用自定义序列化钩子。这是线结构校验；宿主完成的成功语义及运行时预算等业务规则，继续以核心校验为准。
 

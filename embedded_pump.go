@@ -122,8 +122,8 @@ type embeddedPumpMutation struct {
 	kind     string
 	frame    []byte
 	response []byte
-	// err and returned distinguish a failed delivery from adapter ownership whose return is unproven.
-	// err 和 returned 区分失败交付及尚未证明返回的适配器所有权。
+	// returned proves adapter return; err is published only after the coordinator cannot settle the retained mutation.
+	// returned 证明适配器返回；err 仅在协调器无法收尾保留变更后发布。
 	err      error
 	returned bool
 	// Exactly the owner required by kind is set before native entry; take owns the complete returned batch instead.
@@ -219,7 +219,7 @@ func LiveEmbeddedCallbackPumps() []*EmbeddedCallbackPump {
 func (p *EmbeddedCallbackPump) Status() EmbeddedCallbackPumpStatus {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	status := EmbeddedCallbackPumpStatus{RuntimeID: p.runtimeID, Ready: p.ready, Closing: p.closing, Closed: p.closed, PendingCommands: uint64(len(p.publications)), RecoveryRequired: p.needsRelease || p.pending != nil && p.pending.returned, Failure: cloneEmbeddedFailure(p.failure)}
+	status := EmbeddedCallbackPumpStatus{RuntimeID: p.runtimeID, Ready: p.ready, Closing: p.closing, Closed: p.closed, PendingCommands: uint64(len(p.publications)), RecoveryRequired: p.needsRelease || p.pending != nil && p.pending.err != nil, Failure: cloneEmbeddedFailure(p.failure)}
 	for id := range p.registrations {
 		status.RegistrationIDs = append(status.RegistrationIDs, id)
 	}

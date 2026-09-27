@@ -83,7 +83,7 @@ func (p *EmbeddedCallbackPump) attempt(mutation *embeddedPumpMutation) error {
 	p.mu.Unlock()
 	response, err := p.native(mutation.frame)
 	p.mu.Lock()
-	mutation.response, mutation.err, mutation.returned = response, cloneEmbeddedFailure(err), true
+	mutation.response, mutation.returned = response, true
 	p.mu.Unlock()
 	if err == nil {
 		err = p.applyMutation(mutation)
@@ -128,6 +128,13 @@ func (p *EmbeddedCallbackPump) attempt(mutation *embeddedPumpMutation) error {
 	if mutation.kind == "complete" {
 		mutation.request.ackFailed = true
 		p.pending = nil
+	}
+	// Publish recovery only after normal application and proven-rejection handling have finished.
+	// 仅在正常应用及已证明拒绝处理结束后发布恢复需求。
+	// Native return alone is observable progress, not evidence that automatic coordination has stalled.
+	// 仅原生返回表示可观察进度，不证明自动协调已经停滞。
+	if p.pending == mutation {
+		mutation.err = cloneEmbeddedFailure(err)
 	}
 	p.mu.Unlock()
 	p.fail(err)
