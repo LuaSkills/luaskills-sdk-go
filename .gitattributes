@@ -1,0 +1,4 @@
+contracts/embedded/** text eol=lf
+luaskills_ffi.h text eol=lf
+luaskills_json_ffi.h text eol=lf
+embedded_contract_generated.go text eol=lf

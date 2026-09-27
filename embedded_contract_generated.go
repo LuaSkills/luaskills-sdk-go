@@ -1,0 +1,54 @@
+// Code generated from the packaged embedded contract; DO NOT EDIT.
+// 从包内嵌入式契约生成；请勿手工编辑。
+package luaskills
+
+// EmbeddedProtocolVersion is the exact root JSON and C structure protocol version.
+// EmbeddedProtocolVersion 是精确的根 JSON 及 C 结构协议版本。
+const EmbeddedProtocolVersion uint32 = 1
+
+// EmbeddedContractSHA256 identifies every byte of the packaged contract.
+// EmbeddedContractSHA256 标识包内契约的全部字节。
+const EmbeddedContractSHA256 = "4962b82e6d37ec1822f4928f0fd44041bc7b45727e3c2eca2037a4eb15a34842"
+
+// EmbeddedNativeStatus is one exact signed C ABI status code.
+// EmbeddedNativeStatus 是一个精确的有符号 C ABI 状态码。
+type EmbeddedNativeStatus int32
+
+const (
+	// EmbeddedNativeBusy preserves the core's busy status.
+	// EmbeddedNativeBusy 保留核心的 busy 状态。
+	EmbeddedNativeBusy EmbeddedNativeStatus = 3
+	// EmbeddedNativeCapacityExceeded preserves the core's capacity_exceeded status.
+	// EmbeddedNativeCapacityExceeded 保留核心的 capacity_exceeded 状态。
+	EmbeddedNativeCapacityExceeded EmbeddedNativeStatus = 4
+	// EmbeddedNativeClosed preserves the core's closed status.
+	// EmbeddedNativeClosed 保留核心的 closed 状态。
+	EmbeddedNativeClosed EmbeddedNativeStatus = 5
+	// EmbeddedNativeInternal preserves the core's internal status.
+	// EmbeddedNativeInternal 保留核心的 internal 状态。
+	EmbeddedNativeInternal EmbeddedNativeStatus = 6
+	// EmbeddedNativeInvalidArgument preserves the core's invalid_argument status.
+	// EmbeddedNativeInvalidArgument 保留核心的 invalid_argument 状态。
+	EmbeddedNativeInvalidArgument EmbeddedNativeStatus = 1
+	// EmbeddedNativeNotFound preserves the core's not_found status.
+	// EmbeddedNativeNotFound 保留核心的 not_found 状态。
+	EmbeddedNativeNotFound EmbeddedNativeStatus = 2
+	// EmbeddedNativeOk preserves the core's ok status.
+	// EmbeddedNativeOk 保留核心的 ok 状态。
+	EmbeddedNativeOk EmbeddedNativeStatus = 0
+	// EmbeddedNativeUnsupported preserves the core's unsupported status.
+	// EmbeddedNativeUnsupported 保留核心的 unsupported 状态。
+	EmbeddedNativeUnsupported EmbeddedNativeStatus = 7
+)
+
+// EmbeddedRootCommands returns an independent copy of the authoritative command names.
+// EmbeddedRootCommands 返回权威命令名称的独立副本。
+func EmbeddedRootCommands() []string {
+	return []string{"describe", "runtime_reserve", "runtime_initialize", "runtime_status", "runtime_close", "runtime_free", "runtime"}
+}
+
+// EmbeddedRuntimeCommands returns an independent copy of the authoritative command names.
+// EmbeddedRuntimeCommands 返回权威命令名称的独立副本。
+func EmbeddedRuntimeCommands() []string {
+	return []string{"plugin_register", "plugin_status", "plugin_close", "plugin_forget", "pool_register", "pool_status", "pool_close", "pool_forget", "pool_revoke_permission", "call_submit", "session_open", "session_submit", "session_status", "session_close", "session_forget", "operation_status", "operation_wait", "operation_cancel", "operation_forget", "capabilities_register", "capabilities_list", "capability_status", "capability_unregister", "capability_forget", "host_requests_take", "host_request_status", "host_request_complete"}
+}

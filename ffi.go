@@ -3,7 +3,8 @@
 package luaskills
 
 /*
-#cgo LDFLAGS: -lluaskills
+#cgo !windows LDFLAGS: -lluaskills
+#cgo windows LDFLAGS: -l:luaskills.dll
 #include <stdint.h>
 #include <stdlib.h>
 

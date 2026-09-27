@@ -10,6 +10,20 @@ Go SDK for integrating the LuaSkills runtime through the public JSON FFI surface
 
 The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, provider callback boundaries, host-tool callback boundaries, and runtime manifest helpers.
 
+## Embedded runtime development API
+
+The development source adds `NewEmbeddedTransport` over the independent version-one C ABI. Link a matching development core containing the new exports; this does not claim that published `0.5.7` libraries support them. Versions and default runtime assets will move together after ecosystem acceptance. With `CGO_ENABLED=0`, contracts and codecs remain available while native construction returns an explicit error.
+
+Transport configuration explicitly bounds runtime count, response count, aggregate response bytes, per-response bytes and request bytes, then remains immutable. `Request(map[string]any)` synchronously freezes a command and returns actual delivery. Go integers retain all 64 bits; floats retain decimal/exponent markers. Decoded numbers are `json.Number`, never rounded through float64. Inputs support string-keyed maps, typed slices/arrays, scalars and explicitly JSON-tagged structs. Tags support names, `omitempty` and exclusion only; custom serialization hooks and implicit base64 are rejected. Duplicate decoded keys, invalid Unicode, cycles, extra envelope fields and numeric overflow are errors.
+
+`EmbeddedTransportError` and `EmbeddedRuntimeError` distinguish ABI failures from delivered business rejections. `EmbeddedResultReleaseError` retains copied response evidence: `ResponseBytes()` returns a fresh copy and `DeliveredResult()` decodes the original result. Release failure never authorizes mutation replay. `ReleaseResults()` retries only retained allocation releases and rejects active readers to prevent racing a copy.
+
+`Close()` requests admission closure. Close and remove actual runtimes and release buffers before `Free()` succeeds. Native execution never holds a global Go lock, so control calls can proceed concurrently. GC does not replace cleanup; `LiveEmbeddedTransports()` keeps owners discoverable. This low-level interface has no observer cancellation. Async receipt drivers, automatic callback pumps, typed runtime handles, complete wire-type generation and owning scopes remain under implementation; manual native queue tests do not claim those higher-level APIs are complete.
+
+`contracts/embedded/v1` and both root C headers are exact copies from the same upstream source. `go run ./scripts/generate-embedded-contract --check` verifies generated protocol constants, status codes and command metadata from the packaged contract without an adjacent checkout. Native tests require explicit `LUASKILLS_NATIVE_E2E=1` and matching library configuration. `python scripts/verify_embedded_distribution.py` verifies a real Go module ZIP through a private file proxy and empty module cache, including packaged generation and embedded tests. Use `--go` to select an installed toolchain. This validation version is never published externally.
+
+Windows cgo links `luaskills.dll` explicitly to avoid selecting an MSVC static archive in the same directory. Both the linker directory and runtime PATH must contain the matching DLL, following [GNU ld's Windows DLL rules](https://sourceware.org/binutils/docs/ld/WIN32.html). Go request bytes are borrowed only during the synchronous C call; responses are copied before release according to [cgo pointer rules](https://pkg.go.dev/cmd/cgo#hdr-Passing_pointers).
+
 ## Installation
 
 ```bash

@@ -10,6 +10,20 @@ Go SDK，用于通过公共 JSON FFI 接入 LuaSkills 运行时。
 
 SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config、provider callback 边界、宿主工具 callback 边界与 runtime manifest 辅助能力。
 
+## 嵌入式运行时开发接口
+
+当前开发源码新增 `NewEmbeddedTransport`，使用独立版本一 C ABI。必须链接包含这些新导出的匹配开发核心；本文不表示已发布的 `0.5.7` 动态库支持它们。正式版本和默认资产将随整个生态验收统一提升。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
+
+传输配置显式声明运行时数量、响应数量、聚合响应字节、单响应字节和请求字节上限，创建后不可变。`Request(map[string]any)` 同步冻结命令并返回真实交付；Go 整数保留全部 64 位，Go 浮点数保留小数／指数标记。解码数值为 `json.Number`，不经过 float64 舍入。输入支持字符串键映射、类型化切片／数组、普通标量及带显式 JSON 标签的结构体；标签仅支持名称、`omitempty` 和排除，不执行自定义序列化钩子，不隐式转成 base64。重复解码键、非法 Unicode、循环、额外信封字段及数值溢出被拒绝。
+
+`EmbeddedTransportError` 与 `EmbeddedRuntimeError` 分别表示 ABI 错误和已交付业务拒绝。`EmbeddedResultReleaseError` 保留复制响应；用 `ResponseBytes()` 获取独立副本，或用 `DeliveredResult()` 读取原结果。调用可能已经执行，不能因为释放失败重放变更。`ReleaseResults()` 只恢复实际保留的缓冲；活动读取者存在时明确拒绝，不能与复制竞争。
+
+`Close()` 请求关闭入场；仍须关闭并移除实际运行时、释放缓冲，最后 `Free()` 才能成功。原生调用期间不持有全局 Go 锁，控制调用可并发推进；GC 不替代关闭，`LiveEmbeddedTransports()` 保留可发现所有者。此低层接口不提供观察取消；异步回执驱动、自动回调泵、类型化运行时句柄、完整线类型生成及拥有型作用域继续实施，不能将本阶段手动队列验证当作这些高级接口已经完成。
+
+`contracts/embedded/v1` 和根目录两个 C 头文件均来自同一上游源码的精确副本。`go run ./scripts/generate-embedded-contract --check` 从包内契约验证生成的协议常量、状态码和命令元数据，不依赖相邻仓库。原生测试须显式设置 `LUASKILLS_NATIVE_E2E=1` 并配置匹配动态库。`python scripts/verify_embedded_distribution.py` 通过私有文件代理和空模块缓存验证实际 Go 模块 ZIP、包内生成及嵌入式测试；可用 `--go` 指定已安装工具链。该验证版本不会发布到外部注册表。
+
+Windows cgo 显式链接 `luaskills.dll`，避免链接器在同目录误选 MSVC 静态库；因此链接目录和运行时 PATH 都必须包含匹配 DLL。该行为依据 [GNU ld 的 Windows 动态库链接规则](https://sourceware.org/binutils/docs/ld/WIN32.html)。Go 字节仅在同步 C 请求期间借用，响应复制完成后才释放，遵守 [cgo 指针规则](https://pkg.go.dev/cmd/cgo#hdr-Passing_pointers)。
+
 ## 安装
 
 ```bash

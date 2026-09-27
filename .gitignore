@@ -24,6 +24,10 @@ profile.cov
 go.work
 go.work.sum
 
+# Local integration artifacts and matching native import libraries.
+# 本地集成产物及匹配的原生导入库。
+.temp/
+
 # env file
 .env
 
