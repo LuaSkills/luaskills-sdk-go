@@ -1881,6 +1881,54 @@ const (
 	EmbeddedOutputCapabilityScopeSession EmbeddedOutputCapabilityScope = "session"
 )
 
+// Immutable description of the exact linked core, usable without a transport or runtime.
+// 精确链接核心的不可变描述，无需传输或运行时即可使用。
+type EmbeddedOutputCoreDescription struct {
+	// Exact independent embedded ABI structure version.
+	// 精确独立嵌入式 ABI 结构版本。
+	AbiStructureVersion uint32 `json:"abi_structure_version"`
+	// Build input evidence; release manifests bind it to commits and signed artifact checksums separately.
+	// 构建输入证据；发布清单另将其关联到提交及签名产物摘要。
+	Build EmbeddedOutputEmbeddedBuildIdentity `json:"build"`
+	// Implemented semantic features; a name does not grant host permissions.
+	// 已实现语义功能；名称不授予宿主权限。
+	Capabilities EmbeddedOutputCoreDescriptionCapabilities `json:"capabilities"`
+	// Root command names shared with the exhaustive dispatcher.
+	// 与穷尽分发器共享的根命令名称。
+	Commands EmbeddedOutputCoreDescriptionCommands `json:"commands"`
+	// Cargo package version of this exact core.
+	// 此精确核心的 Cargo 包版本。
+	CoreVersion string `json:"core_version"`
+	// Version of this independent descriptor format.
+	// 此独立描述格式的版本。
+	DescriptionVersion uint32 `json:"description_version"`
+	// Actually implemented execution backends, excluding reserved unsupported variants.
+	// 实际已实现执行后端，不包含预留且不支持的取值。
+	ExecutionBackends EmbeddedOutputCoreDescriptionExecutionBackends `json:"execution_backends"`
+	// Exact embedded JSON protocol version.
+	// 精确嵌入式 JSON 协议版本。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Nested command names shared with the exhaustive dispatcher.
+	// 与穷尽分发器共享的嵌套命令名称。
+	RuntimeCommands EmbeddedOutputCoreDescriptionRuntimeCommands `json:"runtime_commands"`
+}
+
+// Implemented semantic features; a name does not grant host permissions.
+// 已实现语义功能；名称不授予宿主权限。
+type EmbeddedOutputCoreDescriptionCapabilities []string
+
+// Root command names shared with the exhaustive dispatcher.
+// 与穷尽分发器共享的根命令名称。
+type EmbeddedOutputCoreDescriptionCommands []string
+
+// Actually implemented execution backends, excluding reserved unsupported variants.
+// 实际已实现执行后端，不包含预留且不支持的取值。
+type EmbeddedOutputCoreDescriptionExecutionBackends []EmbeddedOutputExecutionBackend
+
+// Nested command names shared with the exhaustive dispatcher.
+// 与穷尽分发器共享的嵌套命令名称。
+type EmbeddedOutputCoreDescriptionRuntimeCommands []string
+
 // Host-reported effect outcome, independent from execution success or cancellation.
 // 宿主报告的副作用结果，独立于执行成功或取消。
 type EmbeddedOutputEffectState string
@@ -1902,6 +1950,54 @@ const (
 	// 副作用可能已发生；重试需要宿主特定的对账。
 	EmbeddedOutputEffectStateUnknown EmbeddedOutputEffectState = "unknown"
 )
+
+// Selected package and compiler input identities; binary authentication remains the release artifact's job.
+// 选定包及编译器输入身份；二进制认证仍由发布产物负责。
+type EmbeddedOutputEmbeddedBuildIdentity struct {
+	// Sorted Cargo feature environment suffixes; they are not reverse-mapped into guessed feature names.
+	// 排序后 Cargo 功能环境后缀；不反向映射为猜测功能名。
+	CargoFeatures EmbeddedOutputEmbeddedBuildIdentityCargoFeatures `json:"cargo_features"`
+	// Exact bundled embedded contract identity, independently checked by SDKs.
+	// 精确包内嵌入式契约身份，由 SDK 独立检查。
+	ContractSha256 string `json:"contract_sha256"`
+	// Cargo's debug-information setting, independent of optimization.
+	// Cargo 调试信息设置，独立于优化。
+	DebugInfo string `json:"debug_info"`
+	// SHA-256 of the exact machine-readable selected-input report emitted by build.rs.
+	// build.rs 输出的精确机器可读选定输入报告的 SHA-256。
+	InputsSha256 string `json:"inputs_sha256"`
+	// Actual Cargo optimization setting, not an inferred profile label.
+	// 实际 Cargo 优化设置，不推断配置名称。
+	OptLevel string `json:"opt_level"`
+	// Bundled package lockfile identity; a consuming Rust workspace may resolve a different dependency graph.
+	// 包内锁文件身份；消费它的 Rust 工作区可能解析出不同依赖图。
+	PackageLockSha256 string `json:"package_lock_sha256"`
+	// Cargo's target pointer width, preserved as its exact textual value.
+	// Cargo 目标指针位宽，保留其精确文本值。
+	PointerWidth string `json:"pointer_width"`
+	// The selected rustc executable's verbose version output.
+	// 所选 rustc 可执行文件的详细版本输出。
+	Rustc string `json:"rustc"`
+	// SHA-256 of Cargo's exact encoded additional compiler flags.
+	// Cargo 精确编码额外编译参数的 SHA-256。
+	RustflagsSha256 string `json:"rustflags_sha256"`
+	// SHA-256 of sorted package-relative input paths and their exact content hashes.
+	// 排序后包相对输入路径及其精确内容摘要的 SHA-256。
+	SourceSha256 string `json:"source_sha256"`
+	// Cargo's target triple for this build.
+	// 此构建的 Cargo 目标三元组。
+	Target string `json:"target"`
+	// Cargo's target architecture identity.
+	// Cargo 目标架构身份。
+	TargetArch string `json:"target_arch"`
+	// Cargo's target operating-system identity.
+	// Cargo 目标操作系统身份。
+	TargetOs string `json:"target_os"`
+}
+
+// Sorted Cargo feature environment suffixes; they are not reverse-mapped into guessed feature names.
+// 排序后 Cargo 功能环境后缀；不反向映射为猜测功能名。
+type EmbeddedOutputEmbeddedBuildIdentityCargoFeatures []string
 
 // Structured error; `code` is stable and `message` is an English diagnostic.
 // 结构化错误；`code` 稳定，`message` 为英文诊断信息。
@@ -2114,6 +2210,19 @@ const (
 	// Delivered structured core failure.
 	// 已交付结构化核心失败。
 	EmbeddedOutputErrorStatusError EmbeddedOutputErrorStatus = "error"
+)
+
+// Declared backend; unavailable variants are rejected instead of downgraded.
+// 声明的执行后端；不可用的取值直接拒绝，不降级。
+type EmbeddedOutputExecutionBackend string
+
+const (
+	// Execute in owned Lua VMs inside the current host process.
+	// 在当前宿主进程内的受管 Lua VM 中执行。
+	EmbeddedOutputExecutionBackendInProcess EmbeddedOutputExecutionBackend = "in_process"
+	// Reserved protocol identity; no worker backend is advertised yet.
+	// 预留的协议身份；目前尚未声明工作进程后端可用。
+	EmbeddedOutputExecutionBackendWorkerProcess EmbeddedOutputExecutionBackend = "worker_process"
 )
 
 // Actual handler lifecycle, separate from its reported business effect.
@@ -3054,7 +3163,14 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputCapabilityIdempotency]():                           {kind: "enum", values: []string{"none", "host_request"}},
 	embeddedWireType[EmbeddedOutputCapabilityRegistrationStatus]():                    {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputCapabilityScope]():                                 {kind: "enum", values: []string{"invocation", "session"}},
+	embeddedWireType[EmbeddedOutputCoreDescription]():                                 {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputCoreDescriptionCapabilities]():                     {kind: "array", unique: false},
+	embeddedWireType[EmbeddedOutputCoreDescriptionCommands]():                         {kind: "array", unique: false},
+	embeddedWireType[EmbeddedOutputCoreDescriptionExecutionBackends]():                {kind: "array", unique: false},
+	embeddedWireType[EmbeddedOutputCoreDescriptionRuntimeCommands]():                  {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputEffectState]():                                     {kind: "enum", values: []string{"not_started", "not_applicable", "committed", "rolled_back", "unknown"}},
+	embeddedWireType[EmbeddedOutputEmbeddedBuildIdentity]():                           {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputEmbeddedBuildIdentityCargoFeatures]():              {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputEmbeddedError]():                                   {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputEmbeddedErrorCode]():                               {kind: "enum", values: []string{"invalid_argument", "not_found", "stale_generation", "capacity_exceeded", "busy", "already_completed", "closed", "cancelled", "deadline_exceeded", "permission_denied", "unsupported", "execution_failed", "cleanup_failed", "internal"}},
 	embeddedWireType[EmbeddedOutputEmbeddedPluginConfig]():                            {kind: "object", additional: false},
@@ -3064,6 +3180,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputEmbeddedSessionSnapshot]():                         {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputErrorResponse]():                                   {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputErrorStatus]():                                     {kind: "enum", values: []string{"error"}},
+	embeddedWireType[EmbeddedOutputExecutionBackend]():                                {kind: "enum", values: []string{"in_process", "worker_process"}},
 	embeddedWireType[EmbeddedOutputHostEffectPhase]():                                 {kind: "enum", values: []string{"prepared", "running", "completed"}},
 	embeddedWireType[EmbeddedOutputHostEffectRecord]():                                {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputHostRequest]():                                     {kind: "object", additional: false},
@@ -3121,6 +3238,12 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputTransportDescription]():                            {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputTransportDescriptionCommands]():                    {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputTransportDescriptionRuntimeCommands]():             {kind: "array", unique: false},
+}
+
+// DecodeEmbeddedOutputCoreDescription validates standalone borrowed descriptor bytes without assuming an envelope.
+// DecodeEmbeddedOutputCoreDescription 校验独立借用型描述字节，不假定信封。
+func DecodeEmbeddedOutputCoreDescription(bytes []byte) (EmbeddedOutputCoreDescription, error) {
+	return decodeEmbeddedWireValue[EmbeddedOutputCoreDescription](bytes)
 }
 
 // DecodeEmbeddedOutputErrorResponse validates bytes and preserves required fields, nulls and exact numeric values.

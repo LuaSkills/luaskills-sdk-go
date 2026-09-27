@@ -8,7 +8,19 @@ const EmbeddedProtocolVersion uint32 = 1
 
 // EmbeddedContractSHA256 identifies every byte of the packaged contract.
 // EmbeddedContractSHA256 标识包内契约的全部字节。
-const EmbeddedContractSHA256 = "03674807fcd4ea0249915fd210eb5caeaa31e9ec6471feff1e3f39977876e9a1"
+const EmbeddedContractSHA256 = "dce1e3c949f3c45042e3b3d75c452f28bb8694e5e004b55082e58b1be28e8a7f"
+
+// EmbeddedCoreVersion identifies the core package that generated this contract.
+// EmbeddedCoreVersion 标识生成此契约的核心包。
+const EmbeddedCoreVersion = "0.5.9"
+
+// EmbeddedDescriptionVersion is the independent borrowed descriptor format.
+// EmbeddedDescriptionVersion 是独立借用型描述格式。
+const EmbeddedDescriptionVersion uint32 = 1
+
+// EmbeddedDescriptionMaxBytes bounds native descriptor copies before JSON decoding.
+// EmbeddedDescriptionMaxBytes 限制 JSON 解码前的原生描述复制。
+const EmbeddedDescriptionMaxBytes uint64 = 16384
 
 // EmbeddedNativeStatus is one exact signed C ABI status code.
 // EmbeddedNativeStatus 是一个精确的有符号 C ABI 状态码。
@@ -41,14 +53,20 @@ const (
 	EmbeddedNativeUnsupported EmbeddedNativeStatus = 7
 )
 
-// EmbeddedRootCommands returns an independent copy of the authoritative command names.
-// EmbeddedRootCommands 返回权威命令名称的独立副本。
+// EmbeddedRootCommands returns an independent copy of this authoritative name inventory.
+// EmbeddedRootCommands 返回此权威名称清单的独立副本。
 func EmbeddedRootCommands() []string {
 	return []string{"describe", "runtime_reserve", "runtime_initialize", "runtime_status", "runtime_close", "runtime_free", "runtime"}
 }
 
-// EmbeddedRuntimeCommands returns an independent copy of the authoritative command names.
-// EmbeddedRuntimeCommands 返回权威命令名称的独立副本。
+// EmbeddedRuntimeCommands returns an independent copy of this authoritative name inventory.
+// EmbeddedRuntimeCommands 返回此权威名称清单的独立副本。
 func EmbeddedRuntimeCommands() []string {
 	return []string{"plugin_register", "plugin_status", "plugin_close", "plugin_forget", "pool_register", "pool_status", "pool_close", "pool_forget", "pool_revoke_permission", "call_submit", "session_open", "session_submit", "session_status", "session_close", "session_forget", "operation_status", "operation_wait", "operation_cancel", "operation_forget", "capabilities_register", "capabilities_list", "capability_status", "capability_unregister", "capability_forget", "host_requests_take", "host_request_status", "host_request_complete"}
+}
+
+// EmbeddedRequiredCapabilities returns an independent copy of this authoritative name inventory.
+// EmbeddedRequiredCapabilities 返回此权威名称清单的独立副本。
+func EmbeddedRequiredCapabilities() []string {
+	return []string{"bounded_transports_v1", "plugin_budgets_v1", "shared_pools_v1", "dedicated_pools_v1", "fixed_sessions_v1", "host_request_queue_v1", "in_memory_effect_evidence_v1", "strict_json_v1"}
 }

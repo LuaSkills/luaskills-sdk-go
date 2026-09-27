@@ -27,6 +27,19 @@ type document struct {
 	// CoreVersion records the generating core, not a published-library compatibility claim.
 	// CoreVersion 记录生成核心，不声称已发布动态库兼容。
 	CoreVersion string `json:"core_version"`
+	// Compatibility records the core-owned borrowed-description contract and mandatory capabilities.
+	// Compatibility 记录核心拥有的借用型描述契约及必需能力。
+	Compatibility struct {
+		// DescriptionVersion identifies the independent descriptor format.
+		// DescriptionVersion 标识独立描述格式。
+		DescriptionVersion uint32 `json:"description_version"`
+		// MaxDescriptionBytes bounds copying before parsing metadata.
+		// MaxDescriptionBytes 限制解析元数据前的复制。
+		MaxDescriptionBytes uint64 `json:"max_description_bytes"`
+		// RequiredCapabilities lists the semantic requirements for this generated SDK contract.
+		// RequiredCapabilities 列出此生成 SDK 契约的语义要求。
+		RequiredCapabilities []string `json:"required_capabilities"`
+	} `json:"compatibility"`
 	// NativeStatus preserves authoritative ABI numbers.
 	// NativeStatus 保留权威 ABI 数值。
 	NativeStatus map[string]int32 `json:"native_status"`
@@ -80,6 +93,16 @@ func run(check bool) error {
 	if contract.ContractVersion != 1 || contract.ProtocolVersion != 1 || contract.CoreVersion == "" {
 		return fmt.Errorf("unsupported embedded contract metadata")
 	}
+	if contract.Compatibility.DescriptionVersion != 1 || contract.Compatibility.MaxDescriptionBytes == 0 || len(contract.Compatibility.RequiredCapabilities) == 0 {
+		return fmt.Errorf("unsupported embedded compatibility metadata")
+	}
+	capabilities := make(map[string]bool)
+	for _, name := range contract.Compatibility.RequiredCapabilities {
+		if name == "" || capabilities[name] {
+			return fmt.Errorf("invalid embedded compatibility capability inventory")
+		}
+		capabilities[name] = true
+	}
 	if err = checkNames(contract.Commands, contract.RootResponses, true); err != nil {
 		return err
 	}
@@ -103,6 +126,9 @@ func run(check bool) error {
 	output.WriteString("// Code generated from the packaged embedded contract; DO NOT EDIT.\n// 从包内嵌入式契约生成；请勿手工编辑。\npackage luaskills\n\n")
 	fmt.Fprintf(&output, "// EmbeddedProtocolVersion is the exact root JSON and C structure protocol version.\n// EmbeddedProtocolVersion 是精确的根 JSON 及 C 结构协议版本。\nconst EmbeddedProtocolVersion uint32 = %d\n", contract.ProtocolVersion)
 	fmt.Fprintf(&output, "// EmbeddedContractSHA256 identifies every byte of the packaged contract.\n// EmbeddedContractSHA256 标识包内契约的全部字节。\nconst EmbeddedContractSHA256 = %q\n", hash)
+	fmt.Fprintf(&output, "// EmbeddedCoreVersion identifies the core package that generated this contract.\n// EmbeddedCoreVersion 标识生成此契约的核心包。\nconst EmbeddedCoreVersion = %q\n", contract.CoreVersion)
+	fmt.Fprintf(&output, "// EmbeddedDescriptionVersion is the independent borrowed descriptor format.\n// EmbeddedDescriptionVersion 是独立借用型描述格式。\nconst EmbeddedDescriptionVersion uint32 = %d\n", contract.Compatibility.DescriptionVersion)
+	fmt.Fprintf(&output, "// EmbeddedDescriptionMaxBytes bounds native descriptor copies before JSON decoding.\n// EmbeddedDescriptionMaxBytes 限制 JSON 解码前的原生描述复制。\nconst EmbeddedDescriptionMaxBytes uint64 = %d\n", contract.Compatibility.MaxDescriptionBytes)
 	output.WriteString("// EmbeddedNativeStatus is one exact signed C ABI status code.\n// EmbeddedNativeStatus 是一个精确的有符号 C ABI 状态码。\ntype EmbeddedNativeStatus int32\nconst (\n")
 	for _, name := range names {
 		identifier := "EmbeddedNative"
@@ -123,8 +149,8 @@ func run(check bool) error {
 	for _, entry := range []struct {
 		name   string
 		values []string
-	}{{"EmbeddedRootCommands", contract.Commands}, {"EmbeddedRuntimeCommands", contract.RuntimeCommands}} {
-		fmt.Fprintf(&output, "// %s returns an independent copy of the authoritative command names.\n// %s 返回权威命令名称的独立副本。\nfunc %s() []string { return []string{", entry.name, entry.name, entry.name)
+	}{{"EmbeddedRootCommands", contract.Commands}, {"EmbeddedRuntimeCommands", contract.RuntimeCommands}, {"EmbeddedRequiredCapabilities", contract.Compatibility.RequiredCapabilities}} {
+		fmt.Fprintf(&output, "// %s returns an independent copy of this authoritative name inventory.\n// %s 返回此权威名称清单的独立副本。\nfunc %s() []string { return []string{", entry.name, entry.name, entry.name)
 		for _, value := range entry.values {
 			fmt.Fprintf(&output, "%q,", value)
 		}

@@ -227,6 +227,23 @@ func decodeEmbeddedWireEnvelope[T any](bytes []byte) (T, error) {
 	return result.Interface().(T), nil
 }
 
+// decodeEmbeddedWireValue projects a standalone decoded value through the same generated structural rules.
+// decodeEmbeddedWireValue 通过相同生成结构规则投影独立已解码值。
+// It returns owned data or a shape error; compatibility policy is evaluated separately before native creation.
+// 返回拥有型数据或形状错误；兼容策略在原生创建前单独判断。
+func decodeEmbeddedWireValue[T any](bytes []byte) (T, error) {
+	var empty T
+	decoded, err := DecodeEmbeddedJSON(bytes)
+	if err != nil {
+		return empty, err
+	}
+	result, err := projectEmbeddedWire(decoded, embeddedWireType[T](), "description")
+	if err != nil {
+		return empty, err
+	}
+	return result.Interface().(T), nil
+}
+
 // EncodeEmbeddedRequest freezes a generated input request within maxBytes and validates its exact declared shape.
 // EncodeEmbeddedRequest 在 maxBytes 内冻结生成输入请求，并校验其精确声明形状。
 // Optional nil pointers mean absence; a non-nil outer pointer can preserve an explicit inner null.

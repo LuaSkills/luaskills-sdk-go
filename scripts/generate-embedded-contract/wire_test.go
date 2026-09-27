@@ -45,7 +45,15 @@ func TestEmbeddedWireGeneration(t *testing.T) {
 	if !bytes.Equal(generated, saved) {
 		t.Fatal("generated wire source differs")
 	}
-	responses := 1 + len(contract["root_responses"].(map[string]any)) + len(contract["runtime_responses"].(map[string]any))
+	// Error envelopes and the standalone core description each require their own decoder.
+	// 错误信封和独立核心描述各自需要对应的解码器。
+	standalone := []string{"error_response", "core_description"}
+	for _, name := range standalone {
+		if _, exists := contract[name]; !exists {
+			t.Fatalf("missing required independent output schema: %s", name)
+		}
+	}
+	responses := len(standalone) + len(contract["root_responses"].(map[string]any)) + len(contract["runtime_responses"].(map[string]any))
 	if strings.Count(string(generated), "func DecodeEmbeddedOutput") != responses {
 		t.Fatal("response decoder coverage changed; compare current contract")
 	}

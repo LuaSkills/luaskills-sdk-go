@@ -550,7 +550,11 @@ func generateWire(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputRoots := map[string]map[string]any{"EmbeddedOutputErrorResponse": errorRoot}
+	coreDescription, err := wireObject(contract, "core_description")
+	if err != nil {
+		return nil, err
+	}
+	outputRoots := map[string]map[string]any{"EmbeddedOutputErrorResponse": errorRoot, "EmbeddedOutputCoreDescription": coreDescription}
 	for _, entry := range []struct{ key, prefix string }{{"root_responses", "EmbeddedOutputRoot"}, {"runtime_responses", "EmbeddedOutputRuntime"}} {
 		responses, err := wireObject(contract, entry.key)
 		if err != nil {
@@ -624,6 +628,10 @@ func generateWire(data []byte) ([]byte, error) {
 	}
 	output.WriteString("}\n")
 	for _, name := range wireKeys(outputRoots) {
+		if name == "EmbeddedOutputCoreDescription" {
+			fmt.Fprintf(&output, "// Decode%s validates standalone borrowed descriptor bytes without assuming an envelope.\n// Decode%s 校验独立借用型描述字节，不假定信封。\nfunc Decode%s(bytes []byte) (%s,error) { return decodeEmbeddedWireValue[%s](bytes) }\n", name, name, name, name, name)
+			continue
+		}
 		fmt.Fprintf(&output, "// Decode%s validates bytes and preserves required fields, nulls and exact numeric values.\n// Decode%s 校验 bytes，并保留必需字段、空值及精确数值。\n// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.\n// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。\nfunc Decode%s(bytes []byte) (%s,error) { return decodeEmbeddedWireEnvelope[%s](bytes) }\n", name, name, name, name, name)
 	}
 	// Parser declaration checks catch collisions between types, enum constants and decoder functions before writing.
