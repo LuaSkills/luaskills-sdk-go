@@ -14,6 +14,10 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 当前开发源码新增 `NewEmbeddedTransport`，使用独立版本一 C ABI。必须链接包含这些新导出的匹配开发核心；本文不表示已发布的 `0.5.7` 动态库支持它们。正式版本和默认资产将随整个生态验收统一提升。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
 
+原生分配前，构造器读取 `luaskills_ffi_embedded_describe_v1`，在复制前检查借用指针及长度边界，再检查精确核心／协议／ABI／描述版本、包内契约摘要、必需命令及能力、支持的后端、进程系统和指针位宽。畸形或不兼容元数据返回 `*EmbeddedCompatibilityError`；非零原生状态仍为 `*EmbeddedTransportError`。发现字节由动态库拥有，绝不交给结果释放函数。`CoreDescription()` 返回各切片独立复制的类型化证据，成功释放后仍可读取。构建摘要仅描述选定输入，不认证二进制，也不证明完整封闭构建。
+
+cgo 后端调用链接／加载时解析的符号；旧库缺少发现符号时，可能在 Go 代码执行前发生链接或系统加载失败，因此不能保证该情况总是转成 SDK 错误。没有旧协议回退或 SDK 卸载动态库操作。驱动协程复用传输保留的精确链接后端，不会按另一路径加载库。应使用不可变版本原生资产；在运行进程内替换核心不属于此 API 的更新契约。
+
 传输配置显式声明运行时数量、响应数量、聚合响应字节、单响应字节和请求字节上限，创建后不可变。`Request(map[string]any)` 同步冻结命令并返回真实交付；Go 整数保留全部 64 位，Go 浮点数保留小数／指数标记。解码数值为 `json.Number`，不经过 float64 舍入。输入支持字符串键映射、类型化切片／数组、普通标量及带显式 JSON 标签的结构体；标签仅支持名称、`omitempty` 和排除，不执行自定义序列化钩子，不隐式转成 base64。重复解码键、非法 Unicode、循环、额外信封字段及数值溢出被拒绝。
 
 `EmbeddedTransportError` 与 `EmbeddedRuntimeError` 分别表示 ABI 错误和已交付业务拒绝。`EmbeddedResultReleaseError` 保留复制响应；用 `ResponseBytes()` 获取独立副本，或用 `DeliveredResult()` 读取原结果。调用可能已经执行，不能因为释放失败重放变更。`ReleaseResults()` 只恢复实际保留的缓冲；活动读取者存在时明确拒绝，不能与复制竞争。

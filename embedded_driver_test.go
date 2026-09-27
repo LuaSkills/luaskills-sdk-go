@@ -2,6 +2,7 @@ package luaskills
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -56,6 +57,12 @@ type uncertainDriverNative struct {
 	// mode selects a worker panic or silent goroutine exit for ownership verification.
 	// mode 选择工作位 panic 或静默协程退出，以验证所有权。
 	mode string
+}
+
+// describe returns compatible synthetic metadata without calling a native library.
+// describe 返回兼容的合成元数据，不调用原生库。
+func (uncertainDriverNative) describe() ([]byte, error) {
+	return json.Marshal(embeddedDescriptionFixture())
 }
 
 // create returns a synthetic fixture identity without allocating native memory.

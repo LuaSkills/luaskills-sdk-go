@@ -116,6 +116,9 @@ type embeddedResult struct {
 // embeddedNative separates ABI memory access from synchronized Go ownership and permits controlled fault tests.
 // embeddedNative 将 ABI 内存访问与同步 Go 所有权分离，并支持受控故障测试。
 type embeddedNative interface {
+	// describe copies bounded library-owned metadata without constructing native ownership.
+	// describe 复制有界且由动态库拥有的元数据，不构造原生所有权。
+	describe() ([]byte, error)
 	// create allocates a root with explicit budgets and returns its exact identity and ABI status.
 	// create 按显式预算分配根，并返回精确身份及 ABI 状态。
 	create(EmbeddedTransportConfig) (uint64, EmbeddedNativeStatus)
@@ -154,6 +157,9 @@ type EmbeddedTransport struct {
 	// native is the exact linked implementation chosen at construction.
 	// native 是构造时选定的精确链接实现。
 	native embeddedNative
+	// description retains validated evidence and owns every nested slice independently of native storage.
+	// description 保留已校验证据，并独立于原生存储拥有全部嵌套切片。
+	description EmbeddedOutputCoreDescription
 	// identity becomes zero only after successful native removal.
 	// identity 仅在原生成功移除后变为零。
 	identity uint64
@@ -177,8 +183,8 @@ type EmbeddedTransport struct {
 	runtimeScopes map[string]*EmbeddedRuntimeScope
 }
 
-// NewEmbeddedTransport validates config and allocates an independent root from the linked matching core.
-// NewEmbeddedTransport 校验 config 并从链接的匹配核心分配独立根。
+// NewEmbeddedTransport validates config and core compatibility before allocating an independent root.
+// NewEmbeddedTransport 在分配独立根前校验 config 及核心兼容性。
 // It returns a strongly retained owner or an explicit cgo/native error; it creates no runtime or VM.
 // 返回强保留所有者或显式 cgo／原生错误；不创建运行时或 VM。
 func NewEmbeddedTransport(config EmbeddedTransportConfig) (*EmbeddedTransport, error) {
@@ -206,17 +212,25 @@ func validateEmbeddedConfig(config EmbeddedTransportConfig) error {
 	return nil
 }
 
-// createEmbeddedTransport allocates through native and retains the exact successful identity; errors leave no owner.
-// createEmbeddedTransport 通过 native 分配并保留精确成功身份；错误不产生所有者。
+// createEmbeddedTransport checks native description before allocation and retains the exact successful identity.
+// createEmbeddedTransport 在分配前检查原生描述，并保留精确成功身份。
 func createEmbeddedTransport(config EmbeddedTransportConfig, native embeddedNative) (*EmbeddedTransport, error) {
 	if err := validateEmbeddedConfig(config); err != nil {
+		return nil, err
+	}
+	encoded, err := native.describe()
+	if err != nil {
+		return nil, err
+	}
+	description, err := validateEmbeddedDescription(encoded)
+	if err != nil {
 		return nil, err
 	}
 	identity, status := native.create(config)
 	if status != EmbeddedNativeOk {
 		return nil, &EmbeddedTransportError{"luaskills_ffi_embedded_transport_new_v1", status}
 	}
-	transport := &EmbeddedTransport{config: config, native: native, identity: identity, results: make(map[uint64]embeddedResult)}
+	transport := &EmbeddedTransport{config: config, native: native, description: description, identity: identity, results: make(map[uint64]embeddedResult)}
 	embeddedTransports.Store(transport, struct{}{})
 	return transport, nil
 }
