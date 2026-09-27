@@ -169,6 +169,9 @@ type EmbeddedTransport struct {
 	// commandDriver owns fixed native frame reservations until all of its workers have safely exited.
 	// commandDriver 拥有固定原生帧预留，直到其全部工作位安全退出。
 	commandDriver *EmbeddedCommandDriver
+	// callbackPumps retain exact runtime owners and one independent native frame reservation per pump.
+	// callbackPumps 保留精确运行时所有者，并为每个泵预留一个独立原生帧。
+	callbackPumps map[string]*EmbeddedCallbackPump
 }
 
 // NewEmbeddedTransport validates config and allocates an independent root from the linked matching core.
@@ -353,15 +356,15 @@ func (t *EmbeddedTransport) ReleaseResults() error {
 
 // Free removes only a closed and drained root; failures leave identity and ownership available for cleanup.
 // Free 仅移除已关闭且排空的根；失败后身份及所有权仍可用于清理。
-// Active calls, readers, retained allocations or an owned driver reject before entering C.
-// 活动调用、读取者、保留分配或拥有的驱动器在进入 C 前即被拒绝。
+// Active calls, readers, retained allocations, drivers or callback pumps reject before entering C.
+// 活动调用、读取者、保留分配、驱动器或回调泵在进入 C 前即被拒绝。
 func (t *EmbeddedTransport) Free() error {
 	t.mu.Lock()
 	if t.identity == 0 {
 		t.mu.Unlock()
 		return &EmbeddedTransportError{"transport", EmbeddedNativeClosed}
 	}
-	if t.active != 0 || t.exclusive || len(t.results) != 0 || t.commandDriver != nil {
+	if t.active != 0 || t.exclusive || len(t.results) != 0 || t.commandDriver != nil || len(t.callbackPumps) != 0 {
 		t.mu.Unlock()
 		return &EmbeddedTransportError{"transport", EmbeddedNativeBusy}
 	}
@@ -393,9 +396,8 @@ func (t *EmbeddedTransport) claimCommandDriver(driver *EmbeddedCommandDriver) er
 	if t.active != 0 || t.exclusive || len(t.results) != 0 || t.commandDriver != nil {
 		return &EmbeddedRuntimeError{"busy", "embedded driver requires no active requests, retained allocations, driver or exclusive maintenance"}
 	}
-	slots := driver.config.WorkWorkers + embeddedControlWorkers
-	if slots > t.config.MaxResultBuffers || slots > t.config.MaxResultBytes/t.config.MaxResponseBytes {
-		return &EmbeddedRuntimeError{"capacity_exceeded", "transport cannot reserve worst-case response frames for all SDK workers"}
+	if err := t.checkAdditionalFramesLocked(driver.config.WorkWorkers + embeddedControlWorkers); err != nil {
+		return err
 	}
 	t.commandDriver = driver
 	return nil

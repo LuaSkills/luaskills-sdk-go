@@ -28,7 +28,13 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 `RequestClose()` 封闭新入场并排空已接纳队列。`Close(ctx)` 即使观察者已取消也会启动同样的排空，并等待真实工作位退出；超时不会销毁预先启动的关闭协调器。释放失败须显式恢复，排空才能继续。关闭驱动不关闭借用的原生运行时或传输；应在驱动关闭前通过控制命令关闭原生运行时，或在之后通过底层传输清理，再单独关闭和释放传输。`LiveEmbeddedCommandDrivers()` 保留仍有回执的已关闭驱动，直到全部已完成回执显式遗忘。工作位或恢复意外退出会返回 `EmbeddedDriverFailure`，保留不确定所有权，不宣称关闭成功、不授权重放；不确定命令绝不报告 `Done()`。
 
-自动回调泵、类型化运行时句柄及拥有型作用域仍在实施。驱动回调测试手动领取并完成原生队列，尚不提供自动 Go 回调适配器或回调依赖护栏。
+`NewEmbeddedCallbackPump(transport, runtimeID, config)` 现已提供自动 Go 队列回调。显式设置正数 `MaxConcurrentHandlers`、`MaxPendingCommands` 及 `PollIntervalMS`，注册前用 `Ready(ctx)` 观察实际启动。每个泵拥有一个顺序原生协调器及固定处理器协程；已返回但仍等待完成确认的处理器继续占额。驱动与泵共同核算响应预留。应在传输无活动调用及保留结果时创建所有者；每个精确运行时仅允许一个泵，该运行时全部队列注册均应经此泵管理。
+
+注册内容为包含生成队列描述符及 `EmbeddedHostHandler` 的 `EmbeddedHostCapability`。`Register(ctx, capabilities)` 在原生发布前冻结描述符并保留精确处理器；取消仅分离观察者，已接纳注册可通过 `Status()` 查找。处理器分开接收应用参数与 `EmbeddedHostCallbackContext`；后者实现 `context.Context`，提供可信调用方字段副本及首次核心取消。`RemainingMS()` 仅作参考，不伪造本地截止时间。变更型处理器的副作用初始为未知，应通过 `ReportEffects` 报告实际证据，处理器返回后封存。panic、`runtime.Goexit`、无效结果和任意错误转换为有界通用失败；有效 `EmbeddedRuntimeError` 的显式消息视为宿主授权披露。Lua 的 `vulcan.capabilities.call` 接收包含 `ok/value/error/effects` 的信封；正常返回该信封时，回调失败不自动变成外层 Lua 操作失败。
+
+下游调用应传递提供的回调上下文或其派生上下文。受控回调依赖实现前，驱动提交及 SDK 等待拒绝该标记。主动丢弃上下文或直接调用非托管同步传输会绕过此护栏，它不是协程沙箱；非阻塞诊断及关闭请求仍可使用。
+
+`Unregister(ctx, registrationID)` 等待实际处理器返回、原生排空及元数据移除。`Close(ctx)` 退役全部已接纳注册并汇合实际处理器工作位，不强制终止应用代码。错误封闭新入场并保留所有权；`RetryAcknowledgements(ctx)` 显式释放保留缓冲，并根据精确请求、注册及操作证据核对失败确认，绝不重新运行处理器。仅请求解析器的 `INVALID_ARGUMENT` 已证明未分发时，允许一次保留原副作用证据的失败确认替换。注册、领取或退役响应丢失时保留原始所有权，不重放、不假定成功。`LiveEmbeddedCallbackPumps()` 保持可发现，传输 `Free()` 拒绝仍拥有的泵。恢复用于排空失败泵，不重新开放入场。类型化运行时句柄及拥有型作用域仍在实施。
 
 包内契约还生成独立的 `EmbeddedInput*` 与 `EmbeddedOutput*` 类型、枚举常量、封闭命令分支及全部已声明响应解码器。`EncodeEmbeddedRequest` 冻结并校验类型化信封；调用方显式填写 `EmbeddedProtocolVersion` 和生成的命令判别值。`DecodeEmbeddedOutput*Response` 校验精确字段名、必需字段、枚举、整数位宽和已声明集合约束，不调用自定义序列化钩子。这是线结构校验；宿主完成的成功语义及运行时预算等业务规则，继续以核心校验为准。
 

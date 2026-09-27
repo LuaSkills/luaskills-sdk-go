@@ -32,7 +32,7 @@ def verify(go: str) -> None:
         if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(root):
             raise ValueError(f"Invalid module source member: {name}")
         sources[name] = source.read_bytes()
-    for required in ("go.mod", "embedded_contract_generated.go", "embedded_wire_generated.go", "embedded_wire.go", "embedded_driver.go", "embedded_command.go", "scripts/generate-embedded-contract/wire.go", "embedded_ffi_cgo.go", "luaskills_ffi.h", "luaskills_json_ffi.h", "contracts/embedded/v1/contract.json"):
+    for required in ("go.mod", "embedded_contract_generated.go", "embedded_wire_generated.go", "embedded_wire.go", "embedded_driver.go", "embedded_command.go", "embedded_callbacks.go", "embedded_pump.go", "embedded_pump_native.go", "embedded_pump_service.go", "embedded_ownership.go", "scripts/generate-embedded-contract/wire.go", "embedded_ffi_cgo.go", "luaskills_ffi.h", "luaskills_json_ffi.h", "contracts/embedded/v1/contract.json"):
         if required not in sources:
             raise ValueError(f"Missing distribution member: {required}")
     # This development-only version exists solely in the private file proxy, never in a public registry.

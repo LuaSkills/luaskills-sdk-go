@@ -178,8 +178,8 @@ func (d *EmbeddedCommandDriver) Status() EmbeddedDriverStatus {
 // Once accepted, caller cancellation never cancels execution or discards the receipt; operation_wait is unsupported.
 // 接纳后，调用方取消绝不取消执行或丢弃回执；不支持 operation_wait。
 func (d *EmbeddedCommandDriver) Submit(ctx context.Context, command EmbeddedInputCommand) (*EmbeddedCommand, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("embedded submission requires a context")
+	if err := checkEmbeddedObserver(ctx); err != nil {
+		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -391,8 +391,8 @@ func (d *EmbeddedCommandDriver) RequestClose() { d.mu.Lock(); d.requestCloseLock
 // Timeout keeps the prestarted coordinator alive; retained-release workers need explicit ReleaseResults to proceed.
 // 超时保持预先启动的协调器存活；保留释放的工作位需要显式 ReleaseResults 才能继续。
 func (d *EmbeddedCommandDriver) Close(ctx context.Context) error {
-	if ctx == nil {
-		return fmt.Errorf("embedded closure requires a context")
+	if err := checkEmbeddedObserver(ctx); err != nil {
+		return err
 	}
 	d.RequestClose()
 	if err := waitEmbeddedObservation(ctx, d.stopped); err != nil {
@@ -434,8 +434,8 @@ func (d *EmbeddedCommandDriver) awaitClose() {
 // ctx is checked before recovery starts; active readers cause Busy, and accepted synchronous recovery cannot be cancelled.
 // 恢复开始前检查 ctx；活动读取者导致忙错误，已接纳的同步恢复不能被取消。
 func (d *EmbeddedCommandDriver) ReleaseResults(ctx context.Context) (err error) {
-	if ctx == nil {
-		return fmt.Errorf("embedded recovery requires a context")
+	if err := checkEmbeddedObserver(ctx); err != nil {
+		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err

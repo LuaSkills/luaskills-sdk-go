@@ -146,8 +146,8 @@ func (c *EmbeddedCommand) Forget() error { return c.driver.forget(c) }
 // A nil context is invalid; an already cancelled observer fails even when a receipt is already available.
 // 空上下文无效；已经取消的观察者即使已有回执也会失败。
 func waitEmbeddedObservation(ctx context.Context, ready <-chan struct{}) error {
-	if ctx == nil {
-		return fmt.Errorf("embedded observation requires a context")
+	if err := checkEmbeddedObserver(ctx); err != nil {
+		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err
