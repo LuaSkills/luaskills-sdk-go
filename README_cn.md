@@ -18,7 +18,17 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 `EmbeddedTransportError` 与 `EmbeddedRuntimeError` 分别表示 ABI 错误和已交付业务拒绝。`EmbeddedResultReleaseError` 保留复制响应；用 `ResponseBytes()` 获取独立副本，或用 `DeliveredResult()` 读取原结果。调用可能已经执行，不能因为释放失败重放变更。`ReleaseResults()` 只恢复实际保留的缓冲；活动读取者存在时明确拒绝，不能与复制竞争。
 
-`Close()` 请求关闭入场；仍须关闭并移除实际运行时、释放缓冲，最后 `Free()` 才能成功。原生调用期间不持有全局 Go 锁，控制调用可并发推进；GC 不替代关闭，`LiveEmbeddedTransports()` 保留可发现所有者。此低层接口不提供观察取消；异步回执驱动、自动回调泵、类型化运行时句柄及拥有型作用域继续实施，不能将本阶段手动队列验证当作这些高级接口已经完成。
+`Close()` 请求关闭入场；仍须关闭并移除实际运行时、释放缓冲，最后 `Free()` 才能成功。原生调用期间不持有全局 Go 锁，控制调用可并发推进；GC 不替代关闭，`LiveEmbeddedTransports()` 保留可发现所有者。此同步低层接口不提供观察取消。
+
+`NewEmbeddedCommandDriver(transport, config)` 在借用传输上提供固定业务工作位和一个独立控制工作位。显式配置正数 `WorkWorkers`、`MaxWorkCommands` 与 `MaxControlCommands`；配额包含已完成但尚未 `Forget()` 的回执。构造要求没有活动请求、保留原生结果或既有驱动，且响应数量和累计字节足够容纳每个工作位的最大响应。这项预留覆盖驱动工作位；并发直接使用底层传输的占用需要调用方另行计算。Lua VM 并发仍由核心管理。
+
+`Submit(ctx, 生成命令)` 冻结并校验命令，按路由选择通道，在执行前发布 `EmbeddedCommand`。上下文只控制入场前取消。`Result(ctx)` 仅取消该观察者的等待；已接纳工作及回执仍被拥有，可通过 `Commands()` 查找。每个观察者获得独立结果、响应字节及保留公开错误副本；可使用对应生成响应解码器读取 `ResponseBytes()`。驱动拒绝原生 `operation_wait`，应轮询 `operation_status`，通过独立 `operation_cancel` 请求真实取消。
+
+原生结果释放失败时，所属工作位暂停并保留帧预留，回执返回 `EmbeddedResultReleaseError`。`driver.ReleaseResults(ctx)` 不占回执配额，仅重试保留缓冲释放，不重放命令；活动读取者存在时返回忙错误。恢复接纳后同步执行，上下文取消不能中断。恢复成功唤醒暂停工作位，原回执仍保留释放失败记录，`DeliveredResult()` 可读取原始交付。驱动拥有传输期间应使用驱动级恢复，以通知暂停工作位。
+
+`RequestClose()` 封闭新入场并排空已接纳队列。`Close(ctx)` 即使观察者已取消也会启动同样的排空，并等待真实工作位退出；超时不会销毁预先启动的关闭协调器。释放失败须显式恢复，排空才能继续。关闭驱动不关闭借用的原生运行时或传输；应在驱动关闭前通过控制命令关闭原生运行时，或在之后通过底层传输清理，再单独关闭和释放传输。`LiveEmbeddedCommandDrivers()` 保留仍有回执的已关闭驱动，直到全部已完成回执显式遗忘。工作位或恢复意外退出会返回 `EmbeddedDriverFailure`，保留不确定所有权，不宣称关闭成功、不授权重放；不确定命令绝不报告 `Done()`。
+
+自动回调泵、类型化运行时句柄及拥有型作用域仍在实施。驱动回调测试手动领取并完成原生队列，尚不提供自动 Go 回调适配器或回调依赖护栏。
 
 包内契约还生成独立的 `EmbeddedInput*` 与 `EmbeddedOutput*` 类型、枚举常量、封闭命令分支及全部已声明响应解码器。`EncodeEmbeddedRequest` 冻结并校验类型化信封；调用方显式填写 `EmbeddedProtocolVersion` 和生成的命令判别值。`DecodeEmbeddedOutput*Response` 校验精确字段名、必需字段、枚举、整数位宽和已声明集合约束，不调用自定义序列化钩子。这是线结构校验；宿主完成的成功语义及运行时预算等业务规则，继续以核心校验为准。
 

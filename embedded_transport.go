@@ -166,6 +166,9 @@ type EmbeddedTransport struct {
 	// results retains exact failed-release allocations until explicit successful recovery.
 	// results 保留精确释放失败分配，直到显式恢复成功。
 	results map[uint64]embeddedResult
+	// commandDriver owns fixed native frame reservations until all of its workers have safely exited.
+	// commandDriver 拥有固定原生帧预留，直到其全部工作位安全退出。
+	commandDriver *EmbeddedCommandDriver
 }
 
 // NewEmbeddedTransport validates config and allocates an independent root from the linked matching core.
@@ -350,15 +353,15 @@ func (t *EmbeddedTransport) ReleaseResults() error {
 
 // Free removes only a closed and drained root; failures leave identity and ownership available for cleanup.
 // Free 仅移除已关闭且排空的根；失败后身份及所有权仍可用于清理。
-// Active calls, readers or retained allocations reject before entering C.
-// 活动调用、读取者或保留分配在进入 C 前即被拒绝。
+// Active calls, readers, retained allocations or an owned driver reject before entering C.
+// 活动调用、读取者、保留分配或拥有的驱动器在进入 C 前即被拒绝。
 func (t *EmbeddedTransport) Free() error {
 	t.mu.Lock()
 	if t.identity == 0 {
 		t.mu.Unlock()
 		return &EmbeddedTransportError{"transport", EmbeddedNativeClosed}
 	}
-	if t.active != 0 || t.exclusive || len(t.results) != 0 {
+	if t.active != 0 || t.exclusive || len(t.results) != 0 || t.commandDriver != nil {
 		t.mu.Unlock()
 		return &EmbeddedTransportError{"transport", EmbeddedNativeBusy}
 	}
@@ -376,6 +379,37 @@ func (t *EmbeddedTransport) Free() error {
 		return &EmbeddedTransportError{"luaskills_ffi_embedded_transport_free_v1", status}
 	}
 	embeddedTransports.Delete(t)
+	return nil
+}
+
+// claimCommandDriver reserves worst-case frames before driver workers start; counts and multiplication are checked safely.
+// claimCommandDriver 在驱动器工作位启动前预留最坏情况帧；安全校验数量及乘法边界。
+func (t *EmbeddedTransport) claimCommandDriver(driver *EmbeddedCommandDriver) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.identity == 0 {
+		return &EmbeddedTransportError{"transport", EmbeddedNativeClosed}
+	}
+	if t.active != 0 || t.exclusive || len(t.results) != 0 || t.commandDriver != nil {
+		return &EmbeddedRuntimeError{"busy", "embedded driver requires no active requests, retained allocations, driver or exclusive maintenance"}
+	}
+	slots := driver.config.WorkWorkers + embeddedControlWorkers
+	if slots > t.config.MaxResultBuffers || slots > t.config.MaxResultBytes/t.config.MaxResponseBytes {
+		return &EmbeddedRuntimeError{"capacity_exceeded", "transport cannot reserve worst-case response frames for all SDK workers"}
+	}
+	t.commandDriver = driver
+	return nil
+}
+
+// releaseCommandDriver removes only the exact claim after safe worker drainage; a mismatch leaves ownership unchanged.
+// releaseCommandDriver 仅在工作位安全排空后移除精确声明；不匹配时保持所有权不变。
+func (t *EmbeddedTransport) releaseCommandDriver(driver *EmbeddedCommandDriver) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.commandDriver != driver {
+		return fmt.Errorf("embedded command driver ownership mismatch")
+	}
+	t.commandDriver = nil
 	return nil
 }
 
