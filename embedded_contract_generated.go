@@ -8,7 +8,7 @@ const EmbeddedProtocolVersion uint32 = 1
 
 // EmbeddedContractSHA256 identifies every byte of the packaged contract.
 // EmbeddedContractSHA256 标识包内契约的全部字节。
-const EmbeddedContractSHA256 = "4962b82e6d37ec1822f4928f0fd44041bc7b45727e3c2eca2037a4eb15a34842"
+const EmbeddedContractSHA256 = "03674807fcd4ea0249915fd210eb5caeaa31e9ec6471feff1e3f39977876e9a1"
 
 // EmbeddedNativeStatus is one exact signed C ABI status code.
 // EmbeddedNativeStatus 是一个精确的有符号 C ABI 状态码。
