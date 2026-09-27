@@ -18,9 +18,13 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 `EmbeddedTransportError` 与 `EmbeddedRuntimeError` 分别表示 ABI 错误和已交付业务拒绝。`EmbeddedResultReleaseError` 保留复制响应；用 `ResponseBytes()` 获取独立副本，或用 `DeliveredResult()` 读取原结果。调用可能已经执行，不能因为释放失败重放变更。`ReleaseResults()` 只恢复实际保留的缓冲；活动读取者存在时明确拒绝，不能与复制竞争。
 
-`Close()` 请求关闭入场；仍须关闭并移除实际运行时、释放缓冲，最后 `Free()` 才能成功。原生调用期间不持有全局 Go 锁，控制调用可并发推进；GC 不替代关闭，`LiveEmbeddedTransports()` 保留可发现所有者。此低层接口不提供观察取消；异步回执驱动、自动回调泵、类型化运行时句柄、完整线类型生成及拥有型作用域继续实施，不能将本阶段手动队列验证当作这些高级接口已经完成。
+`Close()` 请求关闭入场；仍须关闭并移除实际运行时、释放缓冲，最后 `Free()` 才能成功。原生调用期间不持有全局 Go 锁，控制调用可并发推进；GC 不替代关闭，`LiveEmbeddedTransports()` 保留可发现所有者。此低层接口不提供观察取消；异步回执驱动、自动回调泵、类型化运行时句柄及拥有型作用域继续实施，不能将本阶段手动队列验证当作这些高级接口已经完成。
 
-`contracts/embedded/v1` 和根目录两个 C 头文件均来自同一上游源码的精确副本。`go run ./scripts/generate-embedded-contract --check` 从包内契约验证生成的协议常量、状态码和命令元数据，不依赖相邻仓库。原生测试须显式设置 `LUASKILLS_NATIVE_E2E=1` 并配置匹配动态库。`python scripts/verify_embedded_distribution.py` 通过私有文件代理和空模块缓存验证实际 Go 模块 ZIP、包内生成及嵌入式测试；可用 `--go` 指定已安装工具链。该验证版本不会发布到外部注册表。
+包内契约还生成独立的 `EmbeddedInput*` 与 `EmbeddedOutput*` 类型、枚举常量、封闭命令分支及全部已声明响应解码器。`EncodeEmbeddedRequest` 冻结并校验类型化信封；调用方显式填写 `EmbeddedProtocolVersion` 和生成的命令判别值。`DecodeEmbeddedOutput*Response` 校验精确字段名、必需字段、枚举、整数位宽和已声明集合约束，不调用自定义序列化钩子。这是线结构校验；宿主完成的成功语义及运行时预算等业务规则，继续以核心校验为准。
+
+可选字段使用外层指针表示存在性，可空字段使用内层指针；`**T` 因而区分缺失、存在且为空和存在且有值，`*any` 保留成功空值与结果缺失的区别。请使用生成响应解码器保留这些状态，普通 `encoding/json.Unmarshal` 不保留空指针的这一差异。上游允许额外对象字段时，类型投影接纳扩展但仅公开已声明字段；需要扩展字段时保留原始响应字节。封闭形状及精确根信封拒绝额外字段。生成器对不支持的新 Schema 约束、输出定义冲突及生成名称冲突明确失败，不弱化类型。
+
+`contracts/embedded/v1` 和根目录两个 C 头文件均来自同一上游源码的精确副本。`go run ./scripts/generate-embedded-contract --check` 从包内契约验证生成的协议常量、状态码、命令元数据及全部线类型，不依赖相邻仓库。原生测试须显式设置 `LUASKILLS_NATIVE_E2E=1` 并配置匹配动态库。`python scripts/verify_embedded_distribution.py` 通过私有文件代理和空模块缓存验证实际 Go 模块 ZIP、包内生成及嵌入式测试；可用 `--go` 指定已安装工具链。该验证版本不会发布到外部注册表。
 
 Windows cgo 显式链接 `luaskills.dll`，避免链接器在同目录误选 MSVC 静态库；因此链接目录和运行时 PATH 都必须包含匹配 DLL。该行为依据 [GNU ld 的 Windows 动态库链接规则](https://sourceware.org/binutils/docs/ld/WIN32.html)。Go 字节仅在同步 C 请求期间借用，响应复制完成后才释放，遵守 [cgo 指针规则](https://pkg.go.dev/cmd/cgo#hdr-Passing_pointers)。
 

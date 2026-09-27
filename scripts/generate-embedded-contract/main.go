@@ -1,5 +1,5 @@
-// Command generate-embedded-contract emits protocol metadata from the packaged authoritative contract.
-// generate-embedded-contract 命令从包内权威契约生成协议元数据。
+// Command generate-embedded-contract emits protocol metadata and complete wire types from the packaged authoritative contract.
+// generate-embedded-contract 命令从包内权威契约生成协议元数据及完整线类型。
 package main
 
 import (
@@ -15,8 +15,8 @@ import (
 	"strings"
 )
 
-// document contains only declared protocol metadata; schemas stay in the exact packaged JSON artifact.
-// document 仅包含已声明协议元数据；Schema 保留在精确包内 JSON 产物中。
+// document selects protocol metadata; the wire generator reads schemas separately from the same exact artifact.
+// document 选择协议元数据；线生成器从同一精确产物中单独读取 Schema。
 type document struct {
 	// ContractVersion controls the artifact container shape.
 	// ContractVersion 控制产物容器形状。
@@ -44,10 +44,10 @@ type document struct {
 	RuntimeResponses map[string]json.RawMessage `json:"runtime_responses"`
 }
 
-// main checks exact artifact bytes and either verifies or writes formatted Go metadata; invalid input exits nonzero.
-// main 校验精确产物字节，并验证或写入格式化 Go 元数据；无效输入以非零状态退出。
+// main checks exact artifact bytes and either verifies or writes formatted Go artifacts; invalid input exits nonzero.
+// main 校验精确产物字节，并验证或写入格式化 Go 产物；无效输入以非零状态退出。
 func main() {
-	check := flag.Bool("check", false, "Verify generated metadata without writing")
+	check := flag.Bool("check", false, "Verify all generated contract artifacts without writing")
 	flag.Parse()
 	if err := run(*check); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -55,8 +55,8 @@ func main() {
 	}
 }
 
-// run derives one metadata source from packaged files; check rejects drift without modifying any file.
-// run 从包内文件派生一个元数据源；check 拒绝漂移且不修改任何文件。
+// run derives metadata and wire-type sources from packaged files; check rejects drift without modifying any file.
+// run 从包内文件派生元数据及线类型源码；check 拒绝漂移且不修改任何文件。
 func run(check bool) error {
 	data, err := os.ReadFile("contracts/embedded/v1/contract.json")
 	if err != nil {
@@ -134,17 +134,27 @@ func run(check bool) error {
 	if err != nil {
 		return err
 	}
-	if check {
-		current, err := os.ReadFile("embedded_contract_generated.go")
-		if err != nil {
+	// Build every artifact before writing, so schema rejection cannot leave a partially regenerated contract.
+	// 在写入前构建全部产物，防止 Schema 拒绝留下部分重新生成的契约。
+	wire, err := generateWire(data)
+	if err != nil {
+		return err
+	}
+	artifacts := map[string][]byte{"embedded_contract_generated.go": formatted, "embedded_wire_generated.go": wire}
+	for _, name := range wireKeys(artifacts) {
+		if check {
+			current, err := os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+			if !bytes.Equal(current, artifacts[name]) {
+				return fmt.Errorf("generated Go contract is stale: %s", name)
+			}
+		} else if err := os.WriteFile(name, artifacts[name], 0644); err != nil {
 			return err
 		}
-		if !bytes.Equal(current, formatted) {
-			return fmt.Errorf("embedded Go metadata is stale")
-		}
-		return nil
 	}
-	return os.WriteFile("embedded_contract_generated.go", formatted, 0644)
+	return nil
 }
 
 // checkNames rejects duplicate names and metadata/response coverage drift; runtime dispatch has nested responses.

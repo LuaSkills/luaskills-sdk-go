@@ -32,7 +32,7 @@ def verify(go: str) -> None:
         if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(root):
             raise ValueError(f"Invalid module source member: {name}")
         sources[name] = source.read_bytes()
-    for required in ("go.mod", "embedded_contract_generated.go", "embedded_ffi_cgo.go", "luaskills_ffi.h", "luaskills_json_ffi.h", "contracts/embedded/v1/contract.json"):
+    for required in ("go.mod", "embedded_contract_generated.go", "embedded_wire_generated.go", "embedded_wire.go", "scripts/generate-embedded-contract/wire.go", "embedded_ffi_cgo.go", "luaskills_ffi.h", "luaskills_json_ffi.h", "contracts/embedded/v1/contract.json"):
         if required not in sources:
             raise ValueError(f"Missing distribution member: {required}")
     # This development-only version exists solely in the private file proxy, never in a public registry.
@@ -74,7 +74,7 @@ def verify(go: str) -> None:
     # Generation must work from the module's packaged contract with no adjacent core checkout.
     # 生成必须使用模块包内契约，不依赖相邻核心检出。
     subprocess.run([go, "run", "./scripts/generate-embedded-contract", "--check"], cwd=directory, env=environment, check=True)
-    result = subprocess.run([go, "test", "-p", "4", "-count=1", "-json", "-run", "^TestEmbedded", module], cwd=consumer, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = subprocess.run([go, "test", "-p", "4", "-count=1", "-json", "-run", "^TestEmbedded", module, module + "/scripts/generate-embedded-contract"], cwd=consumer, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     report = result.stdout.decode("utf-8", errors="strict")
     (work / "tests.jsonl").write_text(report, encoding="utf-8")
     counts = {"pass": 0, "fail": 0, "skip": 0}
