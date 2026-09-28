@@ -538,6 +538,20 @@ type EmbeddedInputHostCompletionVariant2 struct {
 	Ok bool `json:"ok"`
 }
 
+// Resolution for one exact original host effect; neither registration nor caller identity can be supplied anew.
+// 一个精确原宿主副作用的结论；不得重新提供注册或调用方身份。
+type EmbeddedInputHostEffectReconciliation struct {
+	// Exact effect identity from the original snapshot, in the same order as its original records.
+	// 原始快照中的精确副作用身份，顺序与其原始记录相同。
+	EffectId string `json:"effect_id"`
+	// Proven final outcome of this original effect, never a retry's outcome.
+	// 此原始副作用的已证实最终结果，绝非重试结果。
+	Effects EmbeddedInputResolvedEffectState `json:"effects"`
+	// Nonempty host audit or transaction-query reference; credentials and business payloads do not belong here.
+	// 非空宿主审计或事务查询引用；此处不应包含凭证及业务载荷。
+	Evidence string `json:"evidence"`
+}
+
 // Explicit module-state lifetime selected by a validated plugin contract.
 // 由已校验插件契约选择的显式模块状态寿命。
 type EmbeddedInputInstanceReuse string
@@ -924,6 +938,35 @@ type EmbeddedInputOperationJournalWorkerConfig struct {
 	MaxPendingWrites uint64 `json:"max_pending_writes"`
 }
 
+// One bounded, final, host-authored attestation covering execution closure and every retained effect.
+// 一份有界、最终且由宿主编写的证明，覆盖执行关闭及每个保留副作用。
+// This API does not authenticate the attestation; the embedding host must authorize the resolver and verify evidence.
+// 此 API 不认证证明；嵌入宿主必须授权对账者并核验证据。
+type EmbeddedInputOperationReconciliation struct {
+	// Resolved aggregate covering both recorded callbacks and any other effects from the original Lua execution.
+	// 已解决的聚合结论，覆盖记录回调及原 Lua 执行的其他副作用。
+	Effects EmbeddedInputResolvedEffectState `json:"effects"`
+	// Nonempty evidence reference proving owner closure and the whole operation's external-effect conclusion.
+	// 非空证据引用，证明所有者关闭及整个操作的外部副作用结论。
+	Evidence string `json:"evidence"`
+	// Closure evidence consistent with the unchanged original execution phase.
+	// 与未改变原执行阶段一致的关闭证据。
+	Execution EmbeddedInputReconciledExecution `json:"execution"`
+	// Exactly one resolution per original effect, preserving original order and known outcomes.
+	// 每个原始副作用精确一个结论，保留原始顺序及已知结果。
+	HostEffects EmbeddedInputOperationReconciliationHostEffects `json:"host_effects"`
+	// Stable host-assigned resolution identity, retained unchanged across observation or storage retries.
+	// 宿主分配的稳定对账身份，跨观测或存储重试保持不变。
+	ResolutionId string `json:"resolution_id"`
+	// Authorized host resolver identity, not a plugin-supplied authority claim or an authentication credential.
+	// 已授权宿主对账者身份，不是插件提供的权限声明或认证凭证。
+	Resolver string `json:"resolver"`
+}
+
+// Exactly one resolution per original effect, preserving original order and known outcomes.
+// 每个原始副作用精确一个结论，保留原始顺序及已知结果。
+type EmbeddedInputOperationReconciliationHostEffects []EmbeddedInputHostEffectReconciliation
+
 // Immutable capacity policy for one host-assigned plugin execution group.
 // 单个宿主分配的插件执行分组的不可变容量策略。
 type EmbeddedInputPluginPoolConfig struct {
@@ -972,6 +1015,19 @@ const (
 	EmbeddedInputPoolKindDedicated EmbeddedInputPoolKind = "dedicated"
 )
 
+// Historical execution closure asserted by the trusted host after actual owners have stopped.
+// 实际所有者停止后，由可信宿主断言的历史执行关闭。
+type EmbeddedInputReconciledExecution string
+
+const (
+	// The unchanged original snapshot already contains an observed terminal execution result.
+	// 未改变的原始快照已包含观测到的终态执行结果。
+	EmbeddedInputReconciledExecutionObservedTerminal EmbeddedInputReconciledExecution = "observed_terminal"
+	// Actual owners stopped without a durable terminal result; the original nonterminal snapshot stays unchanged.
+	// 实际所有者停止但没有持久终态结果；原非终态快照保持不变。
+	EmbeddedInputReconciledExecutionStoppedWithoutResult EmbeddedInputReconciledExecution = "stopped_without_result"
+)
+
 // Strict versioned request; unknown fields and commands are explicit protocol errors.
 // 严格版本化请求；未知字段与命令是明确协议错误。
 type EmbeddedInputRequest struct {
@@ -982,6 +1038,25 @@ type EmbeddedInputRequest struct {
 	// 分发前检查的显式线协议版本。
 	ProtocolVersion uint32 `json:"protocol_version"`
 }
+
+// Explicit resolved effects; unknown outcomes remain unreconciled instead of being coerced into success.
+// 显式已解决副作用；未知结果保持未对账，不强制转为成功。
+type EmbeddedInputResolvedEffectState string
+
+const (
+	// Trusted evidence proves the business effect never started.
+	// 可信证据证明业务副作用从未开始。
+	EmbeddedInputResolvedEffectStateNotStarted EmbeddedInputResolvedEffectState = "not_started"
+	// Trusted evidence proves no externally visible mutation applies.
+	// 可信证据证明不存在适用的外部可见变更。
+	EmbeddedInputResolvedEffectStateNotApplicable EmbeddedInputResolvedEffectState = "not_applicable"
+	// The original external transaction is proven committed.
+	// 原外部事务已证实提交。
+	EmbeddedInputResolvedEffectStateCommitted EmbeddedInputResolvedEffectState = "committed"
+	// The original external transaction is proven rolled back.
+	// 原外部事务已证实回滚。
+	EmbeddedInputResolvedEffectStateRolledBack EmbeddedInputResolvedEffectState = "rolled_back"
+)
 
 // Generic host-side client identity information passed into the LuaSkills runtime.
 // 传入 LuaSkills 运行时的通用宿主客户端身份信息。
@@ -1030,6 +1105,10 @@ func (EmbeddedInputRuntimeCommandHistoryGet) embeddedVariantEmbeddedInputRuntime
 // embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandHistoryNext alternative.
 // embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandHistoryNext 分支。
 func (EmbeddedInputRuntimeCommandHistoryNext) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandHistoryReconcile alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandHistoryReconcile 分支。
+func (EmbeddedInputRuntimeCommandHistoryReconcile) embeddedVariantEmbeddedInputRuntimeCommand() {}
 
 // embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandHistoryForget alternative.
 // embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandHistoryForget 分支。
@@ -1350,6 +1429,36 @@ const (
 	// EmbeddedInputRuntimeCommandHistoryNextTypeHistoryNext is derived from the packaged wire contract.
 	// EmbeddedInputRuntimeCommandHistoryNextTypeHistoryNext 从包内线契约派生。
 	EmbeddedInputRuntimeCommandHistoryNextTypeHistoryNext EmbeddedInputRuntimeCommandHistoryNextType = "history_next"
+)
+
+// Attach final trusted-host evidence after all original execution owners have stopped; never replay execution.
+// 全部原执行所有者停止后附加最终可信宿主证据；绝不重放执行。
+type EmbeddedInputRuntimeCommandHistoryReconcile struct {
+	// Positive original revision; exact retries must retain this predecessor and all resolution fields.
+	// 原始正修订号；精确重试必须保留此前驱及全部对账字段。
+	ExpectedRevision uint64 `json:"expected_revision"`
+	// Original historical runtime namespace.
+	// 原始历史运行时命名空间。
+	HistoryRuntimeId string `json:"history_runtime_id"`
+	// Exact original operation identity.
+	// 精确原始操作身份。
+	OperationId string `json:"operation_id"`
+	// Complete host-authorized evidence; this API does not authenticate supplied resolver names.
+	// 完整宿主授权证据；此 API 不认证所提供的对账者名称。
+	Resolution EmbeddedInputOperationReconciliation `json:"resolution"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandHistoryReconcileType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandHistoryReconcileType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandHistoryReconcileType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandHistoryReconcileType string
+
+const (
+	// EmbeddedInputRuntimeCommandHistoryReconcileTypeHistoryReconcile is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandHistoryReconcileTypeHistoryReconcile 从包内线契约派生。
+	EmbeddedInputRuntimeCommandHistoryReconcileTypeHistoryReconcile EmbeddedInputRuntimeCommandHistoryReconcileType = "history_reconcile"
 )
 
 // Acknowledge actual host completion and preserve effect evidence.
@@ -2490,6 +2599,20 @@ const (
 	EmbeddedOutputHostEffectPhaseCompleted EmbeddedOutputHostEffectPhase = "completed"
 )
 
+// Resolution for one exact original host effect; neither registration nor caller identity can be supplied anew.
+// 一个精确原宿主副作用的结论；不得重新提供注册或调用方身份。
+type EmbeddedOutputHostEffectReconciliation struct {
+	// Exact effect identity from the original snapshot, in the same order as its original records.
+	// 原始快照中的精确副作用身份，顺序与其原始记录相同。
+	EffectId string `json:"effect_id"`
+	// Proven final outcome of this original effect, never a retry's outcome.
+	// 此原始副作用的已证实最终结果，绝非重试结果。
+	Effects EmbeddedOutputResolvedEffectState `json:"effects"`
+	// Nonempty host audit or transaction-query reference; credentials and business payloads do not belong here.
+	// 非空宿主审计或事务查询引用；此处不应包含凭证及业务载荷。
+	Evidence string `json:"evidence"`
+}
+
 // Bounded evidence retained independently from values returned to Lua.
 // 独立于返回 Lua 的值保留的有界证据。
 type EmbeddedOutputHostEffectRecord struct {
@@ -2606,6 +2729,9 @@ const (
 // Historical checkpoint, not a live handle and not evidence authorizing execution replay.
 // 历史检查点，不是活动句柄，也不是授权执行重放的证据。
 type EmbeddedOutputJournalOperation struct {
+	// Separate final host attestation; the original snapshot remains unchanged, including unknown results.
+	// 独立最终宿主证明；原始快照保持不变，包括未知结果。
+	Reconciliation *EmbeddedOutputOperationReconciliation `json:"reconciliation"`
 	// Monotonic compare-and-swap revision; positive and bounded by SQLite's signed integer.
 	// 单调比较交换修订号；为正数且受 SQLite 有符号整数范围约束。
 	Revision uint64 `json:"revision"`
@@ -2763,6 +2889,35 @@ type EmbeddedOutputOperationReceipt struct {
 	OperationId string `json:"operation_id"`
 }
 
+// One bounded, final, host-authored attestation covering execution closure and every retained effect.
+// 一份有界、最终且由宿主编写的证明，覆盖执行关闭及每个保留副作用。
+// This API does not authenticate the attestation; the embedding host must authorize the resolver and verify evidence.
+// 此 API 不认证证明；嵌入宿主必须授权对账者并核验证据。
+type EmbeddedOutputOperationReconciliation struct {
+	// Resolved aggregate covering both recorded callbacks and any other effects from the original Lua execution.
+	// 已解决的聚合结论，覆盖记录回调及原 Lua 执行的其他副作用。
+	Effects EmbeddedOutputResolvedEffectState `json:"effects"`
+	// Nonempty evidence reference proving owner closure and the whole operation's external-effect conclusion.
+	// 非空证据引用，证明所有者关闭及整个操作的外部副作用结论。
+	Evidence string `json:"evidence"`
+	// Closure evidence consistent with the unchanged original execution phase.
+	// 与未改变原执行阶段一致的关闭证据。
+	Execution EmbeddedOutputReconciledExecution `json:"execution"`
+	// Exactly one resolution per original effect, preserving original order and known outcomes.
+	// 每个原始副作用精确一个结论，保留原始顺序及已知结果。
+	HostEffects EmbeddedOutputOperationReconciliationHostEffects `json:"host_effects"`
+	// Stable host-assigned resolution identity, retained unchanged across observation or storage retries.
+	// 宿主分配的稳定对账身份，跨观测或存储重试保持不变。
+	ResolutionId string `json:"resolution_id"`
+	// Authorized host resolver identity, not a plugin-supplied authority claim or an authentication credential.
+	// 已授权宿主对账者身份，不是插件提供的权限声明或认证凭证。
+	Resolver string `json:"resolver"`
+}
+
+// Exactly one resolution per original effect, preserving original order and known outcomes.
+// 每个原始副作用精确一个结论，保留原始顺序及已知结果。
+type EmbeddedOutputOperationReconciliationHostEffects []EmbeddedOutputHostEffectReconciliation
+
 // Bounded operation snapshot suitable for direct serialization to every SDK.
 // 适合直接序列化给各 SDK 的有界操作快照。
 type EmbeddedOutputOperationSnapshot struct {
@@ -2824,6 +2979,19 @@ type EmbeddedOutputPoolUsage struct {
 	Running uint64 `json:"running"`
 }
 
+// Historical execution closure asserted by the trusted host after actual owners have stopped.
+// 实际所有者停止后，由可信宿主断言的历史执行关闭。
+type EmbeddedOutputReconciledExecution string
+
+const (
+	// The unchanged original snapshot already contains an observed terminal execution result.
+	// 未改变的原始快照已包含观测到的终态执行结果。
+	EmbeddedOutputReconciledExecutionObservedTerminal EmbeddedOutputReconciledExecution = "observed_terminal"
+	// Actual owners stopped without a durable terminal result; the original nonterminal snapshot stays unchanged.
+	// 实际所有者停止但没有持久终态结果；原非终态快照保持不变。
+	EmbeddedOutputReconciledExecutionStoppedWithoutResult EmbeddedOutputReconciledExecution = "stopped_without_result"
+)
+
 // Exact identities from one atomic host capability publication.
 // 单次原子宿主能力发布的精确身份。
 type EmbeddedOutputRegistrationReceipt struct {
@@ -2835,6 +3003,25 @@ type EmbeddedOutputRegistrationReceipt struct {
 // Identities retain the descriptor batch's original order.
 // 身份保留描述符批次的原始顺序。
 type EmbeddedOutputRegistrationReceiptRegistrationIds []string
+
+// Explicit resolved effects; unknown outcomes remain unreconciled instead of being coerced into success.
+// 显式已解决副作用；未知结果保持未对账，不强制转为成功。
+type EmbeddedOutputResolvedEffectState string
+
+const (
+	// Trusted evidence proves the business effect never started.
+	// 可信证据证明业务副作用从未开始。
+	EmbeddedOutputResolvedEffectStateNotStarted EmbeddedOutputResolvedEffectState = "not_started"
+	// Trusted evidence proves no externally visible mutation applies.
+	// 可信证据证明不存在适用的外部可见变更。
+	EmbeddedOutputResolvedEffectStateNotApplicable EmbeddedOutputResolvedEffectState = "not_applicable"
+	// The original external transaction is proven committed.
+	// 原外部事务已证实提交。
+	EmbeddedOutputResolvedEffectStateCommitted EmbeddedOutputResolvedEffectState = "committed"
+	// The original external transaction is proven rolled back.
+	// 原外部事务已证实回滚。
+	EmbeddedOutputResolvedEffectStateRolledBack EmbeddedOutputResolvedEffectState = "rolled_back"
+)
 
 // Borrowed success envelope avoids cloning application output during native response publication.
 // 借用成功信封，避免原生响应发布期间克隆应用输出。
@@ -3045,6 +3232,20 @@ type EmbeddedOutputRuntimeHistoryNextResponse struct {
 	// Borrowed result whose owner lives through serialization.
 	// 借用结果，其所有者跨序列化存活。
 	Result *EmbeddedOutputJournalOperation `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeHistoryReconcileResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result uint64 `json:"result"`
 	// Exact success discriminator.
 	// 精确成功判别。
 	Status EmbeddedOutputSuccessStatus `json:"status"`
@@ -3551,6 +3752,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputHostCompletion]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputHostCompletionVariant1](), embeddedWireType[EmbeddedInputHostCompletionVariant2]()}},
 	embeddedWireType[EmbeddedInputHostCompletionVariant1]():                           {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputHostCompletionVariant2]():                           {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputHostEffectReconciliation]():                         {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputInstanceReuse]():                                    {kind: "enum", values: []string{"single_call", "reusable", "session"}},
 	embeddedWireType[EmbeddedInputLuaEngineOptions]():                                 {kind: "object", additional: true},
 	embeddedWireType[EmbeddedInputLuaInvocationContext]():                             {kind: "object", additional: true},
@@ -3571,11 +3773,15 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputModuleExport]():                                     {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputOperationJournalConfig]():                           {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputOperationJournalWorkerConfig]():                     {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputOperationReconciliation]():                          {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputOperationReconciliationHostEffects]():               {kind: "array", unique: false},
 	embeddedWireType[EmbeddedInputPluginPoolConfig]():                                 {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputPoolKind]():                                         {kind: "enum", values: []string{"shared", "dedicated"}},
+	embeddedWireType[EmbeddedInputReconciledExecution]():                              {kind: "enum", values: []string{"observed_terminal", "stopped_without_result"}},
 	embeddedWireType[EmbeddedInputRequest]():                                          {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputResolvedEffectState]():                              {kind: "enum", values: []string{"not_started", "not_applicable", "committed", "rolled_back"}},
 	embeddedWireType[EmbeddedInputRuntimeClientInfo]():                                {kind: "object", additional: true},
-	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure](), embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint](), embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus](), embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget](), embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
+	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure](), embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint](), embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus](), embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryReconcile](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget](), embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit]():                         {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmitType]():                     {kind: "enum", values: []string{"call_submit"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList]():                   {kind: "object", additional: false},
@@ -3596,6 +3802,8 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRuntimeCommandHistoryGetType]():                     {kind: "enum", values: []string{"history_get"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext]():                        {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandHistoryNextType]():                    {kind: "enum", values: []string{"history_next"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryReconcile]():                   {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryReconcileType]():               {kind: "enum", values: []string{"history_reconcile"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]():                {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestCompleteType]():            {kind: "enum", values: []string{"host_request_complete"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus]():                  {kind: "object", additional: false},
@@ -3678,6 +3886,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputErrorStatus]():                                     {kind: "enum", values: []string{"error"}},
 	embeddedWireType[EmbeddedOutputExecutionBackend]():                                {kind: "enum", values: []string{"in_process", "worker_process"}},
 	embeddedWireType[EmbeddedOutputHostEffectPhase]():                                 {kind: "enum", values: []string{"prepared", "running", "completed"}},
+	embeddedWireType[EmbeddedOutputHostEffectReconciliation]():                        {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputHostEffectRecord]():                                {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputHostRequest]():                                     {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputHostRequestPhase]():                                {kind: "enum", values: []string{"queued", "dispatched", "completing", "completed"}},
@@ -3693,12 +3902,16 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputOperationPersistenceFailure]():                     {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputOperationPhase]():                                  {kind: "enum", values: []string{"queued", "initializing", "running", "waiting_for_host", "cleaning", "succeeded", "failed", "cancelled"}},
 	embeddedWireType[EmbeddedOutputOperationReceipt]():                                {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputOperationReconciliation]():                         {kind: "object", additional: false},
+	embeddedWireType[EmbeddedOutputOperationReconciliationHostEffects]():              {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputOperationSnapshot]():                               {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputOperationSnapshotHostEffects]():                    {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputPoolReceipt]():                                     {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputPoolUsage]():                                       {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputReconciledExecution]():                             {kind: "enum", values: []string{"observed_terminal", "stopped_without_result"}},
 	embeddedWireType[EmbeddedOutputRegistrationReceipt]():                             {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRegistrationReceiptRegistrationIds]():              {kind: "array", unique: false},
+	embeddedWireType[EmbeddedOutputResolvedEffectState]():                             {kind: "enum", values: []string{"not_started", "not_applicable", "committed", "rolled_back"}},
 	embeddedWireType[EmbeddedOutputRootDescribeResponse]():                            {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRootRuntimeCloseResponse]():                        {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRootRuntimeFreeResponse]():                         {kind: "object", additional: true},
@@ -3715,6 +3928,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputRuntimeHistoryForgetResponse]():                    {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHistoryGetResponse]():                       {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHistoryNextResponse]():                      {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeHistoryReconcileResponse]():                 {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestCompleteResponse]():              {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestStatusResponse]():                {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestsTakeResponse]():                 {kind: "object", additional: true},
@@ -3883,6 +4097,14 @@ func DecodeEmbeddedOutputRuntimeHistoryGetResponse(bytes []byte) (EmbeddedOutput
 // 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
 func DecodeEmbeddedOutputRuntimeHistoryNextResponse(bytes []byte) (EmbeddedOutputRuntimeHistoryNextResponse, error) {
 	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeHistoryNextResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeHistoryReconcileResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeHistoryReconcileResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeHistoryReconcileResponse(bytes []byte) (EmbeddedOutputRuntimeHistoryReconcileResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeHistoryReconcileResponse](bytes)
 }
 
 // DecodeEmbeddedOutputRuntimeHostRequestCompleteResponse validates bytes and preserves required fields, nulls and exact numeric values.

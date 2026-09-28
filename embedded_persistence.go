@@ -41,8 +41,18 @@ func (r *EmbeddedRuntime) HistoryNext(ctx context.Context, after *EmbeddedInputH
 	return submitEmbeddedRuntime(ctx, r, EmbeddedInputRuntimeCommandHistoryNext{Type: EmbeddedInputRuntimeCommandHistoryNextTypeHistoryNext, After: &after}, projectEmbeddedResult[*EmbeddedOutputJournalOperation])
 }
 
-// HistoryForget removes reconciled terminal history at expectedRevision under ctx; first forget any retained live operation.
-// HistoryForget 在 ctx 下按 expectedRevision 移除已对账终态历史；需先遗忘仍保留的活动操作。
+// HistoryReconcile attaches trusted-host resolution to exact original history under ctx and returns its durable successor revision.
+// HistoryReconcile 在 ctx 下为精确原历史附加可信宿主 resolution，并返回其持久后继修订。
+// The host must authorize the resolver, verify every effect and prove all original owners stopped.
+// 宿主必须授权对账者、核验全部副作用并证明所有原所有者已停止。
+// Exact retries retain expectedRevision and every resolution field; retained live operations are rejected.
+// 精确重试保留 expectedRevision 及全部 resolution 字段；仍保留的活动操作被拒绝。
+func (r *EmbeddedRuntime) HistoryReconcile(ctx context.Context, historyRuntimeID, operationID string, expectedRevision uint64, resolution EmbeddedInputOperationReconciliation) (*EmbeddedPending[uint64], error) {
+	return submitEmbeddedRuntime(ctx, r, EmbeddedInputRuntimeCommandHistoryReconcile{Type: EmbeddedInputRuntimeCommandHistoryReconcileTypeHistoryReconcile, HistoryRuntimeId: historyRuntimeID, OperationId: operationID, ExpectedRevision: expectedRevision, Resolution: resolution}, projectEmbeddedResult[uint64])
+}
+
+// HistoryForget removes fully resolved history at expectedRevision under ctx; first forget any retained live operation.
+// HistoryForget 在 ctx 下按 expectedRevision 移除已完全解决的历史；需先遗忘仍保留的活动操作。
 // Return the work-lane deletion receipt; stale revisions and unresolved effects retain the original record.
 // 返回工作通道删除回执；过期修订和未决副作用保留原始记录。
 func (r *EmbeddedRuntime) HistoryForget(ctx context.Context, historyRuntimeID, operationID string, expectedRevision uint64) (*EmbeddedPending[*EmbeddedJSONNull], error) {

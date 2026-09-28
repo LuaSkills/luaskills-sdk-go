@@ -86,6 +86,26 @@ func TestEmbeddedClientNativePersistence(t *testing.T) {
 	if typedTake(t, end, err) != nil {
 		t.Fatal("cursor did not reach enumeration end")
 	}
+	// The trusted test host inspected this exact pure source; a successful return alone proves no external facts.
+	// 可信测试宿主检查了此精确纯源码；仅成功返回不能证明外部事实。
+	resolution := EmbeddedInputOperationReconciliation{
+		ResolutionId: "go-audit", Resolver: "trusted-test-host", Evidence: "fixture:pure-source-and-stopped-owner",
+		Execution: EmbeddedInputReconciledExecutionObservedTerminal, Effects: EmbeddedInputResolvedEffectStateNotApplicable,
+		HostEffects: EmbeddedInputOperationReconciliationHostEffects{},
+	}
+	// Even a terminal retained operation must be explicitly released before final audit mutation.
+	// 即使终态保留操作也必须在最终审计变更前显式释放。
+	blocked, err := runtime.HistoryReconcile(context.Background(), history.RuntimeId, operation.OperationID(), history.Revision, resolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = blocked.Result(driverTestContext(t))
+	if !errors.As(err, &nativeError) || nativeError.Code != "busy" {
+		t.Fatalf("live history reconciled: %v", err)
+	}
+	if err := blocked.Forget(); err != nil {
+		t.Fatal(err)
+	}
 	// Removing live metadata cannot erase unresolved ordinary Lua effects from storage.
 	// 移除活动元数据不能从存储抹除普通 Lua 未决副作用。
 	forgotten, err := operation.Forget(context.Background())
@@ -100,5 +120,29 @@ func TestEmbeddedClientNativePersistence(t *testing.T) {
 	}
 	if err := deletion.Forget(); err != nil {
 		t.Fatal(err)
+	}
+	// Exact proof retries share one durable successor and never replay the original Lua export.
+	// 精确证明重试共享一个持久后继，绝不重放原 Lua 导出。
+	finalizing, err := runtime.HistoryReconcile(context.Background(), history.RuntimeId, operation.OperationID(), history.Revision, resolution)
+	revision := typedTake(t, finalizing, err)
+	if revision != history.Revision+1 {
+		t.Fatalf("unexpected final revision: %d", revision)
+	}
+	repeated, err := runtime.HistoryReconcile(context.Background(), history.RuntimeId, operation.OperationID(), history.Revision, resolution)
+	if typedTake(t, repeated, err) != revision {
+		t.Fatal("exact retry changed final revision")
+	}
+	// Original observations remain byte-equivalent in meaning beside the separate final attestation.
+	// 独立最终证明旁的原观测保持等义。
+	reading, err = runtime.HistoryGet(context.Background(), history.RuntimeId, operation.OperationID())
+	reconciled := typedTake(t, reading, err)
+	if reconciled == nil || !reflect.DeepEqual(reconciled.Snapshot, history.Snapshot) || reconciled.Reconciliation == nil || reconciled.Reconciliation.ResolutionId != resolution.ResolutionId {
+		t.Fatalf("history lost original evidence: %#v", reconciled)
+	}
+	deletion, err = runtime.HistoryForget(context.Background(), history.RuntimeId, operation.OperationID(), revision)
+	typedTake(t, deletion, err)
+	reading, err = runtime.HistoryGet(context.Background(), history.RuntimeId, operation.OperationID())
+	if typedTake(t, reading, err) != nil {
+		t.Fatal("resolved history was not removed")
 	}
 }
