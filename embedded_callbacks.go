@@ -67,7 +67,21 @@ func newEmbeddedHostContext(request EmbeddedOutputHostRequest, effects EmbeddedI
 
 // copyEmbeddedCaller copies optional string ownership so host mutation cannot rewrite authenticated context.
 // copyEmbeddedCaller 复制可选字符串所有权，使宿主修改不能改写认证上下文。
+// The caller parameter is the original authority; the returned copy owns every optional pointer layer.
+// caller 参数为原始权威；返回副本独立持有每一层可选指针。
 func copyEmbeddedCaller(caller EmbeddedOutputCapabilityCaller) EmbeddedOutputCapabilityCaller {
+	if caller.RequestId != nil {
+		// Preserve explicit null while detaching the optional presence pointer.
+		// 分离可选存在性指针，同时保留显式空值。
+		var requestID *string
+		if *caller.RequestId != nil {
+			// Detach the string too so neither pointer layer can rewrite authority.
+			// 同时分离字符串，防止任一指针层改写权威。
+			value := **caller.RequestId
+			requestID = &value
+		}
+		caller.RequestId = &requestID
+	}
 	if caller.SessionId != nil {
 		value := *caller.SessionId
 		caller.SessionId = &value

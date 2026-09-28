@@ -322,10 +322,19 @@ func TestEmbeddedNativeQueuedCallback(t *testing.T) {
 	transport, _, command, pool := nativeEmbeddedRuntime(t)
 	descriptor := map[string]any{"name": "go.callback", "version": "1.0.0", "description": "Go native queue integration", "input_schema": true, "output_schema": true, "execution": "queued", "permissions": []any{"go.host"}, "scope": "invocation", "max_concurrent": 1, "max_call_ms": 10000, "max_input_bytes": 1024, "max_output_bytes": 1024, "effects": "mutating", "idempotency": "none"}
 	registration := command(map[string]any{"type": "capabilities_register", "descriptors": []any{descriptor}}).(map[string]any)["registration_ids"].([]any)[0]
-	id := embeddedSubmit(command, pool("return {call=function(a) return vulcan.capabilities.call('go.callback',a) end}"), map[string]any{"plugin_id": "forged"})
+	// Freeze host correlation before admission; Lua mutates only its visible copy.
+	// 入场前冻结宿主关联；Lua 仅修改自身可见副本。
+	id := command(map[string]any{"type": "call_submit", "timeout_ms": 10000, "call": map[string]any{
+		"pool_id": pool("return {call=function(a) vulcan.context.request.request_id='lua-forged'; return vulcan.capabilities.call('go.callback',a) end}"), "export": "call",
+		"arguments": map[string]any{"plugin_id": "forged", "request_id": "argument-forged"},
+		"context":   map[string]any{"request_context": map[string]any{"request_id": "go-host-request"}, "client_budget": nil, "tool_config": nil},
+	}}).(map[string]any)["operation_id"].(string)
 	requests := embeddedPoll(t, func() any { return command(map[string]any{"type": "host_requests_take", "limit": 1}) }, func(value any) bool { return len(value.([]any)) > 0 }).([]any)
 	request := requests[0].(map[string]any)
 	caller := request["caller"].(map[string]any)
+	if caller["request_id"] != "go-host-request" || request["request_id"] == caller["request_id"] || request["arguments"].(map[string]any)["request_id"] != "argument-forged" {
+		t.Fatalf("host request correlation was replaced: %#v", request)
+	}
 	if request["registration_id"] != registration || caller["plugin_id"] != "go-embedded-test" || caller["operation_id"] != id || request["arguments"].(map[string]any)["plugin_id"] != "forged" {
 		t.Fatalf("caller authority mixed with arguments: %#v", request)
 	}
@@ -338,6 +347,9 @@ func TestEmbeddedNativeQueuedCallback(t *testing.T) {
 	}
 	command(map[string]any{"type": "host_request_complete", "request_id": request["request_id"], "outcome": map[string]any{"ok": true, "value": nil, "effects": "committed"}})
 	result := embeddedTerminal(t, command, id)
+	if result["context"].(map[string]any)["caller"].(map[string]any)["request_id"] != "go-host-request" {
+		t.Fatalf("terminal evidence lost original request correlation: %#v", result)
+	}
 	if result["phase"] != "cancelled" {
 		t.Fatalf("expected real cancellation: %#v", result)
 	}

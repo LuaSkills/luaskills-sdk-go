@@ -2156,6 +2156,11 @@ type EmbeddedOutputCapabilityCaller struct {
 	// Exact activated plugin identity.
 	// 精确激活的插件身份。
 	PluginId string `json:"plugin_id"`
+	// Optional host request correlation frozen at admission, distinct from a queued capability request ID.
+	// 入场时冻结的可选宿主请求关联，区别于排队能力请求 ID。
+	// Lua-visible request context and business arguments cannot replace this value.
+	// Lua 可见请求上下文及业务参数不能替换此值。
+	RequestId **string `json:"request_id,omitempty"`
 	// Runtime namespace that owns the registration and operation.
 	// 拥有注册及操作的运行时命名空间。
 	RuntimeId string `json:"runtime_id"`
