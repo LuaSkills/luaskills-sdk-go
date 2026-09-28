@@ -69,6 +69,70 @@ func TestEmbeddedClientNativeSessionFinalization(t *testing.T) {
 	}
 }
 
+// TestEmbeddedClientNativeReusableFinalization consumes typed publication pagination and same-VM closing outcomes.
+// TestEmbeddedClientNativeReusableFinalization 消费类型化发布分页及同 VM 关闭结果。
+func TestEmbeddedClientNativeReusableFinalization(t *testing.T) {
+	runtime, root, _ := nativeTypedRuntime(t)
+	closing := &EmbeddedInputModuleFinalizer{Export: "shutdown", Arguments: nil, TimeoutMs: 1000}
+	definition := EmbeddedInputModuleDefinition{
+		PluginId: "go-typed-test", Generation: "typed-generation-1", PackageRoot: root,
+		DependenciesFile: "dependencies.yaml", Mounts: map[string]any{}, SecurityPartition: "go-typed-test",
+		Source:    "local n=0; return {call=function() n=n+1; return tostring(n) end, shutdown=function() return tostring(n) end}",
+		Exports:   EmbeddedInputModuleDefinitionExports{{Name: "call", InputSchema: true, OutputSchema: true}, {Name: "shutdown", InputSchema: true, OutputSchema: true}},
+		Finalizer: &closing,
+	}
+	policy := EmbeddedInputPluginPoolConfig{Kind: EmbeddedInputPoolKindShared, MaxResidentVms: 2, MaxRunningCalls: 2, MaxQueuedCalls: 4, Reuse: EmbeddedInputInstanceReuseReusable, Backend: EmbeddedInputExecutionBackendInProcess}
+	registered, err := runtime.RegisterPool(context.Background(), definition, policy, []string{"go.host"}, "typed-v1")
+	pool := typedTake(t, registered, err)
+	// Keep the latest real business identity, which was allocated after the VM's closing reservation.
+	// 保留最新真实业务身份，其分配晚于 VM 的关闭预留。
+	var business *EmbeddedOperation
+	for _, expected := range []string{"1", "2"} {
+		submitted, err := pool.Submit(context.Background(), "call", nil, EmbeddedInputLuaInvocationContext{}, 10000)
+		business = typedTake(t, submitted, err)
+		result, err := business.Wait(driverTestContext(t))
+		if err != nil || result.Value == nil || *result.Value != expected {
+			t.Fatalf("business: %#v, %v", result, err)
+		}
+	}
+	requested, err := pool.RequestClose(context.Background())
+	typedTake(t, requested, err)
+	poolID, after := pool.PoolID(), business.OperationID()
+	var page EmbeddedOutputOperationPage
+	embeddedPoll(t, func() any {
+		pending, err := runtime.ListOperations(context.Background(), &poolID, &after, 1)
+		page = typedTake(t, pending, err)
+		return page
+	}, func(value any) bool { return len(value.(EmbeddedOutputOperationPage).OperationIds) != 0 })
+	if len(page.OperationIds) != 1 || page.AfterOperationId == nil || *page.AfterOperationId != page.OperationIds[0] {
+		t.Fatalf("closing page: %#v", page)
+	}
+	operation, err := runtime.Operation(page.OperationIds[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := operation.Wait(driverTestContext(t))
+	if err != nil || result.Phase != EmbeddedOutputOperationPhaseSucceeded || result.Finalization == nil || *result.Finalization == nil {
+		t.Fatalf("closing: %#v, %v", result, err)
+	}
+	module, ok := result.Context.(EmbeddedOutputOperationContextVariant2)
+	if !ok || module.FinalizationInstanceId == nil || *module.FinalizationInstanceId == nil || **module.FinalizationInstanceId == "" || module.Caller.SessionId != nil {
+		t.Fatalf("instance authority: %#v", result.Context)
+	}
+	stages := *result.Finalization
+	if stages.Outcome == nil || *stages.Outcome == nil {
+		t.Fatalf("closing outcome: %#v", stages)
+	}
+	value, ok := (**stages.Outcome).(EmbeddedOutputOperationOutcomeVariant1)
+	if !ok || value.Value != "2" {
+		t.Fatalf("same VM result: %#v", value)
+	}
+	again, err := business.Wait(driverTestContext(t))
+	if err != nil || again.Value == nil || *again.Value != "2" || again.Finalization != nil {
+		t.Fatalf("business rewritten: %#v, %v", again, err)
+	}
+}
+
 // TestEmbeddedClientNativeFinalization consumes generated closing declarations and both result union alternatives.
 // TestEmbeddedClientNativeFinalization 消费生成的关闭声明及两种结果联合分支。
 func TestEmbeddedClientNativeFinalization(t *testing.T) {

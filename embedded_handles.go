@@ -143,6 +143,17 @@ func (r *EmbeddedRuntime) Operation(id string) (*EmbeddedOperation, error) {
 	return &EmbeddedOperation{runtime: r, identity: id}, nil
 }
 
+// ListOperations discovers at most limit identities for optional poolID after retained afterOperationID under observer ctx.
+// ListOperations 在观察上下文 ctx 下，为可选 poolID 发现保留 afterOperationID 之后至多 limit 个身份。
+// Return a publication-ordered page receipt; forgetting its cursor requires restarting enumeration with nil.
+// 返回按发布顺序排列的分页回执；遗忘其游标后需要使用 nil 重新开始枚举。
+func (r *EmbeddedRuntime) ListOperations(ctx context.Context, poolID, afterOperationID *string, limit uint64) (*EmbeddedPending[EmbeddedOutputOperationPage], error) {
+	return submitEmbeddedRuntime(ctx, r, EmbeddedInputRuntimeCommandOperationList{
+		Type:   EmbeddedInputRuntimeCommandOperationListTypeOperationList,
+		PoolId: &poolID, AfterOperationId: &afterOperationID, Limit: limit,
+	}, projectEmbeddedResult[EmbeddedOutputOperationPage])
+}
+
 // OperationID returns the exact immutable native operation identity, not a driver receipt identity.
 // OperationID 返回精确不可变原生操作身份，不是驱动器回执身份。
 func (h *EmbeddedOperation) OperationID() string { return h.identity }

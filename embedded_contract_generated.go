@@ -8,7 +8,7 @@ const EmbeddedProtocolVersion uint32 = 1
 
 // EmbeddedContractSHA256 identifies every byte of the packaged contract.
 // EmbeddedContractSHA256 标识包内契约的全部字节。
-const EmbeddedContractSHA256 = "635f47f2884420e36876114474310bf197c9d2941204f626b5255f1e885c55b8"
+const EmbeddedContractSHA256 = "efc9224e7a02141c3ffd24a7bb02cf613fa4113e45ac68e81eeef12c9137a867"
 
 // EmbeddedCoreVersion identifies the core package that generated this contract.
 // EmbeddedCoreVersion 标识生成此契约的核心包。
@@ -62,7 +62,7 @@ func EmbeddedRootCommands() []string {
 // EmbeddedRuntimeCommands returns an independent copy of this authoritative name inventory.
 // EmbeddedRuntimeCommands 返回此权威名称清单的独立副本。
 func EmbeddedRuntimeCommands() []string {
-	return []string{"operation_persistence_failure", "operation_retry_checkpoint", "storage_status", "storage_recover", "storage_worker_recover", "history_get", "history_next", "history_reconcile", "history_forget", "plugin_register", "plugin_status", "plugin_close", "plugin_forget", "pool_register", "pool_status", "pool_close", "pool_forget", "pool_revoke_permission", "call_submit", "session_open", "session_submit", "session_status", "session_close", "session_forget", "operation_status", "operation_wait", "operation_cancel", "operation_forget", "capabilities_register", "capabilities_list", "capability_status", "capability_unregister", "capability_forget", "host_requests_take", "host_request_status", "host_request_complete"}
+	return []string{"operation_persistence_failure", "operation_retry_checkpoint", "storage_status", "storage_recover", "storage_worker_recover", "history_get", "history_next", "history_reconcile", "history_forget", "plugin_register", "plugin_status", "plugin_close", "plugin_forget", "pool_register", "pool_status", "pool_close", "pool_forget", "pool_revoke_permission", "call_submit", "session_open", "session_submit", "session_status", "session_close", "session_forget", "operation_status", "operation_list", "operation_wait", "operation_cancel", "operation_forget", "capabilities_register", "capabilities_list", "capability_status", "capability_unregister", "capability_forget", "host_requests_take", "host_request_status", "host_request_complete"}
 }
 
 // EmbeddedRequiredCapabilities returns an independent copy of this authoritative name inventory.
