@@ -12,6 +12,12 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 ## 嵌入式运行时开发接口
 
+通过 `InitializePersistent(ctx, options, budgets, persistence)` 显式启用持久模式。既有 `Initialize` 保持纯内存行为。传入生成配置，完整声明宿主管理的绝对 `path`、`journal` 保留预算及 `worker` 回执预算；SDK 不补造存储默认值，也不回退。初始化回执只确认尝试，实际结果须查询原生状态。状态包含可选实际存储所有权，协调关闭等待核心、写入者及保留回执排空。
+
+运行时 `StorageStatus / RecoverStorage` 提供写入者所有权观测与同一原文件的显式恢复；`HistoryGet / HistoryNext / HistoryForget` 按原**核心运行时命名空间**访问历史，该身份区别于 FFI 槽 ID。历史与恢复走工作通道；存储状态及操作方法 `PersistenceFailure / RetryCheckpoint` 走控制通道。恢复不自动重试检查点或重放业务；无失败检查点时重试报告忙碌，返回假表示已有重试尚未完成。历史枚举使用原键游标，不提供跨调用快照。
+
+历史不会变成活动句柄。删除精确修订历史前须先遗忘活动操作元数据；副作用未决时继续保留，包括整体副作用仍未知的普通成功 Lua。外部事务对账、已失败写入者替换及进程退出后执行栈恢复尚不由这些方法提供。这些开发接口要求匹配的开发核心，不代表已发布包兼容。
+
 当前开发源码新增 `NewEmbeddedTransport`，使用独立版本一 C ABI。必须链接包含这些新导出的匹配开发核心；本文不表示已发布的 `0.5.7` 动态库支持它们。正式版本和默认资产将随整个生态验收统一提升。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
 
 原生分配前，构造器读取 `luaskills_ffi_embedded_describe_v1`，在复制前检查借用指针及长度边界，再检查精确核心／协议／ABI／描述版本、包内契约摘要、必需命令及能力、支持的后端、进程系统和指针位宽。畸形或不兼容元数据返回 `*EmbeddedCompatibilityError`；非零原生状态仍为 `*EmbeddedTransportError`。发现字节由动态库拥有，绝不交给结果释放函数。`CoreDescription()` 返回各切片独立复制的类型化证据，成功释放后仍可读取。构建摘要仅描述选定输入，不认证二进制，也不证明完整封闭构建。

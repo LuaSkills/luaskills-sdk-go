@@ -42,6 +42,16 @@ func typedTake[T any](t *testing.T, pending *EmbeddedPending[T], submitErr error
 // 清理先排空精确运行时，再由较早夹具关闭借用驱动器及传输。
 func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string, func()) {
 	t.Helper()
+	return nativeTypedRuntimeWithPersistence(t, false)
+}
+
+// nativeTypedRuntimeWithPersistence selects explicit storage before construction and retains the same cleanup authority.
+// nativeTypedRuntimeWithPersistence 在构造前选择显式存储，并保留同一清理权威。
+func nativeTypedRuntimeWithPersistence(t *testing.T, persistent bool) (*EmbeddedRuntime, string, func()) {
+	t.Helper()
+	// Register directory cleanup before native owners so LIFO cleanup closes database handles first.
+	// 在原生所有者前注册目录清理，使后进先出清理先关闭数据库句柄。
+	root := t.TempDir()
 	// transport, driver and client establish separate native and SDK ownership boundaries.
 	// transport、driver 和 client 建立独立的原生与 SDK 所有权边界。
 	transport := nativeEmbeddedTest(t)
@@ -67,7 +77,6 @@ func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string, func()) {
 	})
 	// root is isolated from user runtime configuration; only its declared system package is authorized.
 	// root 与用户运行时配置隔离；仅授权其声明的系统包。
-	root := t.TempDir()
 	system := filepath.Join(root, "system_lua_lib")
 	packageRoot := filepath.Join(system, "go-typed-test")
 	if err := os.MkdirAll(packageRoot, 0755); err != nil {
@@ -81,7 +90,14 @@ func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string, func()) {
 	rootPointer, systemPointer := &root, &system
 	options := EmbeddedInputLuaEngineOptions{HostOptions: EmbeddedInputLuaRuntimeHostOptions{RuntimeRoot: &rootPointer, SystemLuaLibDir: &systemPointer, ReservedEntryNames: EmbeddedInputLuaRuntimeHostOptionsReservedEntryNames{}, AllowNetworkDownload: false}, PoolConfig: EmbeddedInputLuaVmPoolConfig{MinSize: 0, MaxSize: 2, IdleTtlSecs: 60}}
 	budgets := EmbeddedInputEmbeddedRuntimeConfig{MaxRegisteredPlugins: 4, MaxRegisteredPools: 4, MaxSessions: 4, MaxRegisteredCapabilities: 4, MaxResidentVms: 2, MaxRunningCalls: 2, MaxQueuedCalls: 4, MaxQueuedBytes: 4096, MaxOperations: 16, MaxEffectRecordsPerOperation: 8, MaxEffectBytesPerOperation: 8192, MaxHostRequests: 4, MaxHostRequestBytes: 8192, MaxValueBytes: 1024}
-	initializing, err := runtime.Initialize(context.Background(), options, budgets)
+	// The selected initialization route is explicit; persistent failures never fall back to memory mode.
+	// 初始化路径显式选择；持久初始化失败绝不回退到内存模式。
+	var initializing *EmbeddedPending[EmbeddedOutputRuntimeReceipt]
+	if persistent {
+		initializing, err = runtime.InitializePersistent(context.Background(), options, budgets, EmbeddedInputRuntimePersistenceConfig{Path: filepath.Join(root, "operations.db"), Journal: EmbeddedInputOperationJournalConfig{MaxRecords: 16, MaxRecordBytes: 32768, MaxDatabaseBytes: 262144}, Worker: EmbeddedInputOperationJournalWorkerConfig{MaxPendingWrites: 8, MaxPendingBytes: 131072}})
+	} else {
+		initializing, err = runtime.Initialize(context.Background(), options, budgets)
+	}
 	typedTake(t, initializing, err)
 	status, err := runtime.Status(context.Background())
 	if typedTake(t, status, err).Initialization != EmbeddedOutputInitializationPhaseReady {

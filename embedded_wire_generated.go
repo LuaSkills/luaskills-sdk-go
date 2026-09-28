@@ -223,6 +223,9 @@ type EmbeddedInputCommandRuntimeInitialize struct {
 	// Explicit core engine options, using the existing engine option contract.
 	// 显式核心引擎选项，使用现有引擎选项契约。
 	EngineOptions EmbeddedInputLuaEngineOptions `json:"engine_options"`
+	// Explicit durable storage; absence selects memory-only execution without creating a database.
+	// 显式持久存储；缺失表示纯内存执行，不创建数据库。
+	Persistence **EmbeddedInputRuntimePersistenceConfig `json:"persistence,omitempty"`
 	// Explicit formal runtime budgets validated before worker construction.
 	// 工作线程构造前校验的显式正式运行时预算。
 	RuntimeConfig EmbeddedInputEmbeddedRuntimeConfig `json:"runtime_config"`
@@ -479,6 +482,17 @@ const (
 	// 预留的协议身份；目前尚未声明工作进程后端可用。
 	EmbeddedInputExecutionBackendWorkerProcess EmbeddedInputExecutionBackend = "worker_process"
 )
+
+// Exact historical cursor; its fields come from the original durable record, not a newly opened runtime.
+// 精确历史游标；字段来自原持久记录，不来自新打开的运行时。
+type EmbeddedInputHistoryCursor struct {
+	// Original operation identity within that namespace.
+	// 该命名空间中的原始操作身份。
+	OperationId string `json:"operation_id"`
+	// Original core runtime namespace from the returned history record.
+	// 返回历史记录中的原始核心运行时命名空间。
+	RuntimeId string `json:"runtime_id"`
+}
 
 // Strict host completion shapes match CapabilityOutcome::to_json, preserving successful JSON null.
 // 严格宿主完成形状匹配 CapabilityOutcome::to_json，保留成功 JSON 空值。
@@ -885,6 +899,31 @@ type EmbeddedInputModuleExport struct {
 	OutputSchema any `json:"output_schema"`
 }
 
+// Explicit retention budgets; SQLite journal/cache overhead is separate from the database-file cap.
+// 显式保留预算；SQLite 日志及缓存开销与数据库文件上限分开计算。
+type EmbeddedInputOperationJournalConfig struct {
+	// Maximum main database bytes, rounded down to whole SQLite pages.
+	// 主数据库最大字节数，向下取整至完整 SQLite 页。
+	MaxDatabaseBytes uint64 `json:"max_database_bytes"`
+	// Maximum UTF-8 JSON bytes for one complete stored record, including identities and revision.
+	// 单条完整存储记录的最大 UTF-8 JSON 字节数，包含身份及修订号。
+	MaxRecordBytes uint64 `json:"max_record_bytes"`
+	// Maximum retained operations across all runtime namespaces; no automatic eviction occurs.
+	// 所有运行时命名空间合计保留的最大操作数；不自动淘汰。
+	MaxRecords uint64 `json:"max_records"`
+}
+
+// Explicit budgets include queued, executing and caller-retained completed write receipts.
+// 显式预算包含排队、执行中及调用方仍保留的已完成写入回执。
+type EmbeddedInputOperationJournalWorkerConfig struct {
+	// Cumulative JSON request bytes retained across all admitted write attempts.
+	// 所有已接纳写入尝试合计保留的 JSON 请求字节数。
+	MaxPendingBytes uint64 `json:"max_pending_bytes"`
+	// Maximum admitted write attempts until their last actual receipt owner releases them.
+	// 最后一个真实回执所有者释放之前，最多接纳的写入尝试数。
+	MaxPendingWrites uint64 `json:"max_pending_writes"`
+}
+
 // Immutable capacity policy for one host-assigned plugin execution group.
 // 单个宿主分配的插件执行分组的不可变容量策略。
 type EmbeddedInputPluginPoolConfig struct {
@@ -965,6 +1004,36 @@ type EmbeddedInputRuntimeCommand interface {
 	// embeddedVariantEmbeddedInputRuntimeCommand 封闭此生成联合，不调用序列化钩子。
 	embeddedVariantEmbeddedInputRuntimeCommand()
 }
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandOperationPersistenceFailure alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandOperationPersistenceFailure 分支。
+func (EmbeddedInputRuntimeCommandOperationPersistenceFailure) embeddedVariantEmbeddedInputRuntimeCommand() {
+}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandOperationRetryCheckpoint alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandOperationRetryCheckpoint 分支。
+func (EmbeddedInputRuntimeCommandOperationRetryCheckpoint) embeddedVariantEmbeddedInputRuntimeCommand() {
+}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandStorageStatus alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandStorageStatus 分支。
+func (EmbeddedInputRuntimeCommandStorageStatus) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandStorageRecover alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandStorageRecover 分支。
+func (EmbeddedInputRuntimeCommandStorageRecover) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandHistoryGet alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandHistoryGet 分支。
+func (EmbeddedInputRuntimeCommandHistoryGet) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandHistoryNext alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandHistoryNext 分支。
+func (EmbeddedInputRuntimeCommandHistoryNext) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandHistoryForget alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandHistoryForget 分支。
+func (EmbeddedInputRuntimeCommandHistoryForget) embeddedVariantEmbeddedInputRuntimeCommand() {}
 
 // embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandPluginRegister alternative.
 // embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandPluginRegister 分支。
@@ -1211,6 +1280,78 @@ const (
 	EmbeddedInputRuntimeCommandCapabilityUnregisterTypeCapabilityUnregister EmbeddedInputRuntimeCommandCapabilityUnregisterType = "capability_unregister"
 )
 
+// Forget reconciled history only after any matching live runtime operation has been explicitly forgotten.
+// 仅在显式遗忘任何匹配的活动运行时操作后，遗忘已对账历史。
+type EmbeddedInputRuntimeCommandHistoryForget struct {
+	// Positive original revision required for atomic compare-and-swap removal.
+	// 原子比较交换删除所需的原始正修订号。
+	ExpectedRevision uint64 `json:"expected_revision"`
+	// Original historical runtime namespace.
+	// 原始历史运行时命名空间。
+	HistoryRuntimeId string `json:"history_runtime_id"`
+	// Exact original operation identity.
+	// 精确原始操作身份。
+	OperationId string `json:"operation_id"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandHistoryForgetType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandHistoryForgetType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandHistoryForgetType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandHistoryForgetType string
+
+const (
+	// EmbeddedInputRuntimeCommandHistoryForgetTypeHistoryForget is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandHistoryForgetTypeHistoryForget 从包内线契约派生。
+	EmbeddedInputRuntimeCommandHistoryForgetTypeHistoryForget EmbeddedInputRuntimeCommandHistoryForgetType = "history_forget"
+)
+
+// Read historical evidence by its original namespace, without adopting it as a live operation.
+// 按原命名空间读取历史证据，不将其接管为活动操作。
+type EmbeddedInputRuntimeCommandHistoryGet struct {
+	// Original core runtime namespace, distinct from the containing FFI slot identity.
+	// 原核心运行时命名空间，区别于外层 FFI 槽身份。
+	HistoryRuntimeId string `json:"history_runtime_id"`
+	// Exact original operation identity.
+	// 精确原始操作身份。
+	OperationId string `json:"operation_id"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandHistoryGetType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandHistoryGetType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandHistoryGetType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandHistoryGetType string
+
+const (
+	// EmbeddedInputRuntimeCommandHistoryGetTypeHistoryGet is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandHistoryGetTypeHistoryGet 从包内线契约派生。
+	EmbeddedInputRuntimeCommandHistoryGetTypeHistoryGet EmbeddedInputRuntimeCommandHistoryGetType = "history_get"
+)
+
+// Read at most one historical row after an explicit cursor; absence starts enumeration.
+// 在显式游标后至多读取一条历史；缺失表示开始枚举。
+type EmbeddedInputRuntimeCommandHistoryNext struct {
+	// Original history key returned by a prior row, with no inferred current-runtime substitution.
+	// 前一行返回的原始历史键，不推断替换为当前运行时。
+	After **EmbeddedInputHistoryCursor `json:"after,omitempty"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandHistoryNextType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandHistoryNextType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandHistoryNextType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandHistoryNextType string
+
+const (
+	// EmbeddedInputRuntimeCommandHistoryNextTypeHistoryNext is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandHistoryNextTypeHistoryNext 从包内线契约派生。
+	EmbeddedInputRuntimeCommandHistoryNextTypeHistoryNext EmbeddedInputRuntimeCommandHistoryNextType = "history_next"
+)
+
 // Acknowledge actual host completion and preserve effect evidence.
 // 确认实际宿主完成并保留副作用证据。
 type EmbeddedInputRuntimeCommandHostRequestComplete struct {
@@ -1317,6 +1458,48 @@ const (
 	// EmbeddedInputRuntimeCommandOperationForgetTypeOperationForget is derived from the packaged wire contract.
 	// EmbeddedInputRuntimeCommandOperationForgetTypeOperationForget 从包内线契约派生。
 	EmbeddedInputRuntimeCommandOperationForgetTypeOperationForget EmbeddedInputRuntimeCommandOperationForgetType = "operation_forget"
+)
+
+// Read retained checkpoint failure without disk I/O or retry.
+// 读取保留检查点故障，不进行磁盘 I/O 或重试。
+type EmbeddedInputRuntimeCommandOperationPersistenceFailure struct {
+	// Exact live operation identity in this runtime.
+	// 此运行时中的精确活动操作身份。
+	OperationId string `json:"operation_id"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandOperationPersistenceFailureType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandOperationPersistenceFailureType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandOperationPersistenceFailureType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandOperationPersistenceFailureType string
+
+const (
+	// EmbeddedInputRuntimeCommandOperationPersistenceFailureTypeOperationPersistenceFailure is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandOperationPersistenceFailureTypeOperationPersistenceFailure 从包内线契约派生。
+	EmbeddedInputRuntimeCommandOperationPersistenceFailureTypeOperationPersistenceFailure EmbeddedInputRuntimeCommandOperationPersistenceFailureType = "operation_persistence_failure"
+)
+
+// Request one retry of the original immutable checkpoint, never another business execution.
+// 请求重试原不可变检查点一次，绝不再次执行业务。
+type EmbeddedInputRuntimeCommandOperationRetryCheckpoint struct {
+	// Exact live operation identity retaining the failed candidate.
+	// 保留失败候选的精确活动操作身份。
+	OperationId string `json:"operation_id"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandOperationRetryCheckpointType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandOperationRetryCheckpointType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandOperationRetryCheckpointType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandOperationRetryCheckpointType string
+
+const (
+	// EmbeddedInputRuntimeCommandOperationRetryCheckpointTypeOperationRetryCheckpoint is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandOperationRetryCheckpointTypeOperationRetryCheckpoint 从包内线契约派生。
+	EmbeddedInputRuntimeCommandOperationRetryCheckpointTypeOperationRetryCheckpoint EmbeddedInputRuntimeCommandOperationRetryCheckpointType = "operation_retry_checkpoint"
 )
 
 // Read current operation outcome and effect evidence.
@@ -1692,6 +1875,56 @@ const (
 	EmbeddedInputRuntimeCommandSessionSubmitTypeSessionSubmit EmbeddedInputRuntimeCommandSessionSubmitType = "session_submit"
 )
 
+// Reopen and validate failed storage; this synchronous disk command belongs on a work lane.
+// 重新打开并校验失败存储；此同步磁盘命令归入工作通道。
+type EmbeddedInputRuntimeCommandStorageRecover struct {
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandStorageRecoverType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandStorageRecoverType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandStorageRecoverType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandStorageRecoverType string
+
+const (
+	// EmbeddedInputRuntimeCommandStorageRecoverTypeStorageRecover is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandStorageRecoverTypeStorageRecover 从包内线契约派生。
+	EmbeddedInputRuntimeCommandStorageRecoverTypeStorageRecover EmbeddedInputRuntimeCommandStorageRecoverType = "storage_recover"
+)
+
+// Read actual bounded writer ownership without waiting for disk.
+// 读取真实有界写入者所有权，不等待磁盘。
+type EmbeddedInputRuntimeCommandStorageStatus struct {
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandStorageStatusType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandStorageStatusType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandStorageStatusType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandStorageStatusType string
+
+const (
+	// EmbeddedInputRuntimeCommandStorageStatusTypeStorageStatus is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandStorageStatusTypeStorageStatus 从包内线契约派生。
+	EmbeddedInputRuntimeCommandStorageStatusTypeStorageStatus EmbeddedInputRuntimeCommandStorageStatusType = "storage_status"
+)
+
+// Explicit host storage selection; omitting this whole object selects the existing memory-only runtime.
+// 显式宿主存储选择；省略整个对象表示选择既有纯内存运行时。
+type EmbeddedInputRuntimePersistenceConfig struct {
+	// Explicit durable retention limits, independent of transient runtime budgets.
+	// 显式持久保留上限，独立于瞬态运行时预算。
+	Journal EmbeddedInputOperationJournalConfig `json:"journal"`
+	// Absolute database path owned and protected by the host, never a plugin-selected location.
+	// 由宿主拥有和保护的绝对数据库路径，绝非插件选择位置。
+	Path string `json:"path"`
+	// Explicit bounded storage-thread receipt limits.
+	// 显式有界存储线程回执上限。
+	Worker EmbeddedInputOperationJournalWorkerConfig `json:"worker"`
+}
+
 // Generic request-scoped context injected by the host into one runtime invocation.
 // 宿主在单次运行时调用中注入的通用请求级上下文。
 type EmbeddedInputRuntimeRequestContext struct {
@@ -1879,6 +2112,22 @@ const (
 	// Requires an explicitly bound session identity.
 	// 要求显式绑定的会话身份。
 	EmbeddedOutputCapabilityScopeSession EmbeddedOutputCapabilityScope = "session"
+)
+
+// Recovery state is independent of the operation's business phase and cancellation intent.
+// 恢复状态独立于操作业务阶段及取消意愿。
+type EmbeddedOutputCheckpointRetryState string
+
+const (
+	// No retry will run until the host explicitly requests one.
+	// 宿主显式请求之前不会执行重试。
+	EmbeddedOutputCheckpointRetryStateWaiting EmbeddedOutputCheckpointRetryState = "waiting"
+	// A single retry request is retained for the original checkpoint owner.
+	// 为原始检查点所有者保留了单次重试请求。
+	EmbeddedOutputCheckpointRetryStateRequested EmbeddedOutputCheckpointRetryState = "requested"
+	// The requested retry is being driven; repeated observations cannot create another attempt.
+	// 正在推进已请求重试；重复观测不能创建另一次尝试。
+	EmbeddedOutputCheckpointRetryStateRetrying EmbeddedOutputCheckpointRetryState = "retrying"
 )
 
 // Immutable description of the exact linked core, usable without a transport or runtime.
@@ -2346,13 +2595,27 @@ const (
 	// The actual core owner was stored successfully.
 	// 实际核心所有者已成功保存。
 	EmbeddedOutputInitializationPhaseReady EmbeddedOutputInitializationPhase = "ready"
-	// Construction returned an explicit error after releasing unpublished resources.
-	// 构造在释放未发布资源后返回明确错误。
+	// Construction returned an explicit error; retained storage still requires verified drainage.
+	// 构造返回明确错误；已保留存储仍需验证排空。
 	EmbeddedOutputInitializationPhaseFailed EmbeddedOutputInitializationPhase = "failed"
 	// Construction panicked and safe library unloading cannot be proven.
 	// 构造发生 panic，无法证明可以安全卸载动态库。
 	EmbeddedOutputInitializationPhaseFaulted EmbeddedOutputInitializationPhase = "faulted"
 )
+
+// Historical checkpoint, not a live handle and not evidence authorizing execution replay.
+// 历史检查点，不是活动句柄，也不是授权执行重放的证据。
+type EmbeddedOutputJournalOperation struct {
+	// Monotonic compare-and-swap revision; positive and bounded by SQLite's signed integer.
+	// 单调比较交换修订号；为正数且受 SQLite 有符号整数范围约束。
+	Revision uint64 `json:"revision"`
+	// Original runtime namespace, never rebound to the namespace of a restarted runtime.
+	// 原始运行时命名空间，绝不重新绑定到重启后的命名空间。
+	RuntimeId string `json:"runtime_id"`
+	// Exact last committed observation; an unfinished phase remains unfinished after restart.
+	// 最后提交的精确观测；未结束的阶段在重启后仍保持未结束。
+	Snapshot EmbeddedOutputOperationSnapshot `json:"snapshot"`
+}
 
 // Explicit operation origin; unbound low-level work is never inferred to belong to a current plugin.
 // 明确的操作来源；未绑定的低层工作绝不被推断归属于当前插件。
@@ -2417,6 +2680,49 @@ const (
 	// EmbeddedOutputOperationContextVariant2KindModule 从包内线契约派生。
 	EmbeddedOutputOperationContextVariant2KindModule EmbeddedOutputOperationContextVariant2Kind = "module"
 )
+
+// Live worker observations; retained receipts keep quota even after the thread has finished.
+// 实时工作线程观测；线程结束后，保留的回执仍占有配额。
+type EmbeddedOutputOperationJournalWorkerStatus struct {
+	// New attempts are permanently refused while admitted attempts finish normally.
+	// 永久拒绝新尝试，而已接纳尝试正常完成。
+	Closing bool `json:"closing"`
+	// First infrastructure failure; individual database rejection remains on its own receipt.
+	// 首个基础设施故障；单独的数据库拒绝仍位于各自回执。
+	Failure *EmbeddedOutputEmbeddedError `json:"failure"`
+	// Encoded request bytes reserved until each attempt's last owner disappears.
+	// 每次尝试最后一个所有者消失前预留的请求编码字节数。
+	PendingBytes uint64 `json:"pending_bytes"`
+	// Total owned attempts including caller-retained completed receipts.
+	// 拥有的尝试总数，包含调用方保留的已完成回执。
+	PendingWrites uint64 `json:"pending_writes"`
+	// Attempts still owned by the queue.
+	// 仍由队列拥有的尝试数。
+	QueuedWrites uint64 `json:"queued_writes"`
+	// Actual thread termination, observed from its join handle rather than a provisional flag.
+	// 从等待句柄观测到的真实线程终止，而非临时标记。
+	WorkerExited bool `json:"worker_exited"`
+	// Whether a real write is currently owned by the storage thread.
+	// 存储线程当前是否拥有真实写入。
+	Writing bool `json:"writing"`
+}
+
+// A failed checkpoint remains queryable by exact operation ID until that original checkpoint is acknowledged.
+// 失败检查点可按精确操作 ID 查询，直至原检查点得到确认。
+type EmbeddedOutputOperationPersistenceFailure struct {
+	// Retained persistence error; this does not rewrite the original business result.
+	// 保留的持久化错误；不改写原始业务结果。
+	Error EmbeddedOutputEmbeddedError `json:"error"`
+	// Stable original operation identity, never a replacement execution.
+	// 稳定的原始操作身份，绝非替代执行。
+	OperationId string `json:"operation_id"`
+	// Exact candidate phase whose write failed; terminal candidates are not yet publicly terminal.
+	// 写入失败的精确候选阶段；终态候选尚不是公开终态。
+	Phase EmbeddedOutputOperationPhase `json:"phase"`
+	// Explicit host retry coordination, separate from ordinary polling.
+	// 显式宿主重试协调，独立于普通轮询。
+	Retry EmbeddedOutputCheckpointRetryState `json:"retry"`
+}
 
 // Execution phase; cancellation intent is reported separately from actual termination.
 // 执行阶段；取消意图与实际终止分开报告。
@@ -2704,6 +3010,48 @@ type EmbeddedOutputRuntimeCapabilityUnregisterResponse struct {
 
 // Borrowed success envelope avoids cloning application output during native response publication.
 // 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeHistoryForgetResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result *EmbeddedJSONNull `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeHistoryGetResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result *EmbeddedOutputJournalOperation `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeHistoryNextResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result *EmbeddedOutputJournalOperation `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
 type EmbeddedOutputRuntimeHostRequestCompleteResponse struct {
 	// Single protocol version authority.
 	// 唯一协议版本权威。
@@ -2771,6 +3119,34 @@ type EmbeddedOutputRuntimeOperationForgetResponse struct {
 	// Borrowed result whose owner lives through serialization.
 	// 借用结果，其所有者跨序列化存活。
 	Result *EmbeddedJSONNull `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeOperationPersistenceFailureResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result *EmbeddedOutputOperationPersistenceFailure `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeOperationRetryCheckpointResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result bool `json:"result"`
 	// Exact success discriminator.
 	// 精确成功判别。
 	Status EmbeddedOutputSuccessStatus `json:"status"`
@@ -3011,8 +3387,8 @@ type EmbeddedOutputRuntimeSessionSubmitResponse struct {
 // Queryable construction and core closure evidence; no runtime implementation state is inferred by SDKs.
 // 可查询构造与核心关闭证据；SDK 不推断运行时实现状态。
 type EmbeddedOutputRuntimeSnapshot struct {
-	// True only after native core workers have exited, or no core was ever created.
-	// 仅当原生核心工作线程已退出或从未创建核心时为真。
+	// True only after construction finishes and all created core and storage workers and receipts drain.
+	// 仅在构造结束且全部已创建核心、存储线程与回执排空后为真。
 	Closed bool `json:"closed"`
 	// Whether this slot has permanently closed admission.
 	// 此槽是否已永久关闭入场。
@@ -3026,6 +3402,9 @@ type EmbeddedOutputRuntimeSnapshot struct {
 	// Actual one-shot construction state.
 	// 实际单次构造状态。
 	Initialization EmbeddedOutputInitializationPhase `json:"initialization"`
+	// Actual storage worker status when durable ownership has been created, including failed construction.
+	// 持久所有权创建后的实际存储工作线程状态，包含构造失败。
+	Persistence *EmbeddedOutputOperationJournalWorkerStatus `json:"persistence"`
 	// Live resident and execution accounting directly from the core when available.
 	// 可用时直接来自核心的实时常驻与执行计数。
 	Resources *EmbeddedOutputPoolUsage `json:"resources"`
@@ -3035,6 +3414,34 @@ type EmbeddedOutputRuntimeSnapshot struct {
 	// Live scheduler observations directly from the core when available.
 	// 可用时直接来自核心的实时调度观测。
 	Usage *EmbeddedOutputEmbeddedRuntimeUsage `json:"usage"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeStorageRecoverResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result bool `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeStorageStatusResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result EmbeddedOutputOperationJournalWorkerStatus `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
 }
 
 // Fixed-session reservation and its independently queryable initialization operation.
@@ -3140,6 +3547,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputEmbeddedPluginConfig]():                             {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputEmbeddedRuntimeConfig]():                            {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputExecutionBackend]():                                 {kind: "enum", values: []string{"in_process", "worker_process"}},
+	embeddedWireType[EmbeddedInputHistoryCursor]():                                    {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputHostCompletion]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputHostCompletionVariant1](), embeddedWireType[EmbeddedInputHostCompletionVariant2]()}},
 	embeddedWireType[EmbeddedInputHostCompletionVariant1]():                           {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputHostCompletionVariant2]():                           {kind: "object", additional: false},
@@ -3161,11 +3569,13 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputModuleDefinition]():                                 {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputModuleDefinitionExports]():                          {kind: "array", unique: false},
 	embeddedWireType[EmbeddedInputModuleExport]():                                     {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputOperationJournalConfig]():                           {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputOperationJournalWorkerConfig]():                     {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputPluginPoolConfig]():                                 {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputPoolKind]():                                         {kind: "enum", values: []string{"shared", "dedicated"}},
 	embeddedWireType[EmbeddedInputRequest]():                                          {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeClientInfo]():                                {kind: "object", additional: true},
-	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
+	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure](), embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint](), embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus](), embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget](), embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit]():                         {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmitType]():                     {kind: "enum", values: []string{"call_submit"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList]():                   {kind: "object", additional: false},
@@ -3180,6 +3590,12 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatusType]():               {kind: "enum", values: []string{"capability_status"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister]():               {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregisterType]():           {kind: "enum", values: []string{"capability_unregister"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget]():                      {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryForgetType]():                  {kind: "enum", values: []string{"history_forget"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet]():                         {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryGetType]():                     {kind: "enum", values: []string{"history_get"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext]():                        {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandHistoryNextType]():                    {kind: "enum", values: []string{"history_next"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]():                {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestCompleteType]():            {kind: "enum", values: []string{"host_request_complete"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus]():                  {kind: "object", additional: false},
@@ -3190,6 +3606,10 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationCancelType]():                {kind: "enum", values: []string{"operation_cancel"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationForget]():                    {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationForgetType]():                {kind: "enum", values: []string{"operation_forget"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure]():        {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailureType]():    {kind: "enum", values: []string{"operation_persistence_failure"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint]():           {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpointType]():       {kind: "enum", values: []string{"operation_retry_checkpoint"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus]():                    {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationStatusType]():                {kind: "enum", values: []string{"operation_status"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationWait]():                      {kind: "object", additional: false},
@@ -3223,6 +3643,11 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRuntimeCommandSessionStatusType]():                  {kind: "enum", values: []string{"session_status"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit]():                      {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmitType]():                  {kind: "enum", values: []string{"session_submit"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover]():                     {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandStorageRecoverType]():                 {kind: "enum", values: []string{"storage_recover"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus]():                      {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandStorageStatusType]():                  {kind: "enum", values: []string{"storage_status"}},
+	embeddedWireType[EmbeddedInputRuntimePersistenceConfig]():                         {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeRequestContext]():                            {kind: "object", additional: true},
 	embeddedWireType[EmbeddedInputToolCacheConfig]():                                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputCapabilityCaller]():                                {kind: "object", additional: false},
@@ -3233,6 +3658,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputCapabilityIdempotency]():                           {kind: "enum", values: []string{"none", "host_request"}},
 	embeddedWireType[EmbeddedOutputCapabilityRegistrationStatus]():                    {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputCapabilityScope]():                                 {kind: "enum", values: []string{"invocation", "session"}},
+	embeddedWireType[EmbeddedOutputCheckpointRetryState]():                            {kind: "enum", values: []string{"waiting", "requested", "retrying"}},
 	embeddedWireType[EmbeddedOutputCoreDescription]():                                 {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputCoreDescriptionCapabilities]():                     {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputCoreDescriptionCommands]():                         {kind: "array", unique: false},
@@ -3257,11 +3683,14 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputHostRequestPhase]():                                {kind: "enum", values: []string{"queued", "dispatched", "completing", "completed"}},
 	embeddedWireType[EmbeddedOutputHostRequestStatus]():                               {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputInitializationPhase]():                             {kind: "enum", values: []string{"reserved", "initializing", "ready", "failed", "faulted"}},
+	embeddedWireType[EmbeddedOutputJournalOperation]():                                {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputOperationContext]():                                {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedOutputOperationContextVariant1](), embeddedWireType[EmbeddedOutputOperationContextVariant2]()}},
 	embeddedWireType[EmbeddedOutputOperationContextVariant1]():                        {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputOperationContextVariant1Kind]():                    {kind: "enum", values: []string{"unbound"}},
 	embeddedWireType[EmbeddedOutputOperationContextVariant2]():                        {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputOperationContextVariant2Kind]():                    {kind: "enum", values: []string{"module"}},
+	embeddedWireType[EmbeddedOutputOperationJournalWorkerStatus]():                    {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputOperationPersistenceFailure]():                     {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputOperationPhase]():                                  {kind: "enum", values: []string{"queued", "initializing", "running", "waiting_for_host", "cleaning", "succeeded", "failed", "cancelled"}},
 	embeddedWireType[EmbeddedOutputOperationReceipt]():                                {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputOperationSnapshot]():                               {kind: "object", additional: false},
@@ -3283,12 +3712,17 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputRuntimeCapabilityForgetResponse]():                 {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeCapabilityStatusResponse]():                 {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeCapabilityUnregisterResponse]():             {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeHistoryForgetResponse]():                    {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeHistoryGetResponse]():                       {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeHistoryNextResponse]():                      {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestCompleteResponse]():              {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestStatusResponse]():                {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestsTakeResponse]():                 {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestsTakeResponseResult]():           {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputRuntimeOperationCancelResponse]():                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeOperationForgetResponse]():                  {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeOperationPersistenceFailureResponse]():      {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeOperationRetryCheckpointResponse]():         {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeOperationStatusResponse]():                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeOperationWaitResponse]():                    {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimePluginCloseResponse]():                      {kind: "object", additional: true},
@@ -3307,6 +3741,8 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputRuntimeSessionStatusResponse]():                    {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeSessionSubmitResponse]():                    {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeSnapshot]():                                 {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeStorageRecoverResponse]():                   {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeStorageStatusResponse]():                    {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputSessionReceipt]():                                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputSuccessStatus]():                                   {kind: "enum", values: []string{"ok"}},
 	embeddedWireType[EmbeddedOutputTransportConfig]():                                 {kind: "object", additional: true},
@@ -3425,6 +3861,30 @@ func DecodeEmbeddedOutputRuntimeCapabilityUnregisterResponse(bytes []byte) (Embe
 	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeCapabilityUnregisterResponse](bytes)
 }
 
+// DecodeEmbeddedOutputRuntimeHistoryForgetResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeHistoryForgetResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeHistoryForgetResponse(bytes []byte) (EmbeddedOutputRuntimeHistoryForgetResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeHistoryForgetResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeHistoryGetResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeHistoryGetResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeHistoryGetResponse(bytes []byte) (EmbeddedOutputRuntimeHistoryGetResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeHistoryGetResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeHistoryNextResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeHistoryNextResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeHistoryNextResponse(bytes []byte) (EmbeddedOutputRuntimeHistoryNextResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeHistoryNextResponse](bytes)
+}
+
 // DecodeEmbeddedOutputRuntimeHostRequestCompleteResponse validates bytes and preserves required fields, nulls and exact numeric values.
 // DecodeEmbeddedOutputRuntimeHostRequestCompleteResponse 校验 bytes，并保留必需字段、空值及精确数值。
 // It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
@@ -3463,6 +3923,22 @@ func DecodeEmbeddedOutputRuntimeOperationCancelResponse(bytes []byte) (EmbeddedO
 // 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
 func DecodeEmbeddedOutputRuntimeOperationForgetResponse(bytes []byte) (EmbeddedOutputRuntimeOperationForgetResponse, error) {
 	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeOperationForgetResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeOperationPersistenceFailureResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeOperationPersistenceFailureResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeOperationPersistenceFailureResponse(bytes []byte) (EmbeddedOutputRuntimeOperationPersistenceFailureResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeOperationPersistenceFailureResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeOperationRetryCheckpointResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeOperationRetryCheckpointResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeOperationRetryCheckpointResponse(bytes []byte) (EmbeddedOutputRuntimeOperationRetryCheckpointResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeOperationRetryCheckpointResponse](bytes)
 }
 
 // DecodeEmbeddedOutputRuntimeOperationStatusResponse validates bytes and preserves required fields, nulls and exact numeric values.
@@ -3591,4 +4067,20 @@ func DecodeEmbeddedOutputRuntimeSessionStatusResponse(bytes []byte) (EmbeddedOut
 // 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
 func DecodeEmbeddedOutputRuntimeSessionSubmitResponse(bytes []byte) (EmbeddedOutputRuntimeSessionSubmitResponse, error) {
 	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeSessionSubmitResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeStorageRecoverResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeStorageRecoverResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeStorageRecoverResponse(bytes []byte) (EmbeddedOutputRuntimeStorageRecoverResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeStorageRecoverResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeStorageStatusResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeStorageStatusResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeStorageStatusResponse(bytes []byte) (EmbeddedOutputRuntimeStorageStatusResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeStorageStatusResponse](bytes)
 }
