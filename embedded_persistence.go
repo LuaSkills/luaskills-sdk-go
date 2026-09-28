@@ -27,6 +27,16 @@ func (r *EmbeddedRuntime) RecoverStorage(ctx context.Context) (*EmbeddedPending[
 	return submitEmbeddedRuntime(ctx, r, EmbeddedInputRuntimeCommandStorageRecover{Type: EmbeddedInputRuntimeCommandStorageRecoverTypeStorageRecover}, projectEmbeddedResult[bool])
 }
 
+// RecoverStorageWorker rebuilds one failed, actually exited writer under ctx; false means a healthy running writer.
+// RecoverStorageWorker 在 ctx 下重建一个已失败且实际退出的写入者；假表示健康运行写入者。
+// Keep old receipts and budgets; storage recovery and checkpoint retry are independent actions on the original owners.
+// 保留旧回执及预算；存储恢复与检查点重试是原所有者上的独立操作。
+// Explicit writer closure and unproven or poisoned ownership remain errors, never implicit reopening.
+// 显式写入者关闭及未证实或中毒所有权保持错误，绝不隐式重新打开。
+func (r *EmbeddedRuntime) RecoverStorageWorker(ctx context.Context) (*EmbeddedPending[bool], error) {
+	return submitEmbeddedRuntime(ctx, r, EmbeddedInputRuntimeCommandStorageWorkerRecover{Type: EmbeddedInputRuntimeCommandStorageWorkerRecoverTypeStorageWorkerRecover}, projectEmbeddedResult[bool])
+}
+
 // HistoryGet reads the exact original historyRuntimeID and operationID under ctx; nil does not prove execution never occurred.
 // HistoryGet 在 ctx 下读取精确原始 historyRuntimeID 和 operationID；空值不证明从未执行。
 func (r *EmbeddedRuntime) HistoryGet(ctx context.Context, historyRuntimeID, operationID string) (*EmbeddedPending[*EmbeddedOutputJournalOperation], error) {

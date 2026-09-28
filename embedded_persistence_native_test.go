@@ -30,6 +30,12 @@ func TestEmbeddedClientNativePersistence(t *testing.T) {
 	if typedTake(t, recovery, err) {
 		t.Fatal("healthy storage reported recovery")
 	}
+	// A healthy actual writer is not replaced merely because recovery was requested.
+	// 健康实际写入者不会仅因恢复请求而被替换。
+	workerRecovery, err := runtime.RecoverStorageWorker(context.Background())
+	if typedTake(t, workerRecovery, err) {
+		t.Fatal("healthy writer was replaced")
+	}
 	// Writer status uses the independently reserved control lane.
 	// 写入者状态使用独立预留的控制通道。
 	writer, err := runtime.StorageStatus(context.Background())
