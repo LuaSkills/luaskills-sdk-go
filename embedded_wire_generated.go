@@ -2506,6 +2506,9 @@ type EmbeddedOutputEmbeddedPluginSnapshot struct {
 	// Accepted queued calls across every domain and session.
 	// 全部域和会话已接纳的排队调用。
 	QueuedCalls uint64 `json:"queued_calls"`
+	// Capacity reserved for closing long-lived instances, before their operation identities become queryable.
+	// 为关闭长生命周期实例预留的容量，此时相应操作身份尚不可查询。
+	ReservedOperations uint64 `json:"reserved_operations"`
 	// Actual resident VM counters through confirmed destruction.
 	// 持续记账到确认销毁的实际常驻 VM 计数。
 	Resources EmbeddedOutputPoolUsage `json:"resources"`
@@ -2568,9 +2571,12 @@ type EmbeddedOutputEmbeddedSessionSnapshot struct {
 	// Current operation, including initialization and cleanup; absent while idle.
 	// 当前操作，包含初始化与清理；空闲时省略。
 	ActiveOperation *string `json:"active_operation"`
-	// First execution failure that made the session unusable.
-	// 导致会话不可用的首次执行错误。
+	// First business or closing failure; a later cleanup error cannot replace the original failure.
+	// 首次业务或关闭错误；后续清理错误不能替换原始错误。
 	Error *EmbeddedOutputEmbeddedError `json:"error"`
+	// Independently retained closing operation; absent until eligible session cleanup is scheduled.
+	// 独立保留的关闭操作；符合条件的会话清理被调度前省略。
+	FinalizationOperation *string `json:"finalization_operation"`
 	// Current lifecycle observation.
 	// 当前生命周期观测。
 	Phase EmbeddedOutputEmbeddedSessionPhase `json:"phase"`
