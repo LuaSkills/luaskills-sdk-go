@@ -49,6 +49,13 @@ func nativeTypedRuntime(t *testing.T) (*EmbeddedRuntime, string, func()) {
 // nativeTypedRuntimeWithPersistence 在构造前选择显式存储，并保留同一清理权威。
 func nativeTypedRuntimeWithPersistence(t *testing.T, persistent bool) (*EmbeddedRuntime, string, func()) {
 	t.Helper()
+	return nativeTypedRuntimeWithJournalLimit(t, persistent, 16)
+}
+
+// nativeTypedRuntimeWithJournalLimit constructs explicit storage with maxRecords and returns runtime, package and cleanup transfer.
+// nativeTypedRuntimeWithJournalLimit 以 maxRecords 构造显式存储，返回运行时、包及清理转移函数。
+func nativeTypedRuntimeWithJournalLimit(t *testing.T, persistent bool, maxRecords uint64) (*EmbeddedRuntime, string, func()) {
+	t.Helper()
 	// Register directory cleanup before native owners so LIFO cleanup closes database handles first.
 	// 在原生所有者前注册目录清理，使后进先出清理先关闭数据库句柄。
 	root := t.TempDir()
@@ -94,7 +101,7 @@ func nativeTypedRuntimeWithPersistence(t *testing.T, persistent bool) (*Embedded
 	// 初始化路径显式选择；持久初始化失败绝不回退到内存模式。
 	var initializing *EmbeddedPending[EmbeddedOutputRuntimeReceipt]
 	if persistent {
-		initializing, err = runtime.InitializePersistent(context.Background(), options, budgets, EmbeddedInputRuntimePersistenceConfig{Path: filepath.Join(root, "operations.db"), Journal: EmbeddedInputOperationJournalConfig{MaxRecords: 16, MaxRecordBytes: 32768, MaxDatabaseBytes: 262144}, Worker: EmbeddedInputOperationJournalWorkerConfig{MaxPendingWrites: 8, MaxPendingBytes: 131072}})
+		initializing, err = runtime.InitializePersistent(context.Background(), options, budgets, EmbeddedInputRuntimePersistenceConfig{Path: filepath.Join(root, "operations.db"), Journal: EmbeddedInputOperationJournalConfig{MaxRecords: maxRecords, MaxRecordBytes: 32768, MaxDatabaseBytes: 262144}, Worker: EmbeddedInputOperationJournalWorkerConfig{MaxPendingWrites: 8, MaxPendingBytes: 131072}})
 	} else {
 		initializing, err = runtime.Initialize(context.Background(), options, budgets)
 	}
