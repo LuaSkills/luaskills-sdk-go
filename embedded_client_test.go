@@ -191,7 +191,7 @@ func TestEmbeddedClientInterruptedReceipt(t *testing.T) {
 func TestEmbeddedClientInterruptedPoll(t *testing.T) {
 	// native returns a valid nonterminal snapshot only after the observer has already left.
 	// native 仅在观察者已经离开后返回有效非终态快照。
-	native := &typedClientNative{response: []byte(`{"protocol_version":1,"status":"ok","result":{"operation_id":"op-exact","phase":"running","effects":"unknown","cancellation_requested":false,"host_effects":[]}}`), entered: make(chan struct{}), allow: make(chan struct{})}
+	native := &typedClientNative{response: []byte(`{"protocol_version":1,"status":"ok","result":{"operation_id":"op-exact","phase":"running","effects":"unknown","cancellation_requested":false,"context":{"kind":"unbound"},"host_effects":[]}}`), entered: make(chan struct{}), allow: make(chan struct{})}
 	client, unblock := typedFixture(t, native)
 	runtime, err := client.Runtime("slot-exact")
 	if err != nil {

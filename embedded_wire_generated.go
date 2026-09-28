@@ -421,8 +421,8 @@ type EmbeddedInputEmbeddedPluginConfig struct {
 // Explicit parent budgets; hosts resolve defaults once before construction.
 // 显式父级预算；宿主在构造前一次性解析默认值。
 type EmbeddedInputEmbeddedRuntimeConfig struct {
-	// Maximum serialized effect metadata bytes retained by one operation.
-	// 单次操作保留的副作用元数据序列化字节上限。
+	// Maximum serialized module context and effect metadata bytes retained by one operation.
+	// 单次操作保留的模块上下文及副作用元数据序列化字节上限。
 	MaxEffectBytesPerOperation uint64 `json:"max_effect_bytes_per_operation"`
 	// Maximum host effect records retained by one operation, including completed callbacks.
 	// 单次操作保留的宿主副作用记录上限，包含已完成回调。
@@ -2354,6 +2354,70 @@ const (
 	EmbeddedOutputInitializationPhaseFaulted EmbeddedOutputInitializationPhase = "faulted"
 )
 
+// Explicit operation origin; unbound low-level work is never inferred to belong to a current plugin.
+// 明确的操作来源；未绑定的低层工作绝不被推断归属于当前插件。
+type EmbeddedOutputOperationContext interface {
+	// embeddedVariantEmbeddedOutputOperationContext seals this generated union without invoking serialization hooks.
+	// embeddedVariantEmbeddedOutputOperationContext 封闭此生成联合，不调用序列化钩子。
+	embeddedVariantEmbeddedOutputOperationContext()
+}
+
+// embeddedVariantEmbeddedOutputOperationContext marks the exact EmbeddedOutputOperationContextVariant1 alternative.
+// embeddedVariantEmbeddedOutputOperationContext 标识精确的 EmbeddedOutputOperationContextVariant1 分支。
+func (EmbeddedOutputOperationContextVariant1) embeddedVariantEmbeddedOutputOperationContext() {}
+
+// embeddedVariantEmbeddedOutputOperationContext marks the exact EmbeddedOutputOperationContextVariant2 alternative.
+// embeddedVariantEmbeddedOutputOperationContext 标识精确的 EmbeddedOutputOperationContextVariant2 分支。
+func (EmbeddedOutputOperationContextVariant2) embeddedVariantEmbeddedOutputOperationContext() {}
+
+// The low-level host admitted this operation without a module binding.
+// 低层宿主接纳此操作时没有模块绑定。
+type EmbeddedOutputOperationContextVariant1 struct {
+	// Kind is derived from the packaged wire contract.
+	// Kind 从包内线契约派生。
+	Kind EmbeddedOutputOperationContextVariant1Kind `json:"kind"`
+}
+
+// EmbeddedOutputOperationContextVariant1Kind is derived from the packaged wire contract.
+// EmbeddedOutputOperationContextVariant1Kind 从包内线契约派生。
+type EmbeddedOutputOperationContextVariant1Kind string
+
+const (
+	// EmbeddedOutputOperationContextVariant1KindUnbound is derived from the packaged wire contract.
+	// EmbeddedOutputOperationContextVariant1KindUnbound 从包内线契约派生。
+	EmbeddedOutputOperationContextVariant1KindUnbound EmbeddedOutputOperationContextVariant1Kind = "unbound"
+)
+
+// The formal scheduler froze this module context before publishing the operation.
+// 正式调度器在发布操作前冻结了此模块上下文。
+type EmbeddedOutputOperationContextVariant2 struct {
+	// Original trusted caller shared by initialization and this operation's host callbacks.
+	// 初始化及此操作宿主回调共同使用的原始可信调用方。
+	Caller EmbeddedOutputCapabilityCaller `json:"caller"`
+	// Exact capability membership snapshot frozen when the pool was registered.
+	// 注册池时冻结的精确能力成员快照。
+	CapabilityRevision string `json:"capability_revision"`
+	// Requested declared export; absent only for a fixed-session opening operation.
+	// 请求的已声明导出；仅固定会话开启操作省略。
+	Export *string `json:"export"`
+	// Kind is derived from the packaged wire contract.
+	// Kind 从包内线契约派生。
+	Kind EmbeddedOutputOperationContextVariant2Kind `json:"kind"`
+	// Exact retained pool identity, not a lookup of the plugin's newest pool.
+	// 精确保留池身份，不查询插件最新的池。
+	PoolId string `json:"pool_id"`
+}
+
+// EmbeddedOutputOperationContextVariant2Kind is derived from the packaged wire contract.
+// EmbeddedOutputOperationContextVariant2Kind 从包内线契约派生。
+type EmbeddedOutputOperationContextVariant2Kind string
+
+const (
+	// EmbeddedOutputOperationContextVariant2KindModule is derived from the packaged wire contract.
+	// EmbeddedOutputOperationContextVariant2KindModule 从包内线契约派生。
+	EmbeddedOutputOperationContextVariant2KindModule EmbeddedOutputOperationContextVariant2Kind = "module"
+)
+
 // Execution phase; cancellation intent is reported separately from actual termination.
 // 执行阶段；取消意图与实际终止分开报告。
 type EmbeddedOutputOperationPhase string
@@ -2399,6 +2463,9 @@ type EmbeddedOutputOperationSnapshot struct {
 	// Whether cooperative cancellation has been requested.
 	// 是否已请求协作取消。
 	CancellationRequested bool `json:"cancellation_requested"`
+	// Admission-time module authority, or an explicit unbound low-level origin; never reconstructed from effects.
+	// 入场时模块权威，或明确未绑定的低层来源；绝不从副作用重建。
+	Context EmbeddedOutputOperationContext `json:"context"`
 	// Explicit effect status; successful execution does not automatically imply commit.
 	// 显式副作用状态；执行成功不自动表示提交。
 	Effects EmbeddedOutputEffectState `json:"effects"`
@@ -3190,6 +3257,11 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputHostRequestPhase]():                                {kind: "enum", values: []string{"queued", "dispatched", "completing", "completed"}},
 	embeddedWireType[EmbeddedOutputHostRequestStatus]():                               {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputInitializationPhase]():                             {kind: "enum", values: []string{"reserved", "initializing", "ready", "failed", "faulted"}},
+	embeddedWireType[EmbeddedOutputOperationContext]():                                {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedOutputOperationContextVariant1](), embeddedWireType[EmbeddedOutputOperationContextVariant2]()}},
+	embeddedWireType[EmbeddedOutputOperationContextVariant1]():                        {kind: "object", additional: false},
+	embeddedWireType[EmbeddedOutputOperationContextVariant1Kind]():                    {kind: "enum", values: []string{"unbound"}},
+	embeddedWireType[EmbeddedOutputOperationContextVariant2]():                        {kind: "object", additional: false},
+	embeddedWireType[EmbeddedOutputOperationContextVariant2Kind]():                    {kind: "enum", values: []string{"module"}},
 	embeddedWireType[EmbeddedOutputOperationPhase]():                                  {kind: "enum", values: []string{"queued", "initializing", "running", "waiting_for_host", "cleaning", "succeeded", "failed", "cancelled"}},
 	embeddedWireType[EmbeddedOutputOperationReceipt]():                                {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputOperationSnapshot]():                               {kind: "object", additional: false},

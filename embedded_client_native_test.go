@@ -121,6 +121,12 @@ func TestEmbeddedClientNativeCalls(t *testing.T) {
 		if err != nil || finished.Phase != EmbeddedOutputOperationPhaseSucceeded || finished.Value == nil || !reflect.DeepEqual(*finished.Value, value) {
 			t.Fatalf("typed result mismatch: %#v, %v", finished, err)
 		}
+		// The generated module alternative must be present even though this Lua call has no host effects.
+		// 即使此 Lua 调用没有宿主副作用，生成的模块分支也必须存在。
+		binding, ok := finished.Context.(EmbeddedOutputOperationContextVariant2)
+		if !ok || binding.Kind != EmbeddedOutputOperationContextVariant2KindModule || binding.PoolId != pool.PoolID() || binding.Caller.OperationId != operation.OperationID() || binding.Export == nil || *binding.Export != "call" || len(finished.HostEffects) != 0 {
+			t.Fatalf("typed module context missing or changed: %#v", finished.Context)
+		}
 		forgotten, err := operation.Forget(context.Background())
 		typedTake(t, forgotten, err)
 	}
@@ -161,6 +167,12 @@ func TestEmbeddedClientNativeSession(t *testing.T) {
 	if err != nil || initialized.Phase != EmbeddedOutputOperationPhaseSucceeded {
 		t.Fatalf("session initialization failed: %#v, %v", initialized, err)
 	}
+	// Session initialization has a bound session but no requested export.
+	// 会话初始化拥有绑定会话，但没有请求导出。
+	initialContext, ok := initialized.Context.(EmbeddedOutputOperationContextVariant2)
+	if !ok || initialContext.Export != nil || initialContext.Caller.SessionId == nil || *initialContext.Caller.SessionId != opening.Session.SessionID() {
+		t.Fatalf("typed session opening context changed: %#v", initialized.Context)
+	}
 	status, err := opening.Session.Status(context.Background())
 	if typedTake(t, status, err).PoolId != pool.PoolID() {
 		t.Fatal("session binding changed pools")
@@ -171,6 +183,12 @@ func TestEmbeddedClientNativeSession(t *testing.T) {
 		result, err := operation.Wait(driverTestContext(t))
 		if err != nil || result.Value == nil || *result.Value != expected {
 			t.Fatalf("session state changed: %#v, %v", result, err)
+		}
+		// Later calls retain the pinned session while receiving their own original operation identity.
+		// 后续调用保持固定会话，同时获得各自原始操作身份。
+		binding, ok := result.Context.(EmbeddedOutputOperationContextVariant2)
+		if !ok || binding.Caller.SessionId == nil || *binding.Caller.SessionId != opening.Session.SessionID() || binding.Caller.OperationId != operation.OperationID() || binding.Export == nil || *binding.Export != "call" {
+			t.Fatalf("typed session invocation context changed: %#v", result.Context)
 		}
 		forgotten, err := operation.Forget(context.Background())
 		typedTake(t, forgotten, err)

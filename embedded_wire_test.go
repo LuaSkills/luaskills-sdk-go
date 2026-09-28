@@ -42,7 +42,7 @@ func TestEmbeddedWireInputVariants(t *testing.T) {
 // TestEmbeddedWireOptionalPresence distinguishes absence, explicit null, false and zero in real operation snapshots.
 // TestEmbeddedWireOptionalPresence 在真实操作快照形状中区分缺失、显式空值、假值和零。
 func TestEmbeddedWireOptionalPresence(t *testing.T) {
-	base := `{"protocol_version":1,"status":"ok","result":{"operation_id":"op","phase":"succeeded","cancellation_requested":false,"effects":"not_applicable","host_effects":[]`
+	base := `{"protocol_version":1,"status":"ok","result":{"operation_id":"op","phase":"succeeded","cancellation_requested":false,"effects":"not_applicable","context":{"kind":"unbound"},"host_effects":[]`
 	for _, value := range []struct {
 		suffix   string
 		present  bool
@@ -99,8 +99,11 @@ func TestEmbeddedWireMalformedOutput(t *testing.T) {
 	if _, err := DecodeEmbeddedOutputRuntimePluginRegisterResponse([]byte(`{"protocol_version":1,"status":"ok","result":null}`)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodeEmbeddedOutputRuntimeOperationStatusResponse([]byte(`{"protocol_version":1,"status":"ok","result":{"operation_id":"op","phase":"invented","cancellation_requested":false,"effects":"unknown","host_effects":[]}}`)); err == nil {
+	if _, err := DecodeEmbeddedOutputRuntimeOperationStatusResponse([]byte(`{"protocol_version":1,"status":"ok","result":{"operation_id":"op","phase":"invented","cancellation_requested":false,"effects":"unknown","context":{"kind":"unbound"},"host_effects":[]}}`)); err == nil {
 		t.Fatal("unknown operation phase accepted")
+	}
+	if _, err := DecodeEmbeddedOutputRuntimeOperationStatusResponse([]byte(`{"protocol_version":1,"status":"ok","result":{"operation_id":"op","phase":"running","cancellation_requested":false,"effects":"unknown","host_effects":[]}}`)); err == nil {
+		t.Fatal("missing explicit operation context accepted")
 	}
 }
 
