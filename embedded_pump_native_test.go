@@ -87,6 +87,38 @@ func TestEmbeddedPumpNativeDelivery(t *testing.T) {
 		if err := lastContext.Load().ReportEffects(EmbeddedInputEffectStateRolledBack); err == nil {
 			t.Fatal("returned handler rewrote sealed evidence")
 		}
+		// Read the typed historical caller by exact request identity after the real callback has returned.
+		// 真实回调返回后，按精确请求身份读取类型化历史调用方。
+		found := false
+		// Find evidence through the request identity instead of relying on array positions.
+		// 通过请求身份查找证据，不依赖数组位置。
+		for _, raw := range result["host_effects"].([]any) {
+			// Project the fixture effect object for exact request identity comparison.
+			// 投影夹具副作用对象，以比较精确请求身份。
+			effect := raw.(map[string]any)
+			if effect["request_id"] != lastContext.Load().RequestID() {
+				continue
+			}
+			// Decode through the generated public caller type; compare every original authority field.
+			// 通过生成的公开调用方类型解码；比较每个原始权威字段。
+			encoded, err := json.Marshal(effect["caller"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Keep the decoded public caller separate from the still-retained callback context.
+			// 将解码后的公开调用方与仍保留的回调上下文分开。
+			var historical EmbeddedOutputCapabilityCaller
+			if err := json.Unmarshal(encoded, &historical); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(historical, lastContext.Load().Caller()) {
+				t.Fatalf("historical caller changed: %#v", historical)
+			}
+			found = true
+		}
+		if !found {
+			t.Fatal("original callback request evidence is missing; fixture identity may have changed")
+		}
 		command(map[string]any{"type": "operation_forget", "operation_id": id})
 	}
 	if calls.Load() != 4 {

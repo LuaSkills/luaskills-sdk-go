@@ -2244,6 +2244,9 @@ const (
 // Bounded evidence retained independently from values returned to Lua.
 // 独立于返回 Lua 的值保留的有界证据。
 type EmbeddedOutputHostEffectRecord struct {
+	// Original host-bound caller identity, retained for reconciliation without consulting a newer plugin generation.
+	// 原始宿主绑定调用身份；对账保留该身份，不查询较新的插件代次。
+	Caller EmbeddedOutputCapabilityCaller `json:"caller"`
 	// Public capability name, excluding business arguments and credentials.
 	// 公开能力名称，不包含业务参数与凭证。
 	CapabilityName string `json:"capability_name"`
