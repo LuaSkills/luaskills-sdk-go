@@ -335,8 +335,8 @@ type EmbeddedInputEmbeddedCall struct {
 	PoolId string `json:"pool_id"`
 }
 
-// Immutable capacity policy owned by one plugin across isolated module generations.
-// 单个插件跨隔离模块代次持有的不可变容量策略。
+// Complete capacity policy owned by one plugin across isolated module generations.
+// 单个插件跨隔离模块代次持有的完整容量策略。
 type EmbeddedInputEmbeddedCapacityConfig struct {
 	// Maximum exact serialized bytes of queued requests across members.
 	// 全部成员排队请求精确序列化字节数上限。
@@ -2579,8 +2579,8 @@ type EmbeddedOutputEmbeddedBuildIdentity struct {
 // 排序后 Cargo 功能环境后缀；不反向映射为猜测功能名。
 type EmbeddedOutputEmbeddedBuildIdentityCargoFeatures []string
 
-// Immutable capacity policy owned by one plugin across isolated module generations.
-// 单个插件跨隔离模块代次持有的不可变容量策略。
+// Complete capacity policy owned by one plugin across isolated module generations.
+// 单个插件跨隔离模块代次持有的完整容量策略。
 type EmbeddedOutputEmbeddedCapacityConfig struct {
 	// Maximum exact serialized bytes of queued requests across members.
 	// 全部成员排队请求精确序列化字节数上限。
@@ -2608,8 +2608,8 @@ type EmbeddedOutputEmbeddedCapacitySnapshot struct {
 	// Non-lendable commitment remains visible even with zero physical VMs.
 	// 即使物理 VM 为零，不可借用承诺仍可见。
 	CommittedResidentVms uint64 `json:"committed_resident_vms"`
-	// Original complete policy, including physical and queued-work budgets.
-	// 原完整策略，包含物理及排队工作预算。
+	// Current complete policy, including physical and queued-work budgets.
+	// 当前完整策略，包含物理及排队工作预算。
 	Config EmbeddedOutputEmbeddedCapacityConfig `json:"config"`
 	// Exact immutable plugin owner.
 	// 精确不可变插件所有者。
