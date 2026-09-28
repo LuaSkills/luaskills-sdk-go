@@ -51,7 +51,7 @@ func (s *EmbeddedRuntimeScope) accept(pending *embeddedScopeControl) error {
 		if err != nil {
 			return err
 		}
-		identity, next = response.Result.RuntimeId, EmbeddedScopeDrainingCallbacks
+		identity, next = response.Result.RuntimeId, EmbeddedScopeDrainingRuntime
 	case "runtime_status":
 		response, err := DecodeEmbeddedOutputRootRuntimeStatusResponse(pending.response)
 		if err != nil {
@@ -62,7 +62,7 @@ func (s *EmbeddedRuntimeScope) accept(pending *embeddedScopeControl) error {
 		}
 		identity, next = response.Result.RuntimeId, EmbeddedScopeDrainingRuntime
 		if response.Result.Closed {
-			next = EmbeddedScopeReleasingRuntime
+			next = EmbeddedScopeDrainingCallbacks
 		}
 	case "runtime_free":
 		response, err := DecodeEmbeddedOutputRootRuntimeFreeResponse(pending.response)
@@ -197,13 +197,17 @@ func (s *EmbeddedRuntimeScope) drain(retry bool) error {
 			return err
 		}
 	}
-	if s.phaseValue() == EmbeddedScopeDrainingCallbacks {
-		if err := s.drainCallbacks(retry); err != nil {
+	// Closing callbacks need the pump until actual core drainage; only explicit retry repairs delivery.
+	// 关闭回调在核心真正排空前需要事件泵；只有显式重试修复交付。
+	if retry && s.phaseValue() == EmbeddedScopeDrainingRuntime && s.pump != nil && s.pump.Status().RecoveryRequired {
+		if err := s.pump.RetryAcknowledgements(context.Background()); err != nil {
 			return err
 		}
-		s.setPhase(EmbeddedScopeDrainingRuntime)
 	}
 	for s.phaseValue() == EmbeddedScopeDrainingRuntime {
+		if s.pump != nil && s.pump.Status().RecoveryRequired {
+			return &EmbeddedRuntimeError{"busy", "callback pump requires explicit delivery recovery before runtime release"}
+		}
 		if err := s.control("runtime_status"); err != nil {
 			return err
 		}
@@ -212,6 +216,12 @@ func (s *EmbeddedRuntimeScope) drain(retry bool) error {
 				return err
 			}
 		}
+	}
+	if s.phaseValue() == EmbeddedScopeDrainingCallbacks {
+		if err := s.drainCallbacks(retry); err != nil {
+			return err
+		}
+		s.setPhase(EmbeddedScopeReleasingRuntime)
 	}
 	for s.phaseValue() == EmbeddedScopeReleasingRuntime {
 		if err := s.control("runtime_free"); err != nil {
@@ -284,7 +294,7 @@ func (s *EmbeddedRuntimeScope) run() {
 		}
 		s.mu.Lock()
 		s.failure, attempt.err = cloneEmbeddedFailure(err), cloneEmbeddedFailure(err)
-		s.retryable = s.needsRelease || embeddedScopePreEntryRejection(err) || (s.phase == EmbeddedScopeDrainingCallbacks && callbackRecovery)
+		s.retryable = s.needsRelease || embeddedScopePreEntryRejection(err) || ((s.phase == EmbeddedScopeDrainingCallbacks || s.phase == EmbeddedScopeDrainingRuntime) && callbackRecovery)
 		s.running = false
 		close(attempt.done)
 		s.mu.Unlock()

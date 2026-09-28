@@ -872,6 +872,9 @@ type EmbeddedInputModuleDefinition struct {
 	// Exact public exports and value contracts validated before invocation.
 	// 调用前校验的精确公开导出及值契约。
 	Exports EmbeddedInputModuleDefinitionExports `json:"exports"`
+	// Optional host-owned closing declaration for supported scheduled lifecycles.
+	// 可选的宿主所有关闭声明，用于受支持的调度生命周期。
+	Finalizer **EmbeddedInputModuleFinalizer `json:"finalizer,omitempty"`
 	// Host-assigned immutable code and dependency generation.
 	// 宿主分配的不可变代码与依赖代次。
 	Generation string `json:"generation"`
@@ -911,6 +914,20 @@ type EmbeddedInputModuleExport struct {
 	// Offline Draft 2020-12 schema for structured return values.
 	// 结构化返回值的离线 Draft 2020-12 Schema。
 	OutputSchema any `json:"output_schema"`
+}
+
+// Immutable closing export, arguments and independent finite execution budget.
+// 不可变关闭导出、参数及独立有限执行预算。
+type EmbeddedInputModuleFinalizer struct {
+	// Structured closing input validated at registration and again before execution.
+	// 在注册时及执行前再次校验的结构化关闭输入。
+	Arguments any `json:"arguments"`
+	// Exact name already present in the module's declared exports.
+	// 已存在于模块声明导出中的精确名称。
+	Export string `json:"export"`
+	// Finite milliseconds starting at closing execution admission, independent from business cancellation.
+	// 从关闭执行入场开始计时的有限毫秒数，独立于业务取消。
+	TimeoutMs uint64 `json:"timeout_ms"`
 }
 
 // Explicit retention budgets; SQLite journal/cache overhead is separate from the database-file cap.
@@ -2829,6 +2846,23 @@ const (
 	EmbeddedOutputOperationContextVariant2KindModule EmbeddedOutputOperationContextVariant2Kind = "module"
 )
 
+// Durable closing intent and separate outcomes within one original operation identity.
+// 同一原始操作身份中的持久关闭意图与独立结果。
+type EmbeddedOutputOperationFinalization struct {
+	// Bounded original business result retained even if closing fails.
+	// 即使关闭失败也保留的有界原始业务结果。
+	Business EmbeddedOutputOperationOutcome `json:"business"`
+	// Frozen number of ordered host effects admitted before the closing phase.
+	// 关闭阶段前接纳的有序宿主副作用的冻结数量。
+	BusinessEffectCount uint64 `json:"business_effect_count"`
+	// Exact host-selected declared export; absence of an outcome is not proof it never ran.
+	// 宿主选择的精确声明导出；缺少结果不能证明其从未运行。
+	Export string `json:"export"`
+	// Actual closing result; omitted until the owner records a returned outcome.
+	// 实际关闭结果；所有者记录已返回结果前省略。
+	Outcome **EmbeddedOutputOperationOutcome `json:"outcome,omitempty"`
+}
+
 // Live worker observations; retained receipts keep quota even after the thread has finished.
 // 实时工作线程观测；线程结束后，保留的回执仍占有配额。
 type EmbeddedOutputOperationJournalWorkerStatus struct {
@@ -2854,6 +2888,64 @@ type EmbeddedOutputOperationJournalWorkerStatus struct {
 	// 存储线程当前是否拥有真实写入。
 	Writing bool `json:"writing"`
 }
+
+// One bounded execution outcome; explicit JSON null remains a successful value.
+// 一项有界执行结果；显式 JSON 空值仍为成功值。
+type EmbeddedOutputOperationOutcome interface {
+	// embeddedVariantEmbeddedOutputOperationOutcome seals this generated union without invoking serialization hooks.
+	// embeddedVariantEmbeddedOutputOperationOutcome 封闭此生成联合，不调用序列化钩子。
+	embeddedVariantEmbeddedOutputOperationOutcome()
+}
+
+// embeddedVariantEmbeddedOutputOperationOutcome marks the exact EmbeddedOutputOperationOutcomeVariant1 alternative.
+// embeddedVariantEmbeddedOutputOperationOutcome 标识精确的 EmbeddedOutputOperationOutcomeVariant1 分支。
+func (EmbeddedOutputOperationOutcomeVariant1) embeddedVariantEmbeddedOutputOperationOutcome() {}
+
+// embeddedVariantEmbeddedOutputOperationOutcome marks the exact EmbeddedOutputOperationOutcomeVariant2 alternative.
+// embeddedVariantEmbeddedOutputOperationOutcome 标识精确的 EmbeddedOutputOperationOutcomeVariant2 分支。
+func (EmbeddedOutputOperationOutcomeVariant2) embeddedVariantEmbeddedOutputOperationOutcome() {}
+
+// The stage returned its validated application value.
+// 该阶段返回经过校验的应用值。
+type EmbeddedOutputOperationOutcomeVariant1 struct {
+	// Status is derived from the packaged wire contract.
+	// Status 从包内线契约派生。
+	Status EmbeddedOutputOperationOutcomeVariant1Status `json:"status"`
+	// Exact successful JSON value, including explicit null.
+	// 精确成功 JSON 值，包含显式空值。
+	Value any `json:"value"`
+}
+
+// EmbeddedOutputOperationOutcomeVariant1Status is derived from the packaged wire contract.
+// EmbeddedOutputOperationOutcomeVariant1Status 从包内线契约派生。
+type EmbeddedOutputOperationOutcomeVariant1Status string
+
+const (
+	// EmbeddedOutputOperationOutcomeVariant1StatusSucceeded is derived from the packaged wire contract.
+	// EmbeddedOutputOperationOutcomeVariant1StatusSucceeded 从包内线契约派生。
+	EmbeddedOutputOperationOutcomeVariant1StatusSucceeded EmbeddedOutputOperationOutcomeVariant1Status = "succeeded"
+)
+
+// The stage failed without discarding the other stage's result.
+// 该阶段失败，但不丢弃另一阶段的结果。
+type EmbeddedOutputOperationOutcomeVariant2 struct {
+	// Structured stage error independent of side-effect evidence.
+	// 独立于副作用证据的结构化阶段错误。
+	Error EmbeddedOutputEmbeddedError `json:"error"`
+	// Status is derived from the packaged wire contract.
+	// Status 从包内线契约派生。
+	Status EmbeddedOutputOperationOutcomeVariant2Status `json:"status"`
+}
+
+// EmbeddedOutputOperationOutcomeVariant2Status is derived from the packaged wire contract.
+// EmbeddedOutputOperationOutcomeVariant2Status 从包内线契约派生。
+type EmbeddedOutputOperationOutcomeVariant2Status string
+
+const (
+	// EmbeddedOutputOperationOutcomeVariant2StatusFailed is derived from the packaged wire contract.
+	// EmbeddedOutputOperationOutcomeVariant2StatusFailed 从包内线契约派生。
+	EmbeddedOutputOperationOutcomeVariant2StatusFailed EmbeddedOutputOperationOutcomeVariant2Status = "failed"
+)
 
 // A failed checkpoint remains queryable by exact operation ID until that original checkpoint is acknowledged.
 // 失败检查点可按精确操作 ID 查询，直至原检查点得到确认。
@@ -2955,6 +3047,9 @@ type EmbeddedOutputOperationSnapshot struct {
 	// Structured terminal error; absent while execution is still in progress.
 	// 结构化终态错误；执行仍在进行时省略。
 	Error **EmbeddedOutputEmbeddedError `json:"error,omitempty"`
+	// Closing intent and separate stage results, absent when no explicit finalization was prepared.
+	// 关闭意图及独立阶段结果；未准备显式关闭时省略。
+	Finalization **EmbeddedOutputOperationFinalization `json:"finalization,omitempty"`
 	// Exact host callback evidence retained even after Lua failure, cancellation or output rejection.
 	// 即使 Lua 失败、取消或输出被拒绝也保留的精确宿主回调证据。
 	HostEffects EmbeddedOutputOperationSnapshotHostEffects `json:"host_effects"`
@@ -3807,6 +3902,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputModuleDefinition]():                                 {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputModuleDefinitionExports]():                          {kind: "array", unique: false},
 	embeddedWireType[EmbeddedInputModuleExport]():                                     {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputModuleFinalizer]():                                  {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputOperationJournalConfig]():                           {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputOperationJournalWorkerConfig]():                     {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputOperationReconciliation]():                          {kind: "object", additional: false},
@@ -3936,7 +4032,13 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputOperationContextVariant1Kind]():                    {kind: "enum", values: []string{"unbound"}},
 	embeddedWireType[EmbeddedOutputOperationContextVariant2]():                        {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputOperationContextVariant2Kind]():                    {kind: "enum", values: []string{"module"}},
+	embeddedWireType[EmbeddedOutputOperationFinalization]():                           {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputOperationJournalWorkerStatus]():                    {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputOperationOutcome]():                                {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedOutputOperationOutcomeVariant1](), embeddedWireType[EmbeddedOutputOperationOutcomeVariant2]()}},
+	embeddedWireType[EmbeddedOutputOperationOutcomeVariant1]():                        {kind: "object", additional: false},
+	embeddedWireType[EmbeddedOutputOperationOutcomeVariant1Status]():                  {kind: "enum", values: []string{"succeeded"}},
+	embeddedWireType[EmbeddedOutputOperationOutcomeVariant2]():                        {kind: "object", additional: false},
+	embeddedWireType[EmbeddedOutputOperationOutcomeVariant2Status]():                  {kind: "enum", values: []string{"failed"}},
 	embeddedWireType[EmbeddedOutputOperationPersistenceFailure]():                     {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputOperationPhase]():                                  {kind: "enum", values: []string{"queued", "initializing", "running", "waiting_for_host", "cleaning", "succeeded", "failed", "cancelled"}},
 	embeddedWireType[EmbeddedOutputOperationReceipt]():                                {kind: "object", additional: true},

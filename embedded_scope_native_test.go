@@ -129,13 +129,25 @@ func TestEmbeddedScopeNativeCallbackDrain(t *testing.T) {
 	var release sync.Once
 	defer release.Do(func() { close(allow) })
 	var guarded atomic.Bool
+	var calls atomic.Int32
 	pumpRegister(t, pump, pumpCapability(func(value any, callback *EmbeddedHostCallbackContext) (any, error) {
 		guarded.Store(scope.Close(callback) != nil)
-		close(entered)
+		if calls.Add(1) == 1 {
+			close(entered)
+		}
 		<-allow
 		return value, callback.ReportEffects(EmbeddedInputEffectStateCommitted)
 	}))
-	pool := typedPool(t, runtime, root, "return {call=function(a) return vulcan.capabilities.call('go.callback',a) end}", false)
+	closing := &EmbeddedInputModuleFinalizer{Export: "shutdown", Arguments: nil, TimeoutMs: 5000}
+	definition := EmbeddedInputModuleDefinition{
+		PluginId: "go-typed-test", Generation: "typed-generation-1", PackageRoot: root,
+		DependenciesFile: "dependencies.yaml", Mounts: map[string]any{}, SecurityPartition: "go-typed-test",
+		Source:  "return {call=function(a) return vulcan.capabilities.call('go.callback',a) end, shutdown=function() local r=vulcan.capabilities.call('go.callback','closing'); assert(r.ok); return r.value end}",
+		Exports: EmbeddedInputModuleDefinitionExports{{Name: "call", InputSchema: true, OutputSchema: true}, {Name: "shutdown", InputSchema: true, OutputSchema: true}}, Finalizer: &closing,
+	}
+	policy := EmbeddedInputPluginPoolConfig{Kind: EmbeddedInputPoolKindShared, MaxResidentVms: 2, MaxRunningCalls: 2, MaxQueuedCalls: 4, Reuse: EmbeddedInputInstanceReuseSingleCall, Backend: EmbeddedInputExecutionBackendInProcess}
+	registered, registerErr := runtime.RegisterPool(context.Background(), definition, policy, []string{"go.host"}, "typed-v1")
+	pool := typedTake(t, registered, registerErr)
 	scope = nativeScopeTest(t, runtime, pump, adopt)
 	pending, err := pool.Submit(context.Background(), "call", nil, EmbeddedInputLuaInvocationContext{}, 10000)
 	typedTake(t, pending, err)
@@ -152,7 +164,7 @@ func TestEmbeddedScopeNativeCallbackDrain(t *testing.T) {
 	if err := scope.Close(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled observer changed: %v", err)
 	}
-	embeddedPoll(t, func() any { return scope.Status() }, func(value any) bool { return value.(EmbeddedScopeStatus).Phase == EmbeddedScopeDrainingCallbacks })
+	embeddedPoll(t, func() any { return scope.Status() }, func(value any) bool { return value.(EmbeddedScopeStatus).Phase == EmbeddedScopeDrainingRuntime })
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 	if err := scope.Close(ctx); !errors.Is(err, context.DeadlineExceeded) {
@@ -167,6 +179,9 @@ func TestEmbeddedScopeNativeCallbackDrain(t *testing.T) {
 	}
 	if !pump.Status().Closed || scope.Status().Phase != EmbeddedScopeClosed {
 		t.Fatal("scope closed before actual callback drainage")
+	}
+	if calls.Load() != 2 {
+		t.Fatal("scope closed the pump before automatic Lua finalization could call the host")
 	}
 }
 
