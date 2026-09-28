@@ -82,10 +82,12 @@ func nativeTypedRuntimeWithJournalLimit(t *testing.T, persistent bool, maxRecord
 		}, func(value any) bool { return value.(map[string]any)["closed"] == true })
 		embeddedRequest(t, transport, map[string]any{"type": "runtime_free", "runtime_id": runtime.RuntimeID()})
 	})
-	// root is isolated from user runtime configuration; only its declared system package is authorized.
-	// root 与用户运行时配置隔离；仅授权其声明的系统包。
+	// root is isolated from user configuration; the formal package is explicitly authorized outside System.
+	// root 与用户配置隔离；正式包在 System 外被显式授权。
 	system := filepath.Join(root, "system_lua_lib")
-	packageRoot := filepath.Join(system, "go-typed-test")
+	// All typed client and persistent scenarios consume this exact external package through the real core.
+	// 所有类型化客户端及持久场景通过真实核心消费此精确外部包。
+	packageRoot := filepath.Join(root, "plugin-generations", "go-typed-test")
 	if err := os.MkdirAll(packageRoot, 0755); err != nil {
 		t.Fatal(err)
 	}

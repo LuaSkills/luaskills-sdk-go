@@ -878,8 +878,8 @@ type EmbeddedInputModuleDefinition struct {
 	// Trusted mount metadata; must be a JSON object.
 	// 可信挂载元数据，必须为 JSON 对象。
 	Mounts any `json:"mounts"`
-	// Absolute plugin root inside the configured System trust root.
-	// 位于已配置 System 信任根内的绝对插件根目录。
+	// Exact absolute plugin root authorized by the trusted host, independent of legacy System roots.
+	// 可信宿主授权的精确绝对插件根目录，独立于旧 System 根。
 	PackageRoot string `json:"package_root"`
 	// Host-assigned stable plugin identity.
 	// 宿主分配的稳定插件身份。
