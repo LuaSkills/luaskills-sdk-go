@@ -35,9 +35,9 @@ def verify(go: str) -> None:
     for required in ("go.mod", "embedded_contract_generated.go", "embedded_wire_generated.go", "embedded_wire.go", "embedded_driver.go", "embedded_command.go", "embedded_client.go", "embedded_handles.go", "embedded_wait.go", "embedded_scope.go", "embedded_scope_control.go", "embedded_callbacks.go", "embedded_pump.go", "embedded_pump_native.go", "embedded_pump_service.go", "embedded_ownership.go", "scripts/generate-embedded-contract/wire.go", "embedded_ffi_cgo.go", "luaskills_ffi.h", "luaskills_json_ffi.h", "contracts/embedded/v1/contract.json"):
         if required not in sources:
             raise ValueError(f"Missing distribution member: {required}")
-    for required in ("embedded_compatibility.go", "embedded_compatibility_test.go", "embedded_compatibility_native_test.go"):
+    for required in ("embedded_compatibility.go", "embedded_compatibility_test.go", "embedded_compatibility_native_test.go", "embedded_capacity.go", "embedded_capacity_native_test.go"):
         if required not in sources:
-            raise ValueError(f"Missing compatibility distribution member: {required}")
+            raise ValueError(f"Missing required embedded distribution member: {required}")
     # This development-only version exists solely in the private file proxy, never in a public registry.
     # 此开发专用版本仅存在于私有文件代理中，绝不进入公共注册表。
     module = "github.com/LuaSkills/luaskills-sdk-go"
