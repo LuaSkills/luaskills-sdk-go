@@ -57,6 +57,25 @@ func (h *EmbeddedCapacity) Status(ctx context.Context) (*EmbeddedPending[Embedde
 	}, projectEmbeddedResult[EmbeddedOutputEmbeddedCapacitySnapshot])
 }
 
+// Policy admits under ctx on the control lane and returns the atomic native revision, policy and convergence.
+// Policy 在 ctx 下于控制通道入场，返回原子原生修订、策略及收敛状态。
+func (h *EmbeddedCapacity) Policy(ctx context.Context) (*EmbeddedPending[EmbeddedOutputEmbeddedCapacityPolicySnapshot], error) {
+	return submitEmbeddedRuntime(ctx, h.runtime, EmbeddedInputRuntimeCommandCapacityPolicy{
+		Type: EmbeddedInputRuntimeCommandCapacityPolicyTypeCapacityPolicy, CapacityId: h.identity,
+	}, projectEmbeddedResult[EmbeddedOutputEmbeddedCapacityPolicySnapshot])
+}
+
+// Revise compares expectedRevision and replaces complete config under ctx; returns a retained committed-token receipt.
+// Revise 在 ctx 下比较 expectedRevision 并替换完整 config；返回保留的已提交令牌回执。
+// Native conflicts, execution pressure and closure remain explicit; the token is never refreshed or retried automatically.
+// 原生冲突、执行压力及关闭保持显式；绝不自动刷新或重试令牌。
+func (h *EmbeddedCapacity) Revise(ctx context.Context, expectedRevision string, config EmbeddedInputEmbeddedCapacityConfig) (*EmbeddedPending[string], error) {
+	return submitEmbeddedRuntime(ctx, h.runtime, EmbeddedInputRuntimeCommandCapacityRevise{
+		Type: EmbeddedInputRuntimeCommandCapacityReviseTypeCapacityRevise, CapacityId: h.identity,
+		ExpectedRevision: expectedRevision, Config: config,
+	}, projectEmbeddedResult[string])
+}
+
 // RequestClose admits under ctx and requests member drainage; acknowledgement does not prove completion.
 // RequestClose 在 ctx 下入场并请求成员排空；确认不证明完成。
 func (h *EmbeddedCapacity) RequestClose(ctx context.Context) (*EmbeddedPending[*EmbeddedJSONNull], error) {

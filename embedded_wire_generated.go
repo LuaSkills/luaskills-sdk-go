@@ -1173,6 +1173,14 @@ func (EmbeddedInputRuntimeCommandCapacityRegister) embeddedVariantEmbeddedInputR
 // embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandCapacityStatus 分支。
 func (EmbeddedInputRuntimeCommandCapacityStatus) embeddedVariantEmbeddedInputRuntimeCommand() {}
 
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandCapacityPolicy alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandCapacityPolicy 分支。
+func (EmbeddedInputRuntimeCommandCapacityPolicy) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandCapacityRevise alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandCapacityRevise 分支。
+func (EmbeddedInputRuntimeCommandCapacityRevise) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
 // embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandCapacityClose alternative.
 // embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandCapacityClose 分支。
 func (EmbeddedInputRuntimeCommandCapacityClose) embeddedVariantEmbeddedInputRuntimeCommand() {}
@@ -1456,6 +1464,27 @@ const (
 	EmbeddedInputRuntimeCommandCapacityForgetTypeCapacityForget EmbeddedInputRuntimeCommandCapacityForgetType = "capacity_forget"
 )
 
+// Read the current policy token and actual convergence state atomically.
+// 原子读取当前策略令牌及实际收敛状态。
+type EmbeddedInputRuntimeCommandCapacityPolicy struct {
+	// Exact runtime-issued capacity identity.
+	// 精确运行时签发容量身份。
+	CapacityId string `json:"capacity_id"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandCapacityPolicyType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandCapacityPolicyType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandCapacityPolicyType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandCapacityPolicyType string
+
+const (
+	// EmbeddedInputRuntimeCommandCapacityPolicyTypeCapacityPolicy is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandCapacityPolicyTypeCapacityPolicy 从包内线契约派生。
+	EmbeddedInputRuntimeCommandCapacityPolicyTypeCapacityPolicy EmbeddedInputRuntimeCommandCapacityPolicyType = "capacity_policy"
+)
+
 // Register immutable capacity owned by one existing plugin without creating a VM.
 // 注册单个既有插件拥有的不可变容量，不创建 VM。
 type EmbeddedInputRuntimeCommandCapacityRegister struct {
@@ -1478,6 +1507,33 @@ const (
 	// EmbeddedInputRuntimeCommandCapacityRegisterTypeCapacityRegister is derived from the packaged wire contract.
 	// EmbeddedInputRuntimeCommandCapacityRegisterTypeCapacityRegister 从包内线契约派生。
 	EmbeddedInputRuntimeCommandCapacityRegisterTypeCapacityRegister EmbeddedInputRuntimeCommandCapacityRegisterType = "capacity_register"
+)
+
+// Replace complete capacity policy only when the supplied opaque predecessor still matches.
+// 仅在提供的不透明前驱仍匹配时替换完整容量策略。
+type EmbeddedInputRuntimeCommandCapacityRevise struct {
+	// Exact runtime-issued capacity identity; never inferred from plugin name.
+	// 精确运行时签发容量身份；绝不从插件名推断。
+	CapacityId string `json:"capacity_id"`
+	// Complete replacement policy validated atomically by the original scheduler and governor.
+	// 由原调度器及治理器原子校验的完整替换策略。
+	Config EmbeddedInputEmbeddedCapacityConfig `json:"config"`
+	// Exact string from capacity_policy; clients must not convert it into a numeric value.
+	// 来自 capacity_policy 的精确字符串；客户端不得将其转成数值。
+	ExpectedRevision string `json:"expected_revision"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandCapacityReviseType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandCapacityReviseType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandCapacityReviseType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandCapacityReviseType string
+
+const (
+	// EmbeddedInputRuntimeCommandCapacityReviseTypeCapacityRevise is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandCapacityReviseTypeCapacityRevise 从包内线契约派生。
+	EmbeddedInputRuntimeCommandCapacityReviseTypeCapacityRevise EmbeddedInputRuntimeCommandCapacityReviseType = "capacity_revise"
 )
 
 // Read actual capacity ownership, including cleanup and unused physical guarantees.
@@ -2593,6 +2649,20 @@ type EmbeddedOutputEmbeddedCapacityConfig struct {
 	Resources EmbeddedOutputVmCapacityConfig `json:"resources"`
 }
 
+// One atomic policy revision and its actual convergence state for an exact capacity.
+// 单个精确容量的原子策略修订及其实际收敛状态。
+type EmbeddedOutputEmbeddedCapacityPolicySnapshot struct {
+	// Current policy and physical/scheduling ownership sampled under the same scheduler gate.
+	// 在同一调度门下采样的当前策略及物理／调度归属。
+	Capacity EmbeddedOutputEmbeddedCapacitySnapshot `json:"capacity"`
+	// Actual usage exceeds at least one current limit; existing work is still allowed to drain.
+	// 实际用量超过至少一个当前上限；既有工作仍允许排空。
+	PendingConvergence bool `json:"pending_convergence"`
+	// Opaque predecessor token for compare-and-swap; clients must echo it without numeric conversion.
+	// 比较交换使用的不透明前驱令牌；客户端必须原样回传，不得数值转换。
+	Revision string `json:"revision"`
+}
+
 // Actual capacity status includes physical ownership and scheduler work retained through cleanup.
 // 实际容量状态包含物理所有权及保留至清理完成的调度工作。
 type EmbeddedOutputEmbeddedCapacitySnapshot struct {
@@ -3614,6 +3684,20 @@ type EmbeddedOutputRuntimeCapacityForgetResponse struct {
 
 // Borrowed success envelope avoids cloning application output during native response publication.
 // 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeCapacityPolicyResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result EmbeddedOutputEmbeddedCapacityPolicySnapshot `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
 type EmbeddedOutputRuntimeCapacityRegisterResponse struct {
 	// Single protocol version authority.
 	// 唯一协议版本权威。
@@ -3621,6 +3705,20 @@ type EmbeddedOutputRuntimeCapacityRegisterResponse struct {
 	// Borrowed result whose owner lives through serialization.
 	// 借用结果，其所有者跨序列化存活。
 	Result EmbeddedOutputCapacityReceipt `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeCapacityReviseResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result string `json:"result"`
 	// Exact success discriminator.
 	// 精确成功判别。
 	Status EmbeddedOutputSuccessStatus `json:"status"`
@@ -4275,7 +4373,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRequest]():                                          {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputResolvedEffectState]():                              {kind: "enum", values: []string{"not_started", "not_applicable", "committed", "rolled_back"}},
 	embeddedWireType[EmbeddedInputRuntimeClientInfo]():                                {kind: "object", additional: true},
-	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure](), embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint](), embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus](), embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover](), embeddedWireType[EmbeddedInputRuntimeCommandStorageWorkerRecover](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryReconcile](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget](), embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityClose](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationList](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
+	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure](), embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint](), embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus](), embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover](), embeddedWireType[EmbeddedInputRuntimeCommandStorageWorkerRecover](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryReconcile](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget](), embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityPolicy](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityRevise](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityClose](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationList](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit]():                         {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmitType]():                     {kind: "enum", values: []string{"call_submit"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList]():                   {kind: "object", additional: false},
@@ -4294,8 +4392,12 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRuntimeCommandCapacityCloseType]():                  {kind: "enum", values: []string{"capacity_close"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapacityForget]():                     {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapacityForgetType]():                 {kind: "enum", values: []string{"capacity_forget"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandCapacityPolicy]():                     {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandCapacityPolicyType]():                 {kind: "enum", values: []string{"capacity_policy"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapacityRegister]():                   {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapacityRegisterType]():               {kind: "enum", values: []string{"capacity_register"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandCapacityRevise]():                     {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandCapacityReviseType]():                 {kind: "enum", values: []string{"capacity_revise"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapacityStatus]():                     {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapacityStatusType]():                 {kind: "enum", values: []string{"capacity_status"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget]():                      {kind: "object", additional: false},
@@ -4384,6 +4486,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputEmbeddedBuildIdentity]():                           {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputEmbeddedBuildIdentityCargoFeatures]():              {kind: "array", unique: false},
 	embeddedWireType[EmbeddedOutputEmbeddedCapacityConfig]():                          {kind: "object", additional: false},
+	embeddedWireType[EmbeddedOutputEmbeddedCapacityPolicySnapshot]():                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputEmbeddedCapacitySnapshot]():                        {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputEmbeddedError]():                                   {kind: "object", additional: false},
 	embeddedWireType[EmbeddedOutputEmbeddedErrorCode]():                               {kind: "enum", values: []string{"invalid_argument", "not_found", "stale_generation", "capacity_exceeded", "busy", "already_completed", "closed", "cancelled", "deadline_exceeded", "permission_denied", "unsupported", "execution_failed", "cleanup_failed", "internal"}},
@@ -4446,7 +4549,9 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputRuntimeCapabilityUnregisterResponse]():             {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeCapacityCloseResponse]():                    {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeCapacityForgetResponse]():                   {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeCapacityPolicyResponse]():                   {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeCapacityRegisterResponse]():                 {kind: "object", additional: true},
+	embeddedWireType[EmbeddedOutputRuntimeCapacityReviseResponse]():                   {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeCapacityStatusResponse]():                   {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHistoryForgetResponse]():                    {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHistoryGetResponse]():                       {kind: "object", additional: true},
@@ -4617,12 +4722,28 @@ func DecodeEmbeddedOutputRuntimeCapacityForgetResponse(bytes []byte) (EmbeddedOu
 	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeCapacityForgetResponse](bytes)
 }
 
+// DecodeEmbeddedOutputRuntimeCapacityPolicyResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeCapacityPolicyResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeCapacityPolicyResponse(bytes []byte) (EmbeddedOutputRuntimeCapacityPolicyResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeCapacityPolicyResponse](bytes)
+}
+
 // DecodeEmbeddedOutputRuntimeCapacityRegisterResponse validates bytes and preserves required fields, nulls and exact numeric values.
 // DecodeEmbeddedOutputRuntimeCapacityRegisterResponse 校验 bytes，并保留必需字段、空值及精确数值。
 // It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
 // 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
 func DecodeEmbeddedOutputRuntimeCapacityRegisterResponse(bytes []byte) (EmbeddedOutputRuntimeCapacityRegisterResponse, error) {
 	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeCapacityRegisterResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeCapacityReviseResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeCapacityReviseResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeCapacityReviseResponse(bytes []byte) (EmbeddedOutputRuntimeCapacityReviseResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeCapacityReviseResponse](bytes)
 }
 
 // DecodeEmbeddedOutputRuntimeCapacityStatusResponse validates bytes and preserves required fields, nulls and exact numeric values.

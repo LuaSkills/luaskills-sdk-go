@@ -52,6 +52,8 @@ cgo 后端调用链接／加载时解析的符号；旧库缺少发现符号时�
 
 `runtime.RegisterCapacity(ctx, pluginID, config)` 返回待确认的 `EmbeddedCapacity`；`runtime.Capacity(id)` 绑定精确已知身份。显式提供 `Resources`、`MaxQueuedCalls` 和 `MaxQueuedBytes`。`capacity.RegisterPool(...)` 要求相同插件归属、池类别、成员最小值为零且上限不超过容量。成员共享聚合预留及入场额度，各自保留 Lua 状态、模块代次及能力快照；既有 `runtime.RegisterPool(...)` 保持独立归属。`Status(ctx)`、`RequestClose(ctx)` 和 `Forget(ctx)` 使用预留控制通道。关闭排空成员，必须逐个遗忘已关闭且排空的成员后才能遗忘容量；空容量持续保留最小预留，不会自动预热 VM。此开发功能要求匹配的 `capacity_groups_v1` 契约及原生库。
 
+`Policy(ctx)` 原子返回当前修订字符串、完整容量状态及 `pending_convergence`；`Revise(ctx, expectedRevision, config)` 使用该精确前驱和完整配置进行比较交换，返回新的字符串令牌。两项均走保留控制通道并返回可查询回执；令牌不得转成数值，SDK 不自动重试冲突。旧前驱或执行上限低于已分发操作数量返回 `busy`，不改变策略。常驻／队列缩容可保留超额实际占用并报告待收敛；固定会话保留原 VM 状态，常驻缩容会沿原清理路径退役可复用缓存。关闭后仍可查询但禁止修订；回执需显式遗忘。此开发接口要求匹配的 `capacity_policy_revisions_v1` 契约与原生库，尚未正式发布。
+
 `NewEmbeddedClient(driver)` 借用现有驱动器，提供 `EmbeddedRuntime`、`EmbeddedPlugin`、`EmbeddedPool`、`EmbeddedSession` 及 `EmbeddedOperation`。命令方法接受入场上下文，返回 `(*EmbeddedPending[T], error)`；`pending.Result(ctx)` 等待并按生成结果类型校验，`pending.DeliveredResult()` 只投影原始交付，可恢复释放失败前已经创建的句柄，不重放变更。`pending.Receipt()` 返回原驱动回执，`pending.Forget()` 仅归还 SDK 配额；句柄的 `Forget(ctx)` 或运行时 `Free(ctx)` 才操作核心记录。投影失败保留回执及原始字节，结果每次重新解码，不共享可变响应。
 
 用 `client.Reserve(ctx)` 取得实际槽身份，再以生成的 `EmbeddedInputLuaEngineOptions` 和 `EmbeddedInputEmbeddedRuntimeConfig` 调用 `runtime.Initialize(ctx, options, budgets)`。`RuntimeID()` 是 FFI 槽身份，状态里的 `CoreRuntimeId` 是另一层命名空间，不能混用。`client.Runtime(id)` 以及运行时上的 `Plugin/Pool/Session/Operation(id)` 可绑定已知非空精确身份，不探测或重新选择对象。配置由宿主显式提供；新的类型化入口不改变旧 `CreateEngineOptions` 的映射返回类型。
