@@ -202,6 +202,16 @@ func (h *EmbeddedPool) Submit(ctx context.Context, export string, arguments any,
 	return submitEmbeddedRuntime(ctx, h.runtime, EmbeddedInputRuntimeCommandCallSubmit{Type: EmbeddedInputRuntimeCommandCallSubmitTypeCallSubmit, TimeoutMs: timeoutMS, Call: EmbeddedInputEmbeddedCall{PoolId: h.identity, Export: export, Arguments: arguments, Context: invocation}}, h.runtime.operationResult)
 }
 
+// PrewarmInstance initializes one additional VM in this exact reusable pool without invoking a business export.
+// PrewarmInstance 在此精确可复用池初始化一个额外 VM，不调用业务导出。
+// ctx governs command admission; invocation supplies trusted metadata and timeoutMS is the native execution budget.
+// ctx 治理命令入场；invocation 提供可信元数据，timeoutMS 是原生执行预算。
+// Return a retained admission receipt; its operation reports instance_id after successful initialization.
+// 返回保留入场回执；所得操作在初始化成功后报告 instance_id。
+func (h *EmbeddedPool) PrewarmInstance(ctx context.Context, invocation EmbeddedInputLuaInvocationContext, timeoutMS uint64) (*EmbeddedPending[*EmbeddedOperation], error) {
+	return submitEmbeddedRuntime(ctx, h.runtime, EmbeddedInputRuntimeCommandInstancePrewarm{Type: EmbeddedInputRuntimeCommandInstancePrewarmTypeInstancePrewarm, TimeoutMs: timeoutMS, Request: EmbeddedInputEmbeddedPrewarm{PoolId: h.identity, Context: invocation}}, h.runtime.operationResult)
+}
+
 // Submit freezes export, arguments and invocation under ctx for this fixed session; timeoutMS remains a native budget.
 // Submit 在 ctx 下为此固定会话冻结 export、arguments 和 invocation；timeoutMS 保持为原生预算。
 // It returns the acknowledged operation; an observer timeout never implies cancellation or slot release.

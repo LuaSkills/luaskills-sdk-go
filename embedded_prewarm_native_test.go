@@ -1,0 +1,138 @@
+//go:build cgo
+
+package luaskills
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+// TestEmbeddedPrewarmNative proves typed prewarming allocates distinct VMs without invoking business exports.
+// TestEmbeddedPrewarmNative 证明类型化预热分配不同 VM，且不调用业务导出。
+func TestEmbeddedPrewarmNative(t *testing.T) {
+	// The fixture supplies exact native ownership and one bounded reusable pool.
+	// 夹具提供精确原生归属及单个有界可复用池。
+	runtime, root, _ := nativeTypedRuntime(t)
+	pool := typedPool(t, runtime, root, "local count=0; return {call=function() count=count+1; return count end}", false)
+	instances := make(map[string]bool)
+	for range 2 {
+		// Delivery acknowledges only the operation; initialization is observed independently.
+		// 交付仅确认操作；初始化独立观察。
+		pending, err := pool.PrewarmInstance(context.Background(), EmbeddedInputLuaInvocationContext{}, 5000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pending.Receipt().Lane() != EmbeddedWorkLane {
+			t.Fatal("prewarm must not consume the reserved control lane")
+		}
+		operation := typedTake(t, pending, err)
+		result, err := operation.Wait(driverTestContext(t))
+		if err != nil || result.Phase != EmbeddedOutputOperationPhaseSucceeded || result.Value == nil {
+			t.Fatalf("prewarm failed: %#v, %v", result, err)
+		}
+		binding, ok := result.Context.(EmbeddedOutputOperationContextVariant2)
+		if !ok || binding.Prewarm == nil || !*binding.Prewarm || binding.Export != nil || binding.PoolId != pool.PoolID() {
+			t.Fatalf("prewarm context lost: %#v", result.Context)
+		}
+		value, ok := (*result.Value).(map[string]any)
+		if !ok {
+			t.Fatalf("prewarm result is not an object: %#v", result.Value)
+		}
+		identity, ok := value["instance_id"].(string)
+		if !ok || identity == "" || instances[identity] {
+			t.Fatalf("prewarm reused an instance or omitted its identity: %#v", value)
+		}
+		instances[identity] = true
+		forgotten, err := operation.Forget(context.Background())
+		typedTake(t, forgotten, err)
+	}
+	status, err := pool.Status(context.Background())
+	if typedTake(t, status, err).Resident != uint64(len(instances)) {
+		t.Fatal("physical occupancy does not match distinct initialized instances")
+	}
+	// A failed additional allocation must not block later business reuse of confirmed warm state.
+	// 额外分配失败不能阻塞后续业务复用已确认预热状态。
+	pending, err := pool.PrewarmInstance(context.Background(), EmbeddedInputLuaInvocationContext{}, 5000)
+	rejected := typedTake(t, pending, err)
+	failure, err := rejected.Wait(driverTestContext(t))
+	if err != nil || failure.Phase != EmbeddedOutputOperationPhaseFailed || failure.Error == nil || *failure.Error == nil || (*failure.Error).Code != EmbeddedOutputEmbeddedErrorCodeCapacityExceeded {
+		t.Fatalf("full pool failure was lost: %#v, %v", failure, err)
+	}
+	forgotten, err := rejected.Forget(context.Background())
+	typedTake(t, forgotten, err)
+	for _, count := range []json.Number{"1", "2"} {
+		pending, err := pool.Submit(context.Background(), "call", nil, EmbeddedInputLuaInvocationContext{}, 5000)
+		business := typedTake(t, pending, err)
+		result, err := business.Wait(driverTestContext(t))
+		if err != nil || result.Value == nil || *result.Value != count {
+			t.Fatalf("prewarm invoked business or failed reuse: %#v, %v", result, err)
+		}
+		forgotten, err := business.Forget(context.Background())
+		typedTake(t, forgotten, err)
+	}
+	closing, err := pool.RequestClose(context.Background())
+	typedTake(t, closing, err)
+	if len(runtime.client.Driver().Commands()) != 0 {
+		t.Fatal("prewarm leaked command receipt ownership")
+	}
+}
+
+// TestEmbeddedPrewarmNativeScope retains an actual initializer callback after its close observer times out.
+// TestEmbeddedPrewarmNativeScope 在关闭观察者超时后保留真实初始化回调。
+func TestEmbeddedPrewarmNativeScope(t *testing.T) {
+	// Keep the pump and exact native slot under one existing lifecycle scope.
+	// 将泵与精确原生槽置于一个既有生命周期作用域之下。
+	runtime, root, adopt := nativeTypedRuntime(t)
+	pump := nativePumpTest(t, runtime.client.driver.transport, runtime.RuntimeID(), EmbeddedCallbackPumpConfig{1, 1, 1})
+	entered, allow := make(chan struct{}), make(chan struct{})
+	var release sync.Once
+	defer release.Do(func() { close(allow) })
+	var calls atomic.Int32
+	pumpRegister(t, pump, pumpCapability(func(value any, callback *EmbeddedHostCallbackContext) (any, error) {
+		calls.Add(1)
+		close(entered)
+		<-allow
+		return value, callback.ReportEffects(EmbeddedInputEffectStateCommitted)
+	}))
+	pool := typedPool(t, runtime, root, "assert(vulcan.host.call('go.callback','initialization').ok); return {call=function() error('business must not execute') end}", false)
+	scope := nativeScopeTest(t, runtime, pump, adopt)
+	pending, err := pool.PrewarmInstance(context.Background(), EmbeddedInputLuaInvocationContext{}, 10000)
+	operation := typedTake(t, pending, err)
+	select {
+	case <-entered:
+	case <-driverTestContext(t).Done():
+		t.Fatal("prewarm initializer callback did not enter")
+	}
+	// An observer deadline cannot release the native VM or the still-running language callback.
+	// 观察截止时间不能释放原生 VM 或仍在运行的语言回调。
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if err := scope.Close(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("prewarm close did not retain callback ownership: %v", err)
+	}
+	if !scope.Status().Running || pump.Status().Closed {
+		t.Fatal("timed-out prewarm observer released actual owners")
+	}
+	status, err := pool.Status(context.Background())
+	if typedTake(t, status, err).Resident != 1 {
+		t.Fatal("prewarm VM disappeared while its callback was active")
+	}
+	opStatus, err := operation.Status(context.Background())
+	snapshot := typedTake(t, opStatus, err)
+	binding, ok := snapshot.Context.(EmbeddedOutputOperationContextVariant2)
+	if !ok || binding.Prewarm == nil || !*binding.Prewarm {
+		t.Fatalf("retained prewarm authority disappeared: %#v", snapshot.Context)
+	}
+	release.Do(func() { close(allow) })
+	if err := scope.Close(driverTestContext(t)); err != nil {
+		t.Fatal(err)
+	}
+	if scope.Status().Phase != EmbeddedScopeClosed || !pump.Status().Closed || calls.Load() != 1 {
+		t.Fatal("prewarm scope failed to drain or replayed initialization")
+	}
+}

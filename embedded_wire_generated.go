@@ -435,6 +435,17 @@ type EmbeddedInputEmbeddedPluginConfig struct {
 	MaxSessions uint64 `json:"max_sessions"`
 }
 
+// Explicitly initialize one additional reusable VM without invoking any business export.
+// 明确初始化一个额外可复用 VM，不调用任何业务导出。
+type EmbeddedInputEmbeddedPrewarm struct {
+	// Trusted context retained for caller attribution and this instance's eventual finalization.
+	// 为调用方归属及此实例最终关闭保留的可信上下文。
+	Context EmbeddedInputLuaInvocationContext `json:"context"`
+	// Exact immutable reusable pool identity; an existing idle VM never satisfies this request.
+	// 精确不可变可复用池身份；已有空闲 VM 绝不抵充此请求。
+	PoolId string `json:"pool_id"`
+}
+
 // Explicit parent budgets; hosts resolve defaults once before construction.
 // 显式父级预算；宿主在构造前一次性解析默认值。
 type EmbeddedInputEmbeddedRuntimeConfig struct {
@@ -1213,6 +1224,10 @@ func (EmbeddedInputRuntimeCommandPoolRevokePermission) embeddedVariantEmbeddedIn
 // embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandCallSubmit 分支。
 func (EmbeddedInputRuntimeCommandCallSubmit) embeddedVariantEmbeddedInputRuntimeCommand() {}
 
+// embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandInstancePrewarm alternative.
+// embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandInstancePrewarm 分支。
+func (EmbeddedInputRuntimeCommandInstancePrewarm) embeddedVariantEmbeddedInputRuntimeCommand() {}
+
 // embeddedVariantEmbeddedInputRuntimeCommand marks the exact EmbeddedInputRuntimeCommandSessionOpen alternative.
 // embeddedVariantEmbeddedInputRuntimeCommand 标识精确的 EmbeddedInputRuntimeCommandSessionOpen 分支。
 func (EmbeddedInputRuntimeCommandSessionOpen) embeddedVariantEmbeddedInputRuntimeCommand() {}
@@ -1723,6 +1738,30 @@ const (
 	// EmbeddedInputRuntimeCommandHostRequestsTakeTypeHostRequestsTake is derived from the packaged wire contract.
 	// EmbeddedInputRuntimeCommandHostRequestsTakeTypeHostRequestsTake 从包内线契约派生。
 	EmbeddedInputRuntimeCommandHostRequestsTakeTypeHostRequestsTake EmbeddedInputRuntimeCommandHostRequestsTakeType = "host_requests_take"
+)
+
+// Initialize one additional reusable VM without invoking a business export.
+// 初始化一个额外可复用 VM，不调用业务导出。
+type EmbeddedInputRuntimeCommandInstancePrewarm struct {
+	// Exact pool and trusted initialization/finalization context.
+	// 精确池及可信初始化／关闭上下文。
+	Request EmbeddedInputEmbeddedPrewarm `json:"request"`
+	// Original end-to-end execution budget in milliseconds.
+	// 原始端到端执行预算毫秒数。
+	TimeoutMs uint64 `json:"timeout_ms"`
+	// Type is derived from the packaged wire contract.
+	// Type 从包内线契约派生。
+	Type EmbeddedInputRuntimeCommandInstancePrewarmType `json:"type"`
+}
+
+// EmbeddedInputRuntimeCommandInstancePrewarmType is derived from the packaged wire contract.
+// EmbeddedInputRuntimeCommandInstancePrewarmType 从包内线契约派生。
+type EmbeddedInputRuntimeCommandInstancePrewarmType string
+
+const (
+	// EmbeddedInputRuntimeCommandInstancePrewarmTypeInstancePrewarm is derived from the packaged wire contract.
+	// EmbeddedInputRuntimeCommandInstancePrewarmTypeInstancePrewarm 从包内线契约派生。
+	EmbeddedInputRuntimeCommandInstancePrewarmTypeInstancePrewarm EmbeddedInputRuntimeCommandInstancePrewarmType = "instance_prewarm"
 )
 
 // Request cooperative cancellation without declaring completion.
@@ -3133,8 +3172,8 @@ type EmbeddedOutputOperationContextVariant2 struct {
 	// Exact capability membership snapshot frozen when the pool was registered.
 	// 注册池时冻结的精确能力成员快照。
 	CapabilityRevision string `json:"capability_revision"`
-	// Requested declared export; absent only for a fixed-session opening operation.
-	// 请求的已声明导出；仅固定会话开启操作省略。
+	// Requested declared export; absent for explicit prewarming or fixed-session opening only.
+	// 请求的已声明导出；仅明确预热或固定会话开启操作省略。
 	Export *string `json:"export"`
 	// Original VM for an independently admitted finalization; absent for ordinary business and opening work.
 	// 独立入场关闭操作的原 VM；普通业务及开启操作省略。
@@ -3145,6 +3184,9 @@ type EmbeddedOutputOperationContextVariant2 struct {
 	// Exact retained pool identity, not a lookup of the plugin's newest pool.
 	// 精确保留池身份，不查询插件最新的池。
 	PoolId string `json:"pool_id"`
+	// Explicit additional-instance initialization, never inferred from a missing export.
+	// 明确额外实例初始化，绝不根据缺失导出推断。
+	Prewarm *bool `json:"prewarm,omitempty"`
 }
 
 // EmbeddedOutputOperationContextVariant2Kind is derived from the packaged wire contract.
@@ -3842,6 +3884,20 @@ type EmbeddedOutputRuntimeHostRequestsTakeResponseResult []EmbeddedOutputHostReq
 
 // Borrowed success envelope avoids cloning application output during native response publication.
 // 借用成功信封，避免原生响应发布期间克隆应用输出。
+type EmbeddedOutputRuntimeInstancePrewarmResponse struct {
+	// Single protocol version authority.
+	// 唯一协议版本权威。
+	ProtocolVersion uint32 `json:"protocol_version"`
+	// Borrowed result whose owner lives through serialization.
+	// 借用结果，其所有者跨序列化存活。
+	Result EmbeddedOutputOperationReceipt `json:"result"`
+	// Exact success discriminator.
+	// 精确成功判别。
+	Status EmbeddedOutputSuccessStatus `json:"status"`
+}
+
+// Borrowed success envelope avoids cloning application output during native response publication.
+// 借用成功信封，避免原生响应发布期间克隆应用输出。
 type EmbeddedOutputRuntimeOperationCancelResponse struct {
 	// Single protocol version authority.
 	// 唯一协议版本权威。
@@ -4337,6 +4393,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputEmbeddedError]():                                    {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputEmbeddedErrorCode]():                                {kind: "enum", values: []string{"invalid_argument", "not_found", "stale_generation", "capacity_exceeded", "busy", "already_completed", "closed", "cancelled", "deadline_exceeded", "permission_denied", "unsupported", "execution_failed", "cleanup_failed", "internal"}},
 	embeddedWireType[EmbeddedInputEmbeddedPluginConfig]():                             {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputEmbeddedPrewarm]():                                  {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputEmbeddedRuntimeConfig]():                            {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputExecutionBackend]():                                 {kind: "enum", values: []string{"in_process", "worker_process"}},
 	embeddedWireType[EmbeddedInputHistoryCursor]():                                    {kind: "object", additional: false},
@@ -4373,7 +4430,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRequest]():                                          {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputResolvedEffectState]():                              {kind: "enum", values: []string{"not_started", "not_applicable", "committed", "rolled_back"}},
 	embeddedWireType[EmbeddedInputRuntimeClientInfo]():                                {kind: "object", additional: true},
-	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure](), embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint](), embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus](), embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover](), embeddedWireType[EmbeddedInputRuntimeCommandStorageWorkerRecover](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryReconcile](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget](), embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityPolicy](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityRevise](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityClose](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationList](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
+	embeddedWireType[EmbeddedInputRuntimeCommand]():                                   {kind: "union", alternatives: []reflect.Type{embeddedWireType[EmbeddedInputRuntimeCommandOperationPersistenceFailure](), embeddedWireType[EmbeddedInputRuntimeCommandOperationRetryCheckpoint](), embeddedWireType[EmbeddedInputRuntimeCommandStorageStatus](), embeddedWireType[EmbeddedInputRuntimeCommandStorageRecover](), embeddedWireType[EmbeddedInputRuntimeCommandStorageWorkerRecover](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryGet](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryNext](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryReconcile](), embeddedWireType[EmbeddedInputRuntimeCommandHistoryForget](), embeddedWireType[EmbeddedInputRuntimeCommandPluginRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPluginStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPluginClose](), embeddedWireType[EmbeddedInputRuntimeCommandPluginForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityPolicy](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityRevise](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityClose](), embeddedWireType[EmbeddedInputRuntimeCommandCapacityForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRegister](), embeddedWireType[EmbeddedInputRuntimeCommandPoolStatus](), embeddedWireType[EmbeddedInputRuntimeCommandPoolClose](), embeddedWireType[EmbeddedInputRuntimeCommandPoolForget](), embeddedWireType[EmbeddedInputRuntimeCommandPoolRevokePermission](), embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandInstancePrewarm](), embeddedWireType[EmbeddedInputRuntimeCommandSessionOpen](), embeddedWireType[EmbeddedInputRuntimeCommandSessionSubmit](), embeddedWireType[EmbeddedInputRuntimeCommandSessionStatus](), embeddedWireType[EmbeddedInputRuntimeCommandSessionClose](), embeddedWireType[EmbeddedInputRuntimeCommandSessionForget](), embeddedWireType[EmbeddedInputRuntimeCommandOperationList](), embeddedWireType[EmbeddedInputRuntimeCommandOperationStatus](), embeddedWireType[EmbeddedInputRuntimeCommandOperationWait](), embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel](), embeddedWireType[EmbeddedInputRuntimeCommandOperationForget](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesRegister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityStatus](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityUnregister](), embeddedWireType[EmbeddedInputRuntimeCommandCapabilityForget](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatus](), embeddedWireType[EmbeddedInputRuntimeCommandHostRequestComplete]()}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmit]():                         {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandCallSubmitType]():                     {kind: "enum", values: []string{"call_submit"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandCapabilitiesList]():                   {kind: "object", additional: false},
@@ -4414,6 +4471,8 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestStatusType]():              {kind: "enum", values: []string{"host_request_status"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTake]():                   {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandHostRequestsTakeType]():               {kind: "enum", values: []string{"host_requests_take"}},
+	embeddedWireType[EmbeddedInputRuntimeCommandInstancePrewarm]():                    {kind: "object", additional: false},
+	embeddedWireType[EmbeddedInputRuntimeCommandInstancePrewarmType]():                {kind: "enum", values: []string{"instance_prewarm"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationCancel]():                    {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationCancelType]():                {kind: "enum", values: []string{"operation_cancel"}},
 	embeddedWireType[EmbeddedInputRuntimeCommandOperationForget]():                    {kind: "object", additional: false},
@@ -4561,6 +4620,7 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestStatusResponse]():                {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestsTakeResponse]():                 {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeHostRequestsTakeResponseResult]():           {kind: "array", unique: false},
+	embeddedWireType[EmbeddedOutputRuntimeInstancePrewarmResponse]():                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeOperationCancelResponse]():                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeOperationForgetResponse]():                  {kind: "object", additional: true},
 	embeddedWireType[EmbeddedOutputRuntimeOperationListResponse]():                    {kind: "object", additional: true},
@@ -4808,6 +4868,14 @@ func DecodeEmbeddedOutputRuntimeHostRequestStatusResponse(bytes []byte) (Embedde
 // 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
 func DecodeEmbeddedOutputRuntimeHostRequestsTakeResponse(bytes []byte) (EmbeddedOutputRuntimeHostRequestsTakeResponse, error) {
 	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeHostRequestsTakeResponse](bytes)
+}
+
+// DecodeEmbeddedOutputRuntimeInstancePrewarmResponse validates bytes and preserves required fields, nulls and exact numeric values.
+// DecodeEmbeddedOutputRuntimeInstancePrewarmResponse 校验 bytes，并保留必需字段、空值及精确数值。
+// It returns a typed envelope or a structural/protocol error; application failures remain in the error envelope.
+// 返回类型化信封或结构／协议错误；应用失败保留在错误信封中。
+func DecodeEmbeddedOutputRuntimeInstancePrewarmResponse(bytes []byte) (EmbeddedOutputRuntimeInstancePrewarmResponse, error) {
+	return decodeEmbeddedWireEnvelope[EmbeddedOutputRuntimeInstancePrewarmResponse](bytes)
 }
 
 // DecodeEmbeddedOutputRuntimeOperationCancelResponse validates bytes and preserves required fields, nulls and exact numeric values.
