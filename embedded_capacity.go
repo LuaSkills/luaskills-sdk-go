@@ -97,12 +97,23 @@ func (h *EmbeddedCapacity) Forget(ctx context.Context) (*EmbeddedPending[*Embedd
 // Return the acknowledged member; foreign owners or conflicting budgets fail without independent-placement fallback.
 // 返回已确认成员；外来所有者或冲突预算失败，不回退独立归属。
 func (h *EmbeddedCapacity) RegisterPool(ctx context.Context, definition EmbeddedInputModuleDefinition, policy EmbeddedInputPluginPoolConfig, permissions []string, executionRevision string) (*EmbeddedPending[*EmbeddedPool], error) {
+	return h.RegisterPoolWithInitializationCapabilities(ctx, definition, policy, permissions, executionRevision, nil)
+}
+
+// RegisterPoolWithInitializationCapabilities freezes definition, policy, permissions and executionRevision under ctx in this capacity.
+// RegisterPoolWithInitializationCapabilities 在 ctx 下将定义、策略、权限和执行修订冻结到此容量。
+// initializationCapabilities only narrows source callbacks: nil inherits, an empty non-nil slice denies all.
+// initializationCapabilities 仅收窄源码回调：nil 继承，非 nil 空切片全部拒绝。
+// Return the acknowledged member without changing exact capacity ownership or ordinary business grants.
+// 返回已确认成员，不改变精确容量归属或普通业务授权。
+func (h *EmbeddedCapacity) RegisterPoolWithInitializationCapabilities(ctx context.Context, definition EmbeddedInputModuleDefinition, policy EmbeddedInputPluginPoolConfig, permissions []string, executionRevision string, initializationCapabilities []string) (*EmbeddedPending[*EmbeddedPool], error) {
 	// A present non-null wire value selects mandatory exact capacity membership.
 	// 存在且非空的线值选择强制精确容量成员关系。
 	capacityID := &h.identity
 	return submitEmbeddedRuntime(ctx, h.runtime, EmbeddedInputRuntimeCommandPoolRegister{
 		Type: EmbeddedInputRuntimeCommandPoolRegisterTypePoolRegister, CapacityId: &capacityID,
 		Definition: definition, Policy: policy, Permissions: permissions, ExecutionRevision: executionRevision,
+		InitializationCapabilities: embeddedInitializationCapabilities(initializationCapabilities),
 	}, func(value any) (*EmbeddedPool, error) {
 		// Project only the original delivered receipt; observation never registers a second pool.
 		// 仅投影原始已交付回执；观测绝不注册第二个池。

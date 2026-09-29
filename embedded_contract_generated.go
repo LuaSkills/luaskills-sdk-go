@@ -8,7 +8,7 @@ const EmbeddedProtocolVersion uint32 = 1
 
 // EmbeddedContractSHA256 identifies every byte of the packaged contract.
 // EmbeddedContractSHA256 标识包内契约的全部字节。
-const EmbeddedContractSHA256 = "5f64872836c3681e513e5d8b7ce944002bd5a5e369099df0101d486afb4cb805"
+const EmbeddedContractSHA256 = "66e504d36a9bffed4b57b9ce1dd9aa6aaca9030347c57581e3058aac7d69cc3c"
 
 // EmbeddedCoreVersion identifies the core package that generated this contract.
 // EmbeddedCoreVersion 标识生成此契约的核心包。
@@ -68,5 +68,5 @@ func EmbeddedRuntimeCommands() []string {
 // EmbeddedRequiredCapabilities returns an independent copy of this authoritative name inventory.
 // EmbeddedRequiredCapabilities 返回此权威名称清单的独立副本。
 func EmbeddedRequiredCapabilities() []string {
-	return []string{"bounded_transports_v1", "plugin_budgets_v1", "capacity_groups_v1", "capacity_policy_revisions_v1", "shared_pools_v1", "dedicated_pools_v1", "explicit_instance_prewarm_v1", "reusable_pool_readiness_v1", "fixed_sessions_v1", "host_request_queue_v1", "in_memory_effect_evidence_v1", "durable_operation_history_v1", "historical_effect_reconciliation_v1", "live_storage_recovery_v1", "journal_worker_recovery_v1", "strict_json_v1"}
+	return []string{"bounded_transports_v1", "plugin_budgets_v1", "capacity_groups_v1", "capacity_policy_revisions_v1", "shared_pools_v1", "dedicated_pools_v1", "explicit_instance_prewarm_v1", "reusable_pool_readiness_v1", "initialization_capability_policy_v1", "fixed_sessions_v1", "host_request_queue_v1", "in_memory_effect_evidence_v1", "durable_operation_history_v1", "historical_effect_reconciliation_v1", "live_storage_recovery_v1", "journal_worker_recovery_v1", "strict_json_v1"}
 }

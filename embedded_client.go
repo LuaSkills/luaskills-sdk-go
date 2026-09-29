@@ -199,7 +199,15 @@ func (r *EmbeddedRuntime) RegisterPlugin(ctx context.Context, pluginID string, b
 // RegisterPool freezes definition, policy, permissions and executionRevision under ctx and returns the acknowledged pool.
 // RegisterPool 在 ctx 下冻结 definition、policy、permissions 和 executionRevision，返回已确认池。
 func (r *EmbeddedRuntime) RegisterPool(ctx context.Context, definition EmbeddedInputModuleDefinition, policy EmbeddedInputPluginPoolConfig, permissions []string, executionRevision string) (*EmbeddedPending[*EmbeddedPool], error) {
-	return submitEmbeddedRuntime(ctx, r, EmbeddedInputRuntimeCommandPoolRegister{Type: EmbeddedInputRuntimeCommandPoolRegisterTypePoolRegister, Definition: definition, Policy: policy, Permissions: permissions, ExecutionRevision: executionRevision}, func(value any) (*EmbeddedPool, error) {
+	return r.RegisterPoolWithInitializationCapabilities(ctx, definition, policy, permissions, executionRevision, nil)
+}
+
+// RegisterPoolWithInitializationCapabilities freezes definition, policy, grants and revision under ctx and returns the acknowledged pool.
+// RegisterPoolWithInitializationCapabilities 在 ctx 下冻结定义、策略、授权及修订，返回已确认池。
+// initializationCapabilities only narrows source callbacks: nil inherits, an empty non-nil slice denies all.
+// initializationCapabilities 仅收窄源码回调：nil 继承，非 nil 空切片全部拒绝。
+func (r *EmbeddedRuntime) RegisterPoolWithInitializationCapabilities(ctx context.Context, definition EmbeddedInputModuleDefinition, policy EmbeddedInputPluginPoolConfig, permissions []string, executionRevision string, initializationCapabilities []string) (*EmbeddedPending[*EmbeddedPool], error) {
+	return submitEmbeddedRuntime(ctx, r, EmbeddedInputRuntimeCommandPoolRegister{Type: EmbeddedInputRuntimeCommandPoolRegisterTypePoolRegister, Definition: definition, Policy: policy, Permissions: permissions, ExecutionRevision: executionRevision, InitializationCapabilities: embeddedInitializationCapabilities(initializationCapabilities)}, func(value any) (*EmbeddedPool, error) {
 		// acknowledged is validated before its immutable pool identity becomes usable.
 		// acknowledged 在不可变池身份可用前经过校验。
 		acknowledged, err := projectEmbeddedResult[EmbeddedOutputPoolReceipt](value)
@@ -208,4 +216,19 @@ func (r *EmbeddedRuntime) RegisterPool(ctx context.Context, definition EmbeddedI
 		}
 		return r.Pool(acknowledged.PoolId)
 	})
+}
+
+// embeddedInitializationCapabilities encodes names as optional exact wire authority without conflating nil with an empty list.
+// embeddedInitializationCapabilities 将 names 编码为可选精确线权威，不混淆 nil 与空列表。
+// Return omission for nil; otherwise retain the declared list for the driver's synchronous input freeze.
+// nil 返回省略；否则保留声明列表，供驱动器同步冻结输入。
+func embeddedInitializationCapabilities(names []string) **EmbeddedInputRuntimeCommandPoolRegisterInitializationCapabilitiesValue {
+	if names == nil {
+		return nil
+	}
+	// A present array, including zero members, must survive the nullable generated wire shape.
+	// 存在的数组，包括零成员数组，必须保留在可空生成线形状中。
+	value := EmbeddedInputRuntimeCommandPoolRegisterInitializationCapabilitiesValue(names)
+	pointer := &value
+	return &pointer
 }
