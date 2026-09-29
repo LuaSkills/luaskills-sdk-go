@@ -62,6 +62,8 @@ cgo 后端调用链接／加载时解析的符号；旧库缺少发现符号时�
 
 `pool.PrewarmInstance(ctx, invocation, timeoutMS)` 在工作通道返回 `(*EmbeddedPending[*EmbeddedOperation], error)`，为明确可复用池初始化一个**额外** VM。`ctx` 治理命令入场，`timeoutMS` 为原生执行预算；须独立观察操作，成功时取得 `instance_id` 结果。预热不运行业务导出，但初始化仍可调用已授权宿主能力并产生副作用。满池请求以 `capacity_exceeded` 完成失败；单次／会话池在入场时拒绝。既有取消、回执、检查点及 `EmbeddedRuntimeScope` 归属规则继续生效，关闭期间仍保留真实回调。此原语不接受目标总数，也不保证永久驻留。开发接口要求匹配的 `explicit_instance_prewarm_v1` 契约及原生库。
 
+`pool.ReusableStatus(ctx)` 通过预留控制通道返回保留的待确认快照。`ready` 统计已确认可借用实例；`physical` 表示实际分配器占用，不能用来推算就绪。初始化、执行、未确认检查点及退役中的实例不可借用。运行时／池关闭或保留入场故障使就绪数归零。查询应用已声明空闲过期规则，不执行 Lua、不创建实例，快照也不预留未来容量。非复用池返回 `invalid_argument`，未知身份返回 `not_found`。观察后须显式遗忘待确认回执。此开发接口尚未发布，要求匹配的 `reusable_pool_readiness_v1` 契约及原生库。
+
 `operation.Wait(ctx)` 使用 `EmbeddedDefaultPollInterval`，或以 `WaitInterval(ctx, 正 time.Duration)` 指定间隔。它通过短状态命令轮询，不占用阻塞原生等待工作位；仅 `succeeded/failed/cancelled` 属于终态，清理或取消意图不是完成。终态失败及取消作为包含副作用证据的快照返回；Go 错误表示入场、交付、投影或观察失败。成功只读轮询自动遗忘 SDK 回执，中断或失败的状态回执保留在 `client.Driver().Commands()`，调用方须观察并显式遗忘后归还配额。上下文超时不发送原生取消；用 `operation.Cancel(ctx)` 请求协作取消，并继续查询实际结束与迟到副作用。
 
 `NewEmbeddedRuntimeScope(runtime, pump, interval)` 集中管理原生入场关闭、保持回调可用并等待真实核心排空、回调泵关闭及最终槽释放；没有回调泵时传入 `nil`，默认间隔使用 `EmbeddedDefaultPollInterval`。作用域拥有一个预先启动的控制协程及独立最坏响应预留，与普通驱动和泵共同核算数量／字节预算。即使普通驱动回执配额已满或驱动已关闭，作用域仍可独立清理；它借用驱动及传输，不会替其他运行时关闭这些共享对象。

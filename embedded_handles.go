@@ -73,6 +73,14 @@ func (h *EmbeddedPool) Status(ctx context.Context) (*EmbeddedPending[EmbeddedOut
 	return submitEmbeddedRuntime(ctx, h.runtime, EmbeddedInputRuntimeCommandPoolStatus{Type: EmbeddedInputRuntimeCommandPoolStatusTypePoolStatus, PoolId: h.identity}, projectEmbeddedResult[EmbeddedOutputPoolUsage])
 }
 
+// ReusableStatus admits a control query under ctx and returns confirmed readiness separately from physical usage.
+// ReusableStatus 在 ctx 下接纳控制查询，将已确认就绪与物理用量分开返回。
+// Unknown or non-reusable pools fail; the returned observation never reserves future idle instances.
+// 未知或非复用池失败；返回观测绝不预留未来空闲实例。
+func (h *EmbeddedPool) ReusableStatus(ctx context.Context) (*EmbeddedPending[EmbeddedOutputEmbeddedReusablePoolSnapshot], error) {
+	return submitEmbeddedRuntime(ctx, h.runtime, EmbeddedInputRuntimeCommandPoolReusableStatus{Type: EmbeddedInputRuntimeCommandPoolReusableStatusTypePoolReusableStatus, PoolId: h.identity}, projectEmbeddedResult[EmbeddedOutputEmbeddedReusablePoolSnapshot])
+}
+
 // RequestClose admits under ctx and closes admission without proving actual drainage.
 // RequestClose 在 ctx 下入场，关闭入场，不表示实际排空。
 func (h *EmbeddedPool) RequestClose(ctx context.Context) (*EmbeddedPending[*EmbeddedJSONNull], error) {

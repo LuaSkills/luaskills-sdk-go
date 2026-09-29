@@ -19,6 +19,12 @@ func TestEmbeddedPrewarmNative(t *testing.T) {
 	// 夹具提供精确原生归属及单个有界可复用池。
 	runtime, root, _ := nativeTypedRuntime(t)
 	pool := typedPool(t, runtime, root, "local count=0; return {call=function() count=count+1; return count end}", false)
+	// Cold observation must preserve exact authority and allocate no instance.
+	// 冷观测必须保留精确权威，且不分配实例。
+	initial := reusableReadiness(t, pool)
+	if initial.PoolId != pool.PoolID() || initial.Ready != 0 || initial.Physical.Resident != 0 || initial.MaxResidentVms != 2 {
+		t.Fatalf("cold readiness changed pool state: %#v", initial)
+	}
 	instances := make(map[string]bool)
 	for range 2 {
 		// Delivery acknowledges only the operation; initialization is observed independently.
@@ -50,6 +56,9 @@ func TestEmbeddedPrewarmNative(t *testing.T) {
 		instances[identity] = true
 		forgotten, err := operation.Forget(context.Background())
 		typedTake(t, forgotten, err)
+		if snapshot := reusableReadiness(t, pool); snapshot.Ready != uint64(len(instances)) {
+			t.Fatalf("confirmed readiness lost initialized instances: %#v", snapshot)
+		}
 	}
 	status, err := pool.Status(context.Background())
 	if typedTake(t, status, err).Resident != uint64(len(instances)) {
@@ -77,6 +86,9 @@ func TestEmbeddedPrewarmNative(t *testing.T) {
 	}
 	closing, err := pool.RequestClose(context.Background())
 	typedTake(t, closing, err)
+	if retired := reusableReadiness(t, pool); !retired.Closing || retired.Ready != 0 || retired.PoolId != pool.PoolID() {
+		t.Fatalf("closed readiness lost original authority: %#v", retired)
+	}
 	if len(runtime.client.Driver().Commands()) != 0 {
 		t.Fatal("prewarm leaked command receipt ownership")
 	}
@@ -108,6 +120,9 @@ func TestEmbeddedPrewarmNativeScope(t *testing.T) {
 	case <-driverTestContext(t).Done():
 		t.Fatal("prewarm initializer callback did not enter")
 	}
+	if initializing := reusableReadiness(t, pool); initializing.Ready != 0 || initializing.Unavailable != 1 || initializing.Physical.Resident != 1 || initializing.PoolId != pool.PoolID() {
+		t.Fatalf("initializer ownership was mistaken for readiness: %#v", initializing)
+	}
 	// An observer deadline cannot release the native VM or the still-running language callback.
 	// 观察截止时间不能释放原生 VM 或仍在运行的语言回调。
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
@@ -122,6 +137,9 @@ func TestEmbeddedPrewarmNativeScope(t *testing.T) {
 	if typedTake(t, status, err).Resident != 1 {
 		t.Fatal("prewarm VM disappeared while its callback was active")
 	}
+	if draining := reusableReadiness(t, pool); !draining.Closing || draining.Ready != 0 || draining.Physical.Resident != 1 {
+		t.Fatalf("closing callback ownership was lost: %#v", draining)
+	}
 	opStatus, err := operation.Status(context.Background())
 	snapshot := typedTake(t, opStatus, err)
 	binding, ok := snapshot.Context.(EmbeddedOutputOperationContextVariant2)
@@ -134,5 +152,66 @@ func TestEmbeddedPrewarmNativeScope(t *testing.T) {
 	}
 	if scope.Status().Phase != EmbeddedScopeClosed || !pump.Status().Closed || calls.Load() != 1 {
 		t.Fatal("prewarm scope failed to drain or replayed initialization")
+	}
+}
+
+// reusableReadiness consumes one exact pool snapshot through the reserved control lane and returns its value.
+// reusableReadiness 通过预留控制通道消费一个精确池快照并返回其值。
+// t owns assertion failures and pool supplies the original native identity; no pool is created or replaced.
+// t 拥有断言失败，pool 提供原始原生身份；不创建或替换池。
+func reusableReadiness(t *testing.T, pool *EmbeddedPool) EmbeddedOutputEmbeddedReusablePoolSnapshot {
+	t.Helper()
+	// The receipt must stay in the control lane independently of native work saturation.
+	// 回执必须留在控制通道，独立于原生工作饱和状态。
+	pending, err := pool.ReusableStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.Receipt().Lane() != EmbeddedControlLane {
+		t.Fatal("readiness consumed the work lane")
+	}
+	return typedTake(t, pending, err)
+}
+
+// TestEmbeddedReusableReadinessErrors preserves invalid-kind and unknown-identity errors without running source.
+// TestEmbeddedReusableReadinessErrors 保留无效类型及未知身份错误，且不运行源码。
+// t owns fixture cleanup and failures; the test returns after every failed receipt has been explicitly forgotten.
+// t 拥有夹具清理与失败；测试在显式遗忘每个失败回执后返回。
+func TestEmbeddedReusableReadinessErrors(t *testing.T) {
+	// A registered fixed-session module is deliberately unsuitable for reusable readiness.
+	// 已登记固定会话模块故意不适用于可复用就绪查询。
+	runtime, root, _ := nativeTypedRuntime(t)
+	session := typedPool(t, runtime, root, "error('query must not execute source')", true)
+	// Unknown binds one explicit absent identity without probing alternative pools.
+	// unknown 绑定一个明确缺失身份，不探测其他池。
+	unknown, err := runtime.Pool("unknown-readiness-pool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		// pool preserves the exact handle whose native error is expected.
+		// pool 保留预期原生错误的精确句柄。
+		pool *EmbeddedPool
+		// code records the declared native error, never a replacement state.
+		// code 记录声明的原生错误，绝不是替代状态。
+		code string
+	}{{session, "invalid_argument"}, {unknown, "not_found"}}
+	for _, item := range cases {
+		pending, err := item.pool.ReusableStatus(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = pending.Result(driverTestContext(t))
+		var failure *EmbeddedRuntimeError
+		if !errors.As(err, &failure) || failure.Code != item.code {
+			t.Fatalf("readiness error lost: %v", err)
+		}
+		if err := pending.Forget(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	status, err := session.Status(context.Background())
+	if typedTake(t, status, err).Resident != 0 || len(runtime.client.Driver().Commands()) != 0 {
+		t.Fatal("readiness executed source or leaked a receipt")
 	}
 }
