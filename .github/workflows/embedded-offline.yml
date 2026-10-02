@@ -1,0 +1,47 @@
+name: Embedded Offline Contract
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+      GOTOOLCHAIN: local
+      GOPROXY: "off"
+      GOSUMDB: "off"
+      LUASKILLS_NATIVE_E2E: "0"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22"
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check packaged generated contract
+        run: go run ./scripts/generate-embedded-contract --check
+      - name: Verify no-cgo native rejection and offline tests
+        run: go test -p 4 -parallel 4 -count=1 ./...
+      - name: Freeze actual-version module ZIP and consume through private proxy
+        run: |
+          python scripts/freeze_embedded_module.py --output "$RUNNER_TEMP/luaskills-go-module"
+          module_sha256=$(python -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/luaskills-go-module/freeze.json"))["module_zip_sha256"])')
+          module_version=$(python -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/luaskills-go-module/freeze.json"))["module_version"])')
+          python scripts/verify_embedded_distribution.py --module-zip "$RUNNER_TEMP/luaskills-go-module/module.zip" --module-zip-sha256 "$module_sha256" --module-version "$module_version"
+          python -m unittest discover -s scripts -p test_embedded_module_archive.py
+      - name: Reject invalid native candidate inputs before execution
+        run: python -m unittest discover -s scripts -p test_verify_embedded_candidate.py
+      - name: Verify actual published examples ZIP without development APIs
+        run: |
+          # This explicit version is an offline fixture, never a formal publication assertion.
+          # 此显式版本仅为离线夹具，绝不构成正式发布声明。
+          python scripts/prepare_examples_release.py --check --npm-version 1.2.3
+          python -m unittest discover -s scripts -p test_prepare_examples_release.py

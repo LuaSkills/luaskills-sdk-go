@@ -15,6 +15,56 @@ import (
 	"time"
 )
 
+// TestEmbeddedClientNativeApplicationIntegerPolicy verifies native rejection before VM initialization and admission.
+// TestEmbeddedClientNativeApplicationIntegerPolicy 验证在 VM 初始化及入场前的原生拒绝。
+// t owns exact runtime cleanup; accepted safe endpoints and explicit finite floats must echo successfully.
+// t 拥有精确运行时清理；已接纳安全端点及显式有限浮点数必须成功回传。
+func TestEmbeddedClientNativeApplicationIntegerPolicy(t *testing.T) {
+	// The failing initializer makes any accidental business admission observable.
+	// 失败初始化器使任何意外业务入场都可观察。
+	transport, runtimeID, command, pool := nativeEmbeddedRuntime(t)
+	rejectingPool := pool("error('invalid arguments reached initialization')")
+	// Exact JSON integer tokens cover positive, negative and recursively nested unsafe values.
+	// 精确 JSON 整数 token 覆盖正数、负数及递归嵌套不安全值。
+	for _, value := range []any{json.Number("9007199254740992"), json.Number("-9007199254740992"), map[string]any{"nested": []any{json.Number("18446744073709551615")}}} {
+		// Bypass the success-only fixture helper to inspect the actual native rejection.
+		// 绕过仅成功夹具辅助函数，以检查实际原生拒绝。
+		_, err := transport.Request(map[string]any{"type": "runtime", "runtime_id": runtimeID, "operation": map[string]any{"type": "call_submit", "timeout_ms": 10000, "call": map[string]any{"pool_id": rejectingPool, "export": "call", "arguments": value, "context": map[string]any{"request_context": nil, "client_budget": nil, "tool_config": nil}}}})
+		var failure *EmbeddedRuntimeError
+		if !errors.As(err, &failure) || failure.Code != "invalid_argument" {
+			t.Fatalf("unsafe application integer reached admission: %v", err)
+		}
+	}
+	// An empty operation list proves that rejection did not retain any admitted business identity.
+	// 空操作列表证明拒绝没有保留任何已入场业务身份。
+	page := command(map[string]any{"type": "operation_list", "pool_id": rejectingPool, "after_operation_id": nil, "limit": 16}).(map[string]any)
+	if len(page["operation_ids"].([]any)) != 0 {
+		t.Fatalf("rejected application values created operations: %#v", page)
+	}
+	// Decimal Float tokens preserve IEEE754 magnitude independently of the integer admission policy.
+	// 十进制 Float token 独立于整数入场政策保留 IEEE754 量级。
+	echoPool := pool("return {call=function(a) return a end}")
+	for _, value := range []json.Number{"9007199254740991", "-9007199254740991", "9007199254740992.0", "1e100"} {
+		// Consume and release each exact operation only after terminal observation.
+		// 终态观察后才消费及释放每个精确操作。
+		id := embeddedSubmit(command, echoPool, value)
+		done := embeddedTerminal(t, command, id)
+		actual := done["value"].(json.Number)
+		if done["phase"] != "succeeded" || (value != "1e100" && actual != value) {
+			t.Fatalf("safe integer or Float changed: %#v", done)
+		}
+		if value == "1e100" {
+			// Compare the declared floating value numerically; exponent spelling is not the application contract.
+			// 按数值比较声明浮点值；指数拼写不是应用契约。
+			magnitude, err := actual.Float64()
+			if err != nil || magnitude != 1e100 {
+				t.Fatalf("finite Float magnitude changed: %s %v", actual, err)
+			}
+		}
+		command(map[string]any{"type": "operation_forget", "operation_id": id})
+	}
+}
+
 // typedTake observes pending with a bounded test context and forgets only its successful SDK receipt.
 // typedTake 使用有界测试上下文观察 pending，仅遗忘成功的 SDK 回执。
 // submitErr is the original admission outcome; failures preserve the receipt for fixture cleanup.

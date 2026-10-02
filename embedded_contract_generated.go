@@ -8,11 +8,11 @@ const EmbeddedProtocolVersion uint32 = 1
 
 // EmbeddedContractSHA256 identifies every byte of the packaged contract.
 // EmbeddedContractSHA256 标识包内契约的全部字节。
-const EmbeddedContractSHA256 = "66e504d36a9bffed4b57b9ce1dd9aa6aaca9030347c57581e3058aac7d69cc3c"
+const EmbeddedContractSHA256 = "aaee7bcdbc1d8dd20a6f466f88522b0416b16c46396430d09ca1b7c53d3574c0"
 
 // EmbeddedCoreVersion identifies the core package that generated this contract.
 // EmbeddedCoreVersion 标识生成此契约的核心包。
-const EmbeddedCoreVersion = "0.5.9"
+const EmbeddedCoreVersion = "0.6.0"
 
 // EmbeddedDescriptionVersion is the independent borrowed descriptor format.
 // EmbeddedDescriptionVersion 是独立借用型描述格式。

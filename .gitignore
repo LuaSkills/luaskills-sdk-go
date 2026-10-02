@@ -28,6 +28,11 @@ go.work.sum
 # 本地集成产物及匹配的原生导入库。
 .temp/
 
+# Local Python verification caches are not module distribution inputs.
+# 本地 Python 验证缓存不属于模块分发输入。
+__pycache__/
+*.pyc
+
 # env file
 .env
 

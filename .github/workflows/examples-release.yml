@@ -1,178 +1,265 @@
 name: Examples Release
+run-name: Go examples ${{ inputs.sdk_sha }} mode=${{ inputs.mode }}
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Sign artifact only, publish, or recover one explicitly frozen examples artifact
+        required: true
+        default: artifact-only
+        type: choice
+        options: [artifact-only, publish, recover]
+      sdk_sha:
+        description: Original formally completed Go SDK source SHA
+        required: true
+        type: string
+      candidate_run_id:
+        description: Original Go SDK candidate run ID
+        required: true
+        type: string
+      candidate_run_attempt:
+        description: Original Go SDK candidate attempt
+        required: true
+        type: string
+      completion_run_id:
+        description: Successful Go SDK completion run ID
+        required: true
+        type: string
+      completion_run_attempt:
+        description: Successful Go SDK completion attempt
+        required: true
+        type: string
+      completion_source_sha:
+        description: Go SDK completion source SHA
+        required: true
+        type: string
+      core_commit:
+        description: Exact core authority commit
+        required: true
+        type: string
+      core_tag:
+        description: Exact formally published core tag
+        required: true
+        type: string
+      npm_sha:
+        description: Original independently completed TypeScript source
+        required: true
+        type: string
+      pypi_sha:
+        description: Original independently completed Python source
+        required: true
+        type: string
+      examples_run_id:
+        description: Recover only explicit original examples run ID
+        required: false
+        type: string
+      examples_run_attempt:
+        description: Recover only explicit original examples attempt
+        required: false
+        type: string
+      examples_artifact_id:
+        description: Recover only exact original examples artifact ID
+        required: false
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+  actions: read
+
+concurrency:
+  group: go-examples-${{ inputs.sdk_sha }}
+  cancel-in-progress: false
 
 jobs:
-  examples-release:
-    name: Build and publish examples release
-    runs-on: ubuntu-latest
-
+  examples-candidate:
+    if: ${{ inputs.mode != 'recover' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - uses: actions/checkout@v6
         with:
-          go-version: "1.22"
-
-      - name: Setup Node.js runtime installer
-        uses: actions/setup-node@v6
+          ref: ${{ inputs.sdk_sha }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills
+          ref: ${{ inputs.core_commit }}
+          path: core-release
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills-sdk-typescript
+          ref: ${{ inputs.npm_sha }}
+          path: npm-release
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills-sdk-python
+          ref: ${{ inputs.pypi_sha }}
+          path: pypi-release
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22.x"
+          cache: false
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
-
-      - name: Resolve release version
-        id: version
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Authenticate and install exact public core Rust toolchain
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/release/go_release.py bootstrap --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --platform host --output "$RUNNER_TEMP/rust-bootstrap"
+          toolchain="$(python -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/rust-bootstrap/toolchain.json"))["toolchain"])')"
+          rustup toolchain install "$toolchain" --profile minimal
+      - name: Authenticate both permanent SDK chains and real fresh consumers
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SDK_SHA: ${{ inputs.sdk_sha }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          CANDIDATE_ATTEMPT: ${{ inputs.candidate_run_attempt }}
+          COMPLETION_RUN: ${{ inputs.completion_run_id }}
+          COMPLETION_ATTEMPT: ${{ inputs.completion_run_attempt }}
+          COMPLETION_SOURCE: ${{ inputs.completion_source_sha }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
         shell: bash
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid VERSION value: $version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "module_tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "release_tag=examples-v$version" >> "$GITHUB_OUTPUT"
-          echo "package_name=luaskills-sdk-go-examples-$version" >> "$GITHUB_OUTPUT"
-          echo "asset_name=luaskills-sdk-go-examples-$version.zip" >> "$GITHUB_OUTPUT"
-
-      - name: Create standalone examples package
+          python scripts/release/go_release.py formal-proof --sdk-sha "$SDK_SHA" --sdk-version "$version" --candidate-run-id "$CANDIDATE_RUN" --candidate-run-attempt "$CANDIDATE_ATTEMPT" --completion-run-id "$COMPLETION_RUN" --completion-run-attempt "$COMPLETION_ATTEMPT" --completion-source-sha "$COMPLETION_SOURCE" --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --npm-root "$GITHUB_WORKSPACE/npm-release" --pypi-root "$GITHUB_WORKSPACE/pypi-release" --platform host --output "$RUNNER_TEMP/formal"
+      - name: Run six public-module examples using exact verified independent TypeScript installer
+        working-directory: sdk
         shell: bash
+        run: python scripts/release/go_release.py examples --core-root "$GITHUB_WORKSPACE/core-release" --formal "$RUNNER_TEMP/formal" --output "$RUNNER_TEMP/examples"
+      - name: Freeze deterministic ZIP and original sidecar for signing
+        working-directory: sdk
         env:
-          VERSION: ${{ steps.version.outputs.version }}
-          MODULE_TAG: ${{ steps.version.outputs.module_tag }}
-          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+          MODE: ${{ inputs.mode }}
+        shell: bash
+        run: python scripts/release/go_release.py examples-stage --core-root "$GITHUB_WORKSPACE/core-release" --formal "$RUNNER_TEMP/formal" --examples "$RUNNER_TEMP/examples" --mode "$MODE" --output "$RUNNER_TEMP/examples-stage"
+      - name: Official OIDC examples signature
+        id: attest
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+        with:
+          subject-checksums: ${{ runner.temp }}/examples-stage/subjects.sha256
+      - name: Preserve authenticated original example bytes
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        shell: bash
+        run: python scripts/release/go_release.py examples-finalize --core-root "$GITHUB_WORKSPACE/core-release" --formal "$RUNNER_TEMP/formal" --directory "$RUNNER_TEMP/examples-stage" --bundle "$BUNDLE" --output "$RUNNER_TEMP/examples-artifact"
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: candidate-evidence-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/examples-artifact/*
+          if-no-files-found: error
+
+  examples-publish:
+    needs: examples-candidate
+    if: ${{ always() && ((inputs.mode == 'publish' && needs.examples-candidate.result == 'success') || inputs.mode == 'recover') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.sdk_sha }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills
+          ref: ${{ inputs.core_commit }}
+          path: core-release
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills-sdk-typescript
+          ref: ${{ inputs.npm_sha }}
+          path: npm-release
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills-sdk-python
+          ref: ${{ inputs.pypi_sha }}
+          path: pypi-release
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22.x"
+          cache: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Authenticate and install exact public core Rust toolchain
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
+        shell: bash
         run: |
           set -euo pipefail
-          package_root="target/examples-release/$PACKAGE_NAME"
-          mkdir -p "$package_root"
-          cp LICENSE README.md README_cn.md "$package_root/"
-          cp -R examples "$package_root/examples"
-          cat > "$package_root/go.mod" <<GOMOD
-          module luaskills-sdk-go-examples
-
-          go 1.22
-
-          require github.com/LuaSkills/luaskills-sdk-go $MODULE_TAG
-          GOMOD
-          cat > "$package_root/EXAMPLES_RELEASE.md" <<MARKDOWN
-          # LuaSkills Go SDK Examples $VERSION
-
-          English documentation is the default documentation. For Chinese, see README_cn.md and examples/README_cn.md.
-
-          These examples install and use the published Go module tag:
-
-          \`\`\`bash
-          go mod download
-          npx @luaskills/sdk@$VERSION install-runtime --database none --runtime-root examples/fixture-runtime
-          CGO_ENABLED=1 go run ./examples/basic
-          CGO_ENABLED=1 go run ./examples/query
-          CGO_ENABLED=1 go run ./examples/runtime_lease
-          \`\`\`
-
-          Main repository: https://github.com/LuaSkills/luaskills
-          MARKDOWN
-
-      - name: Verify published module tag
-        shell: bash
+          python scripts/release/go_release.py bootstrap --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --platform host --output "$RUNNER_TEMP/rust-bootstrap"
+          toolchain="$(python -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/rust-bootstrap/toolchain.json"))["toolchain"])')"
+          rustup toolchain install "$toolchain" --profile minimal
+      - name: Authenticate both permanent SDK chains and real fresh consumers
+        working-directory: sdk
         env:
-          MODULE_TAG: ${{ steps.version.outputs.module_tag }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SDK_SHA: ${{ inputs.sdk_sha }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          CANDIDATE_ATTEMPT: ${{ inputs.candidate_run_attempt }}
+          COMPLETION_RUN: ${{ inputs.completion_run_id }}
+          COMPLETION_ATTEMPT: ${{ inputs.completion_run_attempt }}
+          COMPLETION_SOURCE: ${{ inputs.completion_source_sha }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
+        shell: bash
         run: |
           set -euo pipefail
-          go list -m "github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG"
-
-      - name: Install runtime assets
-        shell: bash
-        working-directory: target/examples-release/${{ steps.version.outputs.package_name }}
+          version="$(tr -d '[:space:]' < VERSION)"
+          python scripts/release/go_release.py formal-proof --sdk-sha "$SDK_SHA" --sdk-version "$version" --candidate-run-id "$CANDIDATE_RUN" --candidate-run-attempt "$CANDIDATE_ATTEMPT" --completion-run-id "$COMPLETION_RUN" --completion-run-attempt "$COMPLETION_ATTEMPT" --completion-source-sha "$COMPLETION_SOURCE" --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --npm-root "$GITHUB_WORKSPACE/npm-release" --pypi-root "$GITHUB_WORKSPACE/pypi-release" --platform host --output "$RUNNER_TEMP/formal"
+      - name: Consume original signed artifact and publish identical ZIP and sidecar without rebuilding
+        working-directory: sdk
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          RECOVER_RUN: ${{ inputs.examples_run_id }}
+          RECOVER_ATTEMPT: ${{ inputs.examples_run_attempt }}
+          RECOVER_ARTIFACT: ${{ inputs.examples_artifact_id }}
+          CURRENT_ARTIFACT: ${{ needs.examples-candidate.outputs.artifact_id }}
+        shell: bash
         run: |
           set -euo pipefail
-          npx --yes "@luaskills/sdk@$VERSION" install-runtime --database none --runtime-root examples/fixture-runtime
-
-      - name: Run published-module smoke examples
-        shell: bash
-        working-directory: target/examples-release/${{ steps.version.outputs.package_name }}
-        env:
-          CGO_ENABLED: "1"
-          CGO_LDFLAGS: -L${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime/libs
-          LD_LIBRARY_PATH: ${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime/libs
-          LUASKILLS_RUNTIME_ROOT: ${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime
-          LUASKILLS_EXAMPLE_RUNTIME_ROOT: ${{ github.workspace }}/target/examples-release/${{ steps.version.outputs.package_name }}/examples/fixture-runtime
-        run: |
-          set -euo pipefail
-          go mod tidy
-          go run ./examples/basic
-          go run ./examples/query
-          go run ./examples/call
-          go run ./examples/lifecycle
-          go run ./examples/runtime_lease
-          go run ./examples/provider_callback
-
-      - name: Package examples asset
-        shell: bash
-        env:
-          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
-          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
-        run: |
-          set -euo pipefail
-          mkdir -p target/release-assets
-          (
-            cd target/examples-release
-            zip -qr "../release-assets/$ASSET_NAME" "$PACKAGE_NAME"
-          )
-          (
-            cd target/release-assets
-            sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
-          )
-
-      - name: Write release notes
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          MODULE_TAG: ${{ steps.version.outputs.module_tag }}
-        run: |
-          set -euo pipefail
-          cat > target/release-assets/RELEASE_NOTES.md <<MARKDOWN
-          ## LuaSkills Go SDK Examples $VERSION
-
-          This release contains a standalone examples package for the published Go module \`github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG\`.
-
-          The package was smoke-tested by installing LuaSkills runtime assets with the published TypeScript installer and running the bundled Go examples against the published module tag, including the persistent runtime-session flow.
-
-          Main repository: https://github.com/LuaSkills/luaskills
-
-          ## 中文说明
-
-          本 Release 包含面向已发布 Go module \`github.com/LuaSkills/luaskills-sdk-go@$MODULE_TAG\` 的独立示例包。
-
-          工作流已通过正式 TypeScript 安装器安装 LuaSkills runtime 资产，并基于正式 Go module tag 运行内置示例完成冒烟验证，其中包含持久 runtime-session 流程。
-          MARKDOWN
-
-      - name: Publish GitHub Release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
-          VERSION: ${{ steps.version.outputs.version }}
-          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
-        run: |
-          set -euo pipefail
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" \
-              "target/release-assets/$ASSET_NAME" \
-              "target/release-assets/$ASSET_NAME.sha256" \
-              --clobber
+          if [[ "$MODE" == recover ]]; then
+            original_run="$RECOVER_RUN"; original_attempt="$RECOVER_ATTEMPT"; original_artifact="$RECOVER_ARTIFACT"
           else
-            gh release create "$RELEASE_TAG" \
-              "target/release-assets/$ASSET_NAME" \
-              "target/release-assets/$ASSET_NAME.sha256" \
-              --target "$GITHUB_SHA" \
-              --title "LuaSkills Go SDK Examples $VERSION" \
-              --notes-file target/release-assets/RELEASE_NOTES.md
+            original_run="$GITHUB_RUN_ID"; original_attempt="$GITHUB_RUN_ATTEMPT"; original_artifact="$CURRENT_ARTIFACT"
           fi
+          python scripts/release/go_release.py examples-publish --core-root "$GITHUB_WORKSPACE/core-release" --formal "$RUNNER_TEMP/formal" --intent "$MODE" --examples-run-id "$original_run" --examples-run-attempt "$original_attempt" --examples-artifact-id "$original_artifact" --output "$RUNNER_TEMP/original-examples"

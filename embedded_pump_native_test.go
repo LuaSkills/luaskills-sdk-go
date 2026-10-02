@@ -14,6 +14,70 @@ import (
 	"testing"
 )
 
+// TestEmbeddedPumpNativeUnsafeIntegerCompletion retains actual commit evidence after an invalid Lua application result.
+// TestEmbeddedPumpNativeUnsafeIntegerCompletion 在无效 Lua 应用结果后保留实际提交证据。
+// t owns pump/runtime cleanup; the original request completes once and a subsequent normal callback remains usable.
+// t 拥有泵／运行时清理；原请求单次完成且后续正常回调仍可使用。
+func TestEmbeddedPumpNativeUnsafeIntegerCompletion(t *testing.T) {
+	// Atomic observations bind all completion assertions to exact callbacks across worker goroutines.
+	// 原子观察跨工作协程把所有完成断言绑定到精确回调。
+	transport, runtimeID, command, pool := nativeEmbeddedRuntime(t)
+	pump := nativePumpTest(t, transport, runtimeID, EmbeddedCallbackPumpConfig{1, 2, 1})
+	var calls atomic.Uint64
+	var firstRequest atomic.Value
+	pumpRegister(t, pump, pumpCapability(func(value any, ctx *EmbeddedHostCallbackContext) (any, error) {
+		if calls.Add(1) == 1 {
+			firstRequest.Store(ctx.RequestID())
+		}
+		if err := ctx.ReportEffects(EmbeddedInputEffectStateCommitted); err != nil {
+			return nil, err
+		}
+		if value == "unsafe" {
+			return json.Number("18446744073709551615"), nil
+		}
+		return value, nil
+	}))
+	// Lua returns the full envelope, separating operation success from capability success.
+	// Lua 返回完整信封，区分操作成功与能力成功。
+	poolID := pool("return {call=function(a) return vulcan.capabilities.call('go.callback',a) end}")
+	rejected := embeddedTerminal(t, command, embeddedSubmit(command, poolID, "unsafe"))
+	// One callback's committed evidence never determines the entire Lua operation's effects.
+	// 单个回调的已提交证据绝不能确定整个 Lua 操作的副作用。
+	if rejected["effects"] != "unknown" {
+		t.Fatalf("overall Lua effects lost their independent unknown state: %#v", rejected)
+	}
+	envelope := rejected["value"].(map[string]any)
+	if rejected["phase"] != "succeeded" || envelope["ok"] != false || envelope["error"].(map[string]any)["code"] != "invalid_argument" || envelope["effects"] != "committed" {
+		t.Fatalf("invalid callback result lost its committed error envelope: %#v", rejected)
+	}
+	// Exact identity lookup avoids assertions tied to a mutable ledger position.
+	// 精确身份查找避免断言绑定可变化的账本位置。
+	found := false
+	for _, raw := range rejected["host_effects"].([]any) {
+		// Original record must prove both handler ownership release and actual effects.
+		// 原始记录必须证明处理器所有权释放及实际副作用。
+		effect := raw.(map[string]any)
+		if effect["request_id"] == firstRequest.Load() {
+			found = effect["phase"] == "completed" && effect["effects"] == "committed"
+		}
+	}
+	if !found {
+		t.Fatal("original completed committed ledger is missing")
+	}
+	if normal := embeddedTerminal(t, command, embeddedSubmit(command, poolID, "normal")); normal["value"].(map[string]any)["value"] != "normal" {
+		t.Fatalf("callback pump was not reusable: %#v", normal)
+	}
+	if err := pump.Close(driverTestContext(t)); err != nil {
+		t.Fatal(err)
+	}
+	// Closed pump ownership and exactly two calls prove that native acknowledgement did not cause replay.
+	// 泵关闭所有权及精确两次调用证明原生确认没有导致重播。
+	status := pump.Status()
+	if calls.Load() != 2 || len(status.RequestIDs) != 0 || len(status.PendingAcknowledgements) != 0 || status.Failure != nil {
+		t.Fatalf("unsafe completion leaked or replayed ownership: %#v", status)
+	}
+}
+
 // nativePumpTest starts an actual ready pump and closes it before fixture-owned native runtime cleanup.
 // nativePumpTest 启动实际就绪泵，并在夹具拥有的原生运行时清理前关闭。
 func nativePumpTest(t *testing.T, transport *EmbeddedTransport, runtimeID string, config EmbeddedCallbackPumpConfig) *EmbeddedCallbackPump {

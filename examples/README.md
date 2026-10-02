@@ -24,6 +24,8 @@ Running native FFI examples requires `CGO_ENABLED=1`, a cgo-compatible C compile
 
 ## Example Index
 
+`embedded_lifecycle` is the development-only typed client/callback pump/runtime scope example, excluded from the standalone published examples package. Obtain it from a matching SDK source checkout and run it with [the candidate gate](../docs/embedded-validation.md), including `--race` when needed. It performs no downloads and requires the matching development library.
+
 `basic` queries the JSON FFI version through `luaskills.Version`.
 
 ```powershell
@@ -68,6 +70,6 @@ The fixture skill is stored at `examples/fixture-runtime/user_skills/demo-standa
 
 ## Release Package
 
-The repository workflow **Examples Release** creates `luaskills-sdk-go-examples-{VERSION}.zip` after the matching Go module tag is available. The workflow verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, and runs the examples before uploading the asset.
+The repository workflow **Examples Release** authenticates the explicit original SDK candidate and successful completion attempts, both permanent signatures and new cold consumers before creating `luaskills-sdk-go-examples-{VERSION}.zip`. It uses the independently verified TypeScript version, exact core library and public Go module in a new cache to run six examples. The deterministic ZIP and original sidecar are independently signed before publication; recovery reuses only that exact signed artifact.
 
-The release tag is `examples-v{VERSION}` so example assets do not interfere with Go module semver tags.
+Download from the matching `examples-v{VERSION}` entry in [Examples releases](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true). The workflow uploads all assets to a draft before publishing this separate Release; existing final assets are never overwritten or extended.

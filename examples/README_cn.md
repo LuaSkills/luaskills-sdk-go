@@ -24,6 +24,8 @@ luaskills install-runtime --database none --runtime-root .\examples\fixture-runt
 
 ## 示例索引
 
+`embedded_lifecycle` 是开发用类型化客户端／回调泵／运行时作用域完整示例，已从正式独立示例包排除。须从匹配 SDK 源码检出取得，再通过[候选门禁](../docs/embedded-validation.md) 使用准确本地候选库验收，可加 `--race`。示例不下载资产，须匹配开发库。
+
 `basic` 通过 `luaskills.Version` 查询 JSON FFI 版本。
 
 ```powershell
@@ -68,6 +70,6 @@ go run .\examples\provider_callback
 
 ## 示例发布包
 
-仓库工作流 **Examples Release** 会在匹配的 Go module tag 可用后生成 `luaskills-sdk-go-examples-{VERSION}.zip`。工作流会校验 `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`，通过已发布 TypeScript 安装器安装 LuaSkills runtime 资产，并运行示例，通过后再上传资产。
+仓库工作流 **Examples Release** 先认证显式原 SDK 候选与成功完成轮次、两条永久签名链及新的冷消费者，再生成 `luaskills-sdk-go-examples-{VERSION}.zip`。它使用独立已验 TypeScript 精确版本、实际核心库字节及新缓存中的公共 Go 模块运行六例。确定性 ZIP 与原 sidecar 在发布前独立签名；恢复仅复用指定原签名制品。
 
-release tag 使用 `examples-v{VERSION}`，因此示例资产不会干扰 Go module 的语义版本 tag。
+从[示例发布列表](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true)中匹配的 `examples-v{VERSION}` 条目下载。工作流先向 draft 上传全部资产，再发布此独立 Release；已有 final 资产不覆盖、不追加。

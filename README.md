@@ -6,7 +6,7 @@ Main LuaSkills repository: [LuaSkills/luaskills](https://github.com/LuaSkills/lu
 
 Go SDK for integrating the LuaSkills runtime through the public JSON FFI surface.
 
-`0.5.7` is the current release line. It retains the strict package-level skill configuration contract and defaults runtime assets to LuaSkills core `v0.5.7`, vldb-controller `v0.2.3`, and vldb-sqlite `v0.1.6`.
+This source targets the `0.6.0` release line; publication and artifact verification follow the release workflow. It retains the strict package-level skill configuration contract and defaults runtime assets to matching LuaSkills core `v0.6.0`, vldb-controller `v0.2.3`, and vldb-sqlite `v0.1.6`. Runtime asset downloads require the matching core release to be published and verified first.
 
 The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, provider callback boundaries, host-tool callback boundaries, and runtime manifest helpers.
 
@@ -22,7 +22,7 @@ Runtime methods `StorageStatus / RecoverStorage` expose worker ownership and exp
 
 Historical records never become active handles. Before administrative reconciliation or removal, forget any retained live operation. `HistoryReconcile` attaches one final, bounded host attestation while preserving the original snapshot, caller and effect identities. The trusted host must authorize the resolver, prove all original execution and external owners stopped, and verify the whole operation and every recorded effect; a supplied resolver string is not authentication. Unknown ordinary Lua effects cannot be inferred from successful return. Use the original namespace, operation ID and predecessor revision; retry the identical resolution to acknowledge the same successor after storage recovery. The returned revision supports explicit removal. This API does not query external systems, replay callbacks, manufacture an interrupted result or recover a failed writer/execution stack. Development disk format 4 rejects unpublished formats 1–3 without rewriting them. Matching development core and SDK contracts are required.
 
-The development source adds `NewEmbeddedTransport` over the independent version-one C ABI. Link a matching development core containing the new exports; this does not claim that published `0.5.7` libraries support them. Versions and default runtime assets will move together after ecosystem acceptance. With `CGO_ENABLED=0`, contracts and codecs remain available while native construction returns an explicit error.
+The development source adds `NewEmbeddedTransport` over the independent version-one C ABI. Link a matching development core containing the new exports; this does not claim that published `0.5.7` libraries support them. The SDK version and default runtime tag identify the matching `0.6.0` release line; publication and artifact verification follow the ecosystem release workflow. With `CGO_ENABLED=0`, contracts and codecs remain available while native construction returns an explicit error.
 
 Before native allocation, construction reads `luaskills_ffi_embedded_describe_v1`, bounds the borrowed pointer/length before copying, and validates exact core/protocol/ABI/description versions, the packaged contract digest, required commands and capabilities, supported backend, process OS and pointer width. Malformed or incompatible metadata returns `*EmbeddedCompatibilityError`; nonzero native status retains `*EmbeddedTransportError`. The library owns discovery bytes; they are never passed to a result-free function. `CoreDescription()` returns independently cloned typed evidence, also after successful release. Build hashes describe selected inputs and do not authenticate a binary or prove a hermetic build.
 
@@ -88,11 +88,13 @@ The packaged contract also generates independent `EmbeddedInput*` and `EmbeddedO
 
 Optional fields use an outer pointer for presence; nullable fields use an inner pointer. Thus `**T` can distinguish absent, present null and present value, and `*any` preserves successful null separately from a missing result. Use the generated response decoders to preserve these states: ordinary `encoding/json.Unmarshal` does not retain that distinction for null pointers. Where upstream permits additional object fields, typed projection accepts them but exposes only declared fields; retain original response bytes when extensions are needed. Closed shapes and exact root envelopes reject additional fields. The generator rejects unsupported future schema constraints, conflicting output definitions and generated-name collisions instead of weakening types.
 
-`contracts/embedded/v1` and both root C headers are exact copies from the same upstream source. `go run ./scripts/generate-embedded-contract --check` verifies generated protocol constants, status codes, command metadata and all wire types from the packaged contract without an adjacent checkout. Native tests require explicit `LUASKILLS_NATIVE_E2E=1` and matching library configuration. `python scripts/verify_embedded_distribution.py` verifies a real Go module ZIP through a private file proxy and empty module cache, including packaged generation and embedded tests. Use `--go` to select an installed toolchain. This validation version is never published externally.
+`contracts/embedded/v1` and both root C headers are exact copies from the same upstream source. `go run ./scripts/generate-embedded-contract --check` verifies generated protocol constants, status codes, command metadata and all wire types from the packaged contract without an adjacent checkout. Native tests require explicit `LUASKILLS_NATIVE_E2E=1` and matching library configuration. `python scripts/verify_embedded_distribution.py` freezes actual-version source bytes and verifies the resulting Go module ZIP through a private file proxy and empty module cache, including packaged generation and embedded tests. It also accepts an explicit frozen ZIP/hash/version. Use `--go` to select an installed toolchain. This script never publishes the validation artifact externally.
 
 Windows cgo links `luaskills.dll` explicitly to avoid selecting an MSVC static archive in the same directory. Both the linker directory and runtime PATH must contain the matching DLL, following [GNU ld's Windows DLL rules](https://sourceware.org/binutils/docs/ld/WIN32.html). Go request bytes are borrowed only during the synchronous C call; responses are copied before release according to [cgo pointer rules](https://pkg.go.dev/cmd/cgo#hdr-Passing_pointers).
 
 ## Installation
+
+For explicit offline/no-cgo boundaries, local candidate cgo/race gates and the complete embedded lifecycle example, see [Embedded validation](docs/embedded-validation.md).
 
 ```bash
 go get github.com/LuaSkills/luaskills-sdk-go
@@ -128,7 +130,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
 ```
 
-Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.5.7` by default and accept explicit release-version overrides.
+Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.6.0` by default and accept explicit release-version overrides.
 
 The Go SDK plans and consumes the shared SDK runtime manifest, while the repository scripts above directly download release assets. The shared manifest now points at:
 
@@ -202,7 +204,7 @@ By default, the shared manifest keeps LuaSkills core aligned with the SDK releas
 ## Version Alignment
 
 - Keep the SDK and LuaSkills core on the same current release line whenever possible.
-- The current SDK defaults to LuaSkills core tag `v0.5.7`.
+- This SDK source defaults to LuaSkills core tag `v0.6.0`; download it only after the matching core release is published and verified.
 - Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
 - SDK default host options pass `runtime_root`, null managed-root override slots, and the complete stable `managed_runtime_config`; LuaSkills derives the fixed data layout until the host explicitly overrides roots or policy.
 - Host tools live directly under `runtime_root/bin`, not `runtime_root/bin/tools`.
@@ -506,18 +508,13 @@ $env:CGO_ENABLED = "0"
 go test ./...
 ```
 
-Publish the SDK by pushing the matching Go module tag:
+Use **Go SDK Release** at the exact committed SDK SHA after the workflow has entered the default branch. Default `artifact-only` freezes one actual module ZIP, validates every core platform with cgo/race, and independently signs the complete candidate before any public mutation. Explicit `publish` or `recover` rechecks the complete public core and independently published NPM/PyPI dual-chain consumers, publishes only the original candidate bytes at `vVERSION`, and cold-consumes public Go proxy members. Separately signed completion evidence goes to `recovery-vVERSION-rRUNID-aATTEMPT`; both source/run/attempt identities are explicit. See the [release contract](https://github.com/LuaSkills/luaskills-sdk-go/blob/main/scripts/release/README.md). The current development VERSION and embedded version mirror must be reconciled by the release owner before formal freezing can pass.
 
-```powershell
-git tag v0.5.7
-git push origin v0.5.7
-```
-
-After the Go module tag is available, run the GitHub Actions workflow **Examples Release** manually. It reads `VERSION`, verifies `github.com/LuaSkills/luaskills-sdk-go@v{VERSION}`, installs LuaSkills runtime assets through the published TypeScript installer, runs the Go examples, then creates or updates the `examples-v{VERSION}` GitHub Release with:
+**Examples Release** requires the explicit original SDK candidate and successful completion attempts, revalidates both signed permanent chains and actual cold consumers, then installs the independently verified TypeScript version and runs six examples against exact core/public Go bytes. It signs a deterministic ZIP and original sidecar before publication; recovery consumes that exact signed artifact. It publishes a separate `examples-v{VERSION}` Release after all draft assets are uploaded:
 
 - `luaskills-sdk-go-examples-{VERSION}.zip`
 - `luaskills-sdk-go-examples-{VERSION}.zip.sha256`
 
-The examples release tag intentionally uses the `examples-v` prefix so it does not interfere with Go module semver tags.
+Download the matching `examples-v{VERSION}` asset from [Examples releases](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true). SDK `v{VERSION}` releases contain SDK provenance evidence. Existing final assets are reused only when every byte matches; they are never overwritten or extended.
 
 Recommended unified publish order: `luaskills-packages` -> `luaskills` core release -> TypeScript SDK -> Python SDK -> Go SDK -> SDK examples releases.

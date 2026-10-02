@@ -4,24 +4,21 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import tempfile
-import zipfile
+
+from embedded_module_archive import MODULE_PATH, consume_zip, require_members
 
 
-def verify(go: str) -> None:
-    """Build exact current Git-listed source bytes and run packaged tests with the selected Go executable.
-    构建 Git 所列当前源码的精确字节，并使用指定 Go 可执行文件运行包内测试。
-    go selects an installed toolchain; compiler and native-library environment are inherited explicitly.
-    go 选择已安装工具链；编译器及原生库环境显式继承。
+def module_sources(root: Path) -> dict[str, bytes]:
+    """Return exact Git-listed package source bytes from root, rejecting missing or escaped members.
+    返回 root 中 Git 所列包源码的精确字节，拒绝缺失或逃逸成员。
     """
     # The source list excludes ignored local tools, caches and verification archives.
     # 源码清单排除忽略的本地工具、缓存及验证归档。
-    root = Path(__file__).resolve().parents[1]
     listing = subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=root)
     names = sorted(set(name.decode("utf-8") for name in listing.split(b"\0") if name))
     # Only regular in-repository files become archive members; no external symlink targets are borrowed.
@@ -32,52 +29,39 @@ def verify(go: str) -> None:
         if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(root):
             raise ValueError(f"Invalid module source member: {name}")
         sources[name] = source.read_bytes()
-    for required in ("go.mod", "embedded_contract_generated.go", "embedded_wire_generated.go", "embedded_wire.go", "embedded_driver.go", "embedded_command.go", "embedded_client.go", "embedded_handles.go", "embedded_wait.go", "embedded_scope.go", "embedded_scope_control.go", "embedded_callbacks.go", "embedded_pump.go", "embedded_pump_native.go", "embedded_pump_service.go", "embedded_ownership.go", "scripts/generate-embedded-contract/wire.go", "embedded_ffi_cgo.go", "luaskills_ffi.h", "luaskills_json_ffi.h", "contracts/embedded/v1/contract.json"):
-        if required not in sources:
-            raise ValueError(f"Missing distribution member: {required}")
-    for required in ("embedded_compatibility.go", "embedded_compatibility_test.go", "embedded_compatibility_native_test.go", "embedded_capacity.go", "embedded_capacity_native_test.go"):
-        if required not in sources:
-            raise ValueError(f"Missing required embedded distribution member: {required}")
-    # This development-only version exists solely in the private file proxy, never in a public registry.
-    # 此开发专用版本仅存在于私有文件代理中，绝不进入公共注册表。
-    module = "github.com/LuaSkills/luaskills-sdk-go"
-    version = "v0.0.0-local.1"
+    require_members(sources)
+    return sources
+
+
+def verify(go: str, module_zip: str | None = None, module_zip_sha256: str | None = None, module_version: str | None = None) -> None:
+    """Build exact current source ZIP and run offline packaged tests with the installed Go executable.
+    构建当前源码精确 ZIP，并使用已安装 Go 可执行文件执行离线包内测试。
+    go selects the toolchain; native acceptance belongs to verify_embedded_candidate.py.
+    go 选择工具链；原生验收由 verify_embedded_candidate.py 负责。
+    """
+    # root/work keep both default freezing and explicitly supplied ZIP consumption isolated from the current module cache.
+    # root／work 使默认冻结及显式 ZIP 消费均隔离于当前模块缓存。
+    root = Path(__file__).resolve().parents[1]
+    if any((module_zip, module_zip_sha256, module_version)) and not all((module_zip, module_zip_sha256, module_version)):
+        raise ValueError("Frozen module ZIP, SHA-256 and exact version must be supplied together")
     work = Path(tempfile.mkdtemp(prefix="module-distribution-", dir=root / ".temp"))
-    escaped = "".join("!" + character.lower() if character.isupper() else character for character in module)
-    proxy = work / "proxy"
-    entries = proxy / escaped / "@v"
-    entries.mkdir(parents=True)
-    archive = entries / f"{version}.zip"
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
-        for name, contents in sources.items():
-            output.writestr(f"{module}@{version}/{name}", contents)
-    with zipfile.ZipFile(archive) as package:
-        if len(package.namelist()) != len(set(package.namelist())):
-            raise ValueError("Duplicate module ZIP member")
-        for name, contents in sources.items():
-            if package.read(f"{module}@{version}/{name}") != contents:
-                raise ValueError(f"Module ZIP bytes changed: {name}")
-    (entries / f"{version}.mod").write_bytes(sources["go.mod"])
-    (entries / f"{version}.info").write_text(json.dumps({"Version": version, "Time": "2026-09-28T00:00:00Z"}), encoding="utf-8")
-    (entries / "list").write_text(version + "\n", encoding="utf-8")
-    consumer = work / "consumer"
-    consumer.mkdir()
-    (consumer / "go.mod").write_text(f"module embedded-distribution-consumer\n\ngo 1.22\n\nrequire {module} {version}\n", encoding="utf-8")
-    # An empty cache and a private proxy force every SDK implementation import to come from the constructed ZIP.
-    # 空缓存及私有代理强制全部 SDK 实现导入来自所构建 ZIP。
-    environment = dict(os.environ, GOPROXY=proxy.as_uri(), GOMODCACHE=str(work / "cache"), GOSUMDB="off", GOTOOLCHAIN="local", GOWORK="off")
-    downloaded = subprocess.check_output([go, "mod", "download", "-json", module + "@" + version], cwd=consumer, env=environment)
-    manifest = json.loads(downloaded)
-    directory = Path(manifest["Dir"])
-    if not directory.resolve().is_relative_to(work / "cache"):
-        raise ValueError("Module did not load from the isolated archive cache")
-    for name, contents in sources.items():
-        if (directory / name).read_bytes() != contents:
-            raise ValueError(f"Downloaded module bytes changed: {name}")
+    if module_zip is None:
+        # Local import keeps source listing independent from the freeze command's use of that same listing.
+        # 本地导入使源码列举独立于冻结命令对同一列举的使用。
+        from freeze_embedded_module import freeze
+        frozen = freeze(root, work / "frozen")
+        module_zip, module_zip_sha256, module_version = frozen["module_zip"], frozen["module_zip_sha256"], frozen["module_version"]
+    # environment disables native work; consumption still proves exact ZIP ownership through Go's real file proxy.
+    # environment 禁止原生工作；消费仍通过 Go 真实文件代理证明精确 ZIP 归属。
+    environment = dict(os.environ, CGO_ENABLED="0", LUASKILLS_NATIVE_E2E="0")
+    directory, consumer, sources, evidence = consume_zip(go, Path(module_zip), module_version, module_zip_sha256, work, environment)
+    # package_path is the downloaded Go module's declared path, distinct from its opaque version.
+    # package_path 是已下载 Go 模块声明路径，与其不透明版本分开。
+    package_path = MODULE_PATH
     # Generation must work from the module's packaged contract with no adjacent core checkout.
     # 生成必须使用模块包内契约，不依赖相邻核心检出。
     subprocess.run([go, "run", "./scripts/generate-embedded-contract", "--check"], cwd=directory, env=environment, check=True)
-    result = subprocess.run([go, "test", "-p", "4", "-count=1", "-json", "-run", "^TestEmbedded", module, module + "/scripts/generate-embedded-contract"], cwd=consumer, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = subprocess.run([go, "test", "-p", "4", "-parallel", "4", "-count=1", "-json", "-run", "^TestEmbedded", package_path, package_path + "/scripts/generate-embedded-contract"], cwd=consumer, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     report = result.stdout.decode("utf-8", errors="strict")
     (work / "tests.jsonl").write_text(report, encoding="utf-8")
     counts = {"pass": 0, "fail": 0, "skip": 0}
@@ -88,7 +72,9 @@ def verify(go: str) -> None:
                 counts[event["Action"]] += 1
     if result.returncode or counts["fail"] or not counts["pass"]:
         raise RuntimeError(report[-12000:])
-    print(json.dumps({"archive": str(archive), "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(), "members": len(sources), "tests": counts, "evidence": str(work)}, ensure_ascii=False))
+    evidence.update(tests=counts, evidence=str(work), native=False)
+    (work / "validation.json").write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(evidence, ensure_ascii=False))
 
 
 if __name__ == "__main__":
@@ -96,6 +82,9 @@ if __name__ == "__main__":
     # 默认解析调用方已安装 Go；调用方可传入精确最低版本可执行文件。
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--go", default="go")
+    parser.add_argument("--module-zip")
+    parser.add_argument("--module-zip-sha256")
+    parser.add_argument("--module-version")
     arguments = parser.parse_args()
     (Path(__file__).resolve().parents[1] / ".temp").mkdir(exist_ok=True)
-    verify(arguments.go)
+    verify(arguments.go, arguments.module_zip, arguments.module_zip_sha256, arguments.module_version)

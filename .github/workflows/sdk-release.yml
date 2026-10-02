@@ -1,0 +1,426 @@
+name: Go SDK Release
+run-name: Go SDK ${{ inputs.sdk_sha }} mode=${{ inputs.mode }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: artifact-only signs candidates; publish or recover explicitly authorizes completion
+        required: true
+        default: artifact-only
+        type: choice
+        options: [artifact-only, publish, recover]
+      sdk_sha:
+        description: Full committed original Go SDK source SHA
+        required: true
+        type: string
+      core_commit:
+        description: Full published core authority commit
+        required: true
+        type: string
+      core_tag:
+        description: Exact published core tag
+        required: true
+        type: string
+      npm_sha:
+        description: Original npm SDK source SHA
+        required: true
+        type: string
+      npm_version:
+        description: Independent exact npm SDK version
+        required: true
+        type: string
+      npm_candidate_run_id:
+        description: Original npm candidate run ID
+        required: true
+        type: string
+      npm_candidate_run_attempt:
+        description: Original npm candidate attempt
+        required: true
+        type: string
+      npm_completion_run_id:
+        description: Successful npm completion run ID
+        required: true
+        type: string
+      npm_completion_run_attempt:
+        description: Successful npm completion attempt
+        required: true
+        type: string
+      npm_completion_source_sha:
+        description: Exact npm completion source SHA
+        required: true
+        type: string
+      pypi_sha:
+        description: Original pypi SDK source SHA
+        required: true
+        type: string
+      pypi_version:
+        description: Independent exact pypi SDK version
+        required: true
+        type: string
+      pypi_candidate_run_id:
+        description: Original pypi candidate run ID
+        required: true
+        type: string
+      pypi_candidate_run_attempt:
+        description: Original pypi candidate attempt
+        required: true
+        type: string
+      pypi_completion_run_id:
+        description: Successful pypi completion run ID
+        required: true
+        type: string
+      pypi_completion_run_attempt:
+        description: Successful pypi completion attempt
+        required: true
+        type: string
+      pypi_completion_source_sha:
+        description: Exact pypi completion source SHA
+        required: true
+        type: string
+      candidate_run_id:
+        description: "Recover only: explicit original Go candidate run ID"
+        required: false
+        type: string
+      candidate_run_attempt:
+        description: "Recover only: explicit original Go candidate attempt"
+        required: false
+        type: string
+      candidate_artifact_id:
+        description: "Recover only: exact original uploaded artifact ID"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: go-sdk-release-${{ inputs.sdk_sha }}
+  cancel-in-progress: false
+
+jobs:
+  freeze:
+    if: ${{ inputs.mode != 'recover' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.freeze.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.sdk_sha }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills
+          ref: ${{ inputs.core_commit }}
+          path: core-release
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Offline actual ZIP and release recovery contract tests
+        working-directory: sdk
+        env:
+          LUASKILLS_RELEASE_CORE_ROOT: ${{ github.workspace }}/core-release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s scripts -p 'test_*.py'
+          python -m unittest discover -s scripts/release -p 'test_*.py'
+      - name: Authenticate and install exact public core Rust toolchain
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/release/go_release.py bootstrap --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --platform host --output "$RUNNER_TEMP/rust-bootstrap"
+          toolchain="$(python -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/rust-bootstrap/toolchain.json"))["toolchain"])')"
+          rustup toolchain install "$toolchain" --profile minimal
+      - name: Freeze one actual source ZIP and complete public core
+        id: freeze
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SDK_SHA: ${{ inputs.sdk_sha }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
+          MODE: ${{ inputs.mode }}
+          NPM_SHA: ${{ inputs.npm_sha }}
+          NPM_VERSION: ${{ inputs.npm_version }}
+          NPM_CANDIDATE_RUN_ID: ${{ inputs.npm_candidate_run_id }}
+          NPM_CANDIDATE_RUN_ATTEMPT: ${{ inputs.npm_candidate_run_attempt }}
+          NPM_COMPLETION_RUN_ID: ${{ inputs.npm_completion_run_id }}
+          NPM_COMPLETION_RUN_ATTEMPT: ${{ inputs.npm_completion_run_attempt }}
+          NPM_COMPLETION_SOURCE_SHA: ${{ inputs.npm_completion_source_sha }}
+          PYPI_SHA: ${{ inputs.pypi_sha }}
+          PYPI_VERSION: ${{ inputs.pypi_version }}
+          PYPI_CANDIDATE_RUN_ID: ${{ inputs.pypi_candidate_run_id }}
+          PYPI_CANDIDATE_RUN_ATTEMPT: ${{ inputs.pypi_candidate_run_attempt }}
+          PYPI_COMPLETION_RUN_ID: ${{ inputs.pypi_completion_run_id }}
+          PYPI_COMPLETION_RUN_ATTEMPT: ${{ inputs.pypi_completion_run_attempt }}
+          PYPI_COMPLETION_SOURCE_SHA: ${{ inputs.pypi_completion_source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/release/go_release.py freeze --root "$PWD" --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --sdk-sha "$SDK_SHA" --workflow-sha "$GITHUB_SHA" --mode "$MODE" --npm-sha "$NPM_SHA" --npm-version "$NPM_VERSION" --npm-candidate-run-id "$NPM_CANDIDATE_RUN_ID" --npm-candidate-run-attempt "$NPM_CANDIDATE_RUN_ATTEMPT" --npm-completion-run-id "$NPM_COMPLETION_RUN_ID" --npm-completion-run-attempt "$NPM_COMPLETION_RUN_ATTEMPT" --npm-completion-source-sha "$NPM_COMPLETION_SOURCE_SHA" --pypi-sha "$PYPI_SHA" --pypi-version "$PYPI_VERSION" --pypi-candidate-run-id "$PYPI_CANDIDATE_RUN_ID" --pypi-candidate-run-attempt "$PYPI_CANDIDATE_RUN_ATTEMPT" --pypi-completion-run-id "$PYPI_COMPLETION_RUN_ID" --pypi-completion-run-attempt "$PYPI_COMPLETION_RUN_ATTEMPT" --pypi-completion-source-sha "$PYPI_COMPLETION_SOURCE_SHA" --output "$RUNNER_TEMP/frozen" --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-sdk-frozen-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frozen
+          include-hidden-files: true
+          if-no-files-found: error
+
+  native:
+    needs: freeze
+    if: ${{ inputs.mode != 'recover' }}
+    name: ${{ matrix.job }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.freeze.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.sdk_sha }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills
+          ref: ${{ inputs.core_commit }}
+          path: core-release
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22.x"
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: go-sdk-frozen-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frozen
+      - name: Real exact ZIP cgo race and full-close lifecycle
+        working-directory: sdk
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        shell: bash
+        run: python scripts/release/go_release.py native --core-root "$GITHUB_WORKSPACE/core-release" --plan "$RUNNER_TEMP/frozen/plan.json" --module "$RUNNER_TEMP/frozen/module" --prerequisites "$RUNNER_TEMP/frozen/core/prerequisites.json" --platform "$PLATFORM" --output "$RUNNER_TEMP/native"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-native-${{ matrix.platform }}-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native
+          if-no-files-found: error
+
+  aggregate:
+    needs: native
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.sdk_sha }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills
+          ref: ${{ inputs.core_commit }}
+          path: core-release
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: go-sdk-frozen-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frozen
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: go-native-*-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/reports
+      - name: Verify exact complete native matrix
+        working-directory: sdk
+        shell: bash
+        run: python scripts/release/go_release.py aggregate --core-root "$GITHUB_WORKSPACE/core-release" --plan "$RUNNER_TEMP/frozen/plan.json" --module "$RUNNER_TEMP/frozen/module" --prerequisites "$RUNNER_TEMP/frozen/core/prerequisites.json" --reports "$RUNNER_TEMP/reports" --output "$RUNNER_TEMP/aggregate.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-aggregate-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/aggregate.json
+          if-no-files-found: error
+
+  candidate-evidence:
+    needs: aggregate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.sdk_sha }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills
+          ref: ${{ inputs.core_commit }}
+          path: core-release
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: go-sdk-frozen-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frozen
+      - uses: actions/download-artifact@v4
+        with:
+          name: go-aggregate-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/aggregate
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: go-native-*-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/reports
+      - name: Stage independent signed candidate inventory before any tag mutation
+        working-directory: sdk
+        env:
+          MODE: ${{ inputs.mode }}
+        shell: bash
+        run: python scripts/release/go_release.py candidate-stage --core-root "$GITHUB_WORKSPACE/core-release" --plan "$RUNNER_TEMP/frozen/plan.json" --aggregate "$RUNNER_TEMP/aggregate/aggregate.json" --module "$RUNNER_TEMP/frozen/module" --prerequisites "$RUNNER_TEMP/frozen/core/prerequisites.json" --reports "$RUNNER_TEMP/reports" --mode "$MODE" --output "$RUNNER_TEMP/candidate-stage"
+      - name: Official OIDC candidate signature
+        id: attest
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+        with:
+          subject-checksums: ${{ runner.temp }}/candidate-stage/subjects.sha256
+      - name: Verify official candidate subjects and preserve exact root bytes
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        shell: bash
+        run: python scripts/release/go_release.py candidate-finalize --core-root "$GITHUB_WORKSPACE/core-release" --core-commit "$CORE_COMMIT" --directory "$RUNNER_TEMP/candidate-stage" --bundle "$BUNDLE" --output "$RUNNER_TEMP/candidate-artifact"
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: candidate-evidence-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate-artifact/*
+          if-no-files-found: error
+
+  completion:
+    needs: candidate-evidence
+    if: ${{ always() && ((inputs.mode == 'publish' && needs.candidate-evidence.result == 'success') || inputs.mode == 'recover') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.sdk_sha }}
+          path: sdk
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills
+          ref: ${{ inputs.core_commit }}
+          path: core-release
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills-sdk-typescript
+          ref: ${{ inputs.npm_sha }}
+          path: npm-release
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LuaSkills/luaskills-sdk-python
+          ref: ${{ inputs.pypi_sha }}
+          path: pypi-release
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22.x"
+          cache: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Authenticate and install exact public core Rust toolchain
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/release/go_release.py bootstrap --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --platform host --output "$RUNNER_TEMP/rust-bootstrap"
+          toolchain="$(python -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/rust-bootstrap/toolchain.json"))["toolchain"])')"
+          rustup toolchain install "$toolchain" --profile minimal
+      - name: Authenticate exact original candidate artifact and attempt
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          SDK_SHA: ${{ inputs.sdk_sha }}
+          CORE_TAG: ${{ inputs.core_tag }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          RECOVER_RUN: ${{ inputs.candidate_run_id }}
+          RECOVER_ATTEMPT: ${{ inputs.candidate_run_attempt }}
+          RECOVER_ARTIFACT: ${{ inputs.candidate_artifact_id }}
+          CURRENT_ARTIFACT: ${{ needs.candidate-evidence.outputs.artifact_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$MODE" == recover ]]; then
+            candidate_run="$RECOVER_RUN"; candidate_attempt="$RECOVER_ATTEMPT"; candidate_artifact="$RECOVER_ARTIFACT"
+          else
+            candidate_run="$GITHUB_RUN_ID"; candidate_attempt="$GITHUB_RUN_ATTEMPT"; candidate_artifact="$CURRENT_ARTIFACT"
+          fi
+          python scripts/release/go_release.py candidate-consume --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --sdk-sha "$SDK_SHA" --candidate-run-id "$candidate_run" --candidate-run-attempt "$candidate_attempt" --candidate-artifact-id "$candidate_artifact" --output "$RUNNER_TEMP/original-candidate"
+      - name: Fresh prerequisites, exact original publication and cold public Go completion
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+        shell: bash
+        run: python scripts/release/go_release.py completion-prepare --candidate "$RUNNER_TEMP/original-candidate" --core-root "$GITHUB_WORKSPACE/core-release" --npm-root "$GITHUB_WORKSPACE/npm-release" --pypi-root "$GITHUB_WORKSPACE/pypi-release" --intent "$MODE" --output "$RUNNER_TEMP/completion"
+      - name: Official separate completion signature
+        id: attest
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+        with:
+          subject-checksums: ${{ runner.temp }}/completion/stage/subjects.sha256
+      - name: Publish all completion subjects through one independent draft
+        working-directory: sdk
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        shell: bash
+        run: python scripts/release/go_release.py completion-publish --directory "$RUNNER_TEMP/completion/stage" --bundle "$BUNDLE"
+      - name: Dispatch examples with explicit original and completion identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SDK_SHA: ${{ inputs.sdk_sha }}
+          CORE_COMMIT: ${{ inputs.core_commit }}
+          CORE_TAG: ${{ inputs.core_tag }}
+          NPM_SHA: ${{ inputs.npm_sha }}
+          PYPI_SHA: ${{ inputs.pypi_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c 'import json,os,subprocess; p=json.load(open(os.environ["RUNNER_TEMP"]+"/completion/stage/go-completion.json")); o=p["original"]; e=os.environ; args=["gh","workflow","run","examples-release.yml","--repo","LuaSkills/luaskills-sdk-go","--ref","v"+p["sdk_version"]]; fields={"mode":"publish","sdk_sha":e["SDK_SHA"],"candidate_run_id":o["candidate_run_id"],"candidate_run_attempt":str(o["candidate_run_attempt"]),"completion_run_id":p["completion_run_id"],"completion_run_attempt":str(p["completion_run_attempt"]),"completion_source_sha":p["completion_source_sha"],"core_commit":e["CORE_COMMIT"],"core_tag":e["CORE_TAG"],"npm_sha":e["NPM_SHA"],"pypi_sha":e["PYPI_SHA"]}; [args.extend(["-f",k+"="+v]) for k,v in fields.items()]; subprocess.run(args,check=True)'
