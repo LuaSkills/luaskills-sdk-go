@@ -106,6 +106,10 @@ jobs:
     outputs:
       matrix: ${{ steps.freeze.outputs.matrix }}
     steps:
+      # Preserve Git blob bytes so checkout cannot change authenticated source digests.
+      # 保留 Git blob 原字节，避免检出改变已认证的源摘要。
+      - name: Preserve exact tracked source bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.sdk_sha }}
@@ -184,6 +188,10 @@ jobs:
       matrix: ${{ fromJSON(needs.freeze.outputs.matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
+      # Preserve Git blob bytes so checkout cannot change authenticated source digests.
+      # 保留 Git blob 原字节，避免检出改变已认证的源摘要。
+      - name: Preserve exact tracked source bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.sdk_sha }}
@@ -222,6 +230,10 @@ jobs:
     needs: native
     runs-on: ubuntu-24.04
     steps:
+      # Preserve Git blob bytes so checkout cannot change authenticated source digests.
+      # 保留 Git blob 原字节，避免检出改变已认证的源摘要。
+      - name: Preserve exact tracked source bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.sdk_sha }}
@@ -265,6 +277,10 @@ jobs:
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
+      # Preserve Git blob bytes so checkout cannot change authenticated source digests.
+      # 保留 Git blob 原字节，避免检出改变已认证的源摘要。
+      - name: Preserve exact tracked source bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.sdk_sha }}
@@ -327,6 +343,10 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      # Preserve Git blob bytes so checkout cannot change authenticated source digests.
+      # 保留 Git blob 原字节，避免检出改变已认证的源摘要。
+      - name: Preserve exact tracked source bytes
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.sdk_sha }}
