@@ -100,6 +100,61 @@ class ReleaseTests(unittest.TestCase):
     测试实际产物边界及不可变发布验收失败。
     """
 
+    def test_run_real_failure_exposes_merged_bytes(self):
+        """Run a real failed child and require its exact merged bytes, command and exit code.
+        运行真实失败子进程，并要求其精确合并字节、命令与退出码。
+        Self owns this test; no value is returned and no remote operation occurs.
+        Self 持有本测试；无返回值，不执行远端操作。
+        """
+        # Command emits ordered raw streams without decoding, credentials or network activity.
+        # Command 发出有序原始双流，不解码、不使用凭据或网络。
+        command = [gate.sys.executable, "-c", 'import os; os.write(1, b"prerequisite stdout\\n"); os.write(2, b"prerequisite stderr\\xff\\n"); raise SystemExit(19)']
+        # Displayed receives the real binary diagnostic stream exactly once.
+        # Displayed 精确接收一次真实二进制诊断流。
+        displayed = io.BytesIO()
+        with patch.object(gate.sys, "stderr", SimpleNamespace(buffer=displayed)):
+            with self.assertRaises(gate.subprocess.CalledProcessError) as failure:
+                gate.run(command)
+        self.assertEqual(failure.exception.returncode, 19)
+        self.assertEqual(failure.exception.cmd, command)
+        self.assertEqual(failure.exception.output, b"prerequisite stdout\nprerequisite stderr\xff\n")
+        self.assertEqual(displayed.getvalue(), failure.exception.output)
+
+    def test_run_real_timeout_exposes_partial_bytes(self):
+        """Expire a real child after output and retain its partial bytes and original timeout exception.
+        在真实子进程输出后使其超时，保留部分字节及原超时异常。
+        Self owns this bounded test; no value is returned and production's deadline stays unchanged.
+        Self 持有本有界测试；无返回值，生产期限保持不变。
+        """
+        # Command flushes raw bytes before waiting so expiration has an original diagnostic receipt.
+        # Command 在等待前写出原始字节，使超时具有原始诊断凭证。
+        command = [gate.sys.executable, "-c", 'import os, time; os.write(1, b"partial stdout\\xff\\n"); time.sleep(30)']
+        # Execute retains the real subprocess implementation while shortening only this test's deadline.
+        # Execute 保留真实子进程实现，仅缩短本测试期限。
+        execute = gate.subprocess.run
+        # Displayed receives the exception's actual binary output without replacement.
+        # Displayed 接收异常的实际二进制输出，不替换字节。
+        displayed = io.BytesIO()
+
+        def expire(arguments, **options):
+            """Execute arguments with a short test deadline after verifying production's exact timeout.
+            核实生产精确超时后，以短测试期限执行 arguments。
+            Options retain all original guards; the real child must raise TimeoutExpired.
+            Options 保留全部原护栏；真实子进程必须抛出 TimeoutExpired。
+            """
+            self.assertEqual(options["timeout"], 1800)
+            options["timeout"] = 1
+            return execute(arguments, **options)
+
+        with patch.object(gate.subprocess, "run", side_effect=expire), \
+                patch.object(gate.sys, "stderr", SimpleNamespace(buffer=displayed)):
+            with self.assertRaises(gate.subprocess.TimeoutExpired) as failure:
+                gate.run(command)
+        self.assertEqual(failure.exception.cmd, command)
+        self.assertEqual(failure.exception.timeout, 1)
+        self.assertEqual(failure.exception.output, b"partial stdout\xff\n")
+        self.assertEqual(displayed.getvalue(), failure.exception.output)
+
     def test_real_frozen_zip_and_modified_member(self):
         """Freeze the actual SDK ZIP, then reject a real rewritten member against its original manifest.
         冻结实际 SDK ZIP，再拒绝真实改写成员与原始清单的差异。

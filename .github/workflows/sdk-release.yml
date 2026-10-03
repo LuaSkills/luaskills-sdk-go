@@ -381,6 +381,14 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
+      # The exact checked-out Python authority owns its sole pinned native-consumer tool requirements.
+      # 精确检出的 Python 权威持有唯一固定原生消费者工具依赖。
+      - name: Install Python authority's pinned public consumer tools
+        working-directory: pypi-release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install $(python scripts/release/sdk_release.py tool-requirements)
       - name: Authenticate and install exact public core Rust toolchain
         working-directory: sdk
         env:
@@ -420,7 +428,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           MODE: ${{ inputs.mode }}
         shell: bash
-        run: python scripts/release/go_release.py completion-prepare --candidate "$RUNNER_TEMP/original-candidate" --core-root "$GITHUB_WORKSPACE/core-release" --npm-root "$GITHUB_WORKSPACE/npm-release" --pypi-root "$GITHUB_WORKSPACE/pypi-release" --intent "$MODE" --output "$RUNNER_TEMP/completion"
+        run: |
+          set -euo pipefail
+          python scripts/release/go_release.py completion-prepare --candidate "$RUNNER_TEMP/original-candidate" --core-root "$GITHUB_WORKSPACE/core-release" --npm-root "$GITHUB_WORKSPACE/npm-release" --pypi-root "$GITHUB_WORKSPACE/pypi-release" --intent "$MODE" --output "$RUNNER_TEMP/completion" 2>&1 | tee "$RUNNER_TEMP/go-completion.log"
+      # Diagnostics preserve actual completion failures independently of signed success subjects.
+      # 诊断独立于签名成功 subjects 保留实际完成失败。
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-completion-log-r${{ github.run_id }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-completion.log
+          if-no-files-found: warn
       - name: Official separate completion signature
         id: attest
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26

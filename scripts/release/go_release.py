@@ -91,8 +91,16 @@ def run(command, cwd=None, environment=None):
     """Execute exact command with a finite deadline; return UTF-8 output or fail.
     在有限期限内执行精确 command；返回 UTF-8 输出或失败。
     """
-    result = subprocess.run([str(value) for value in command], cwd=cwd, env=environment,
-                            check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=1800)
+    try:
+        result = subprocess.run([str(value) for value in command], cwd=cwd, env=environment,
+                                check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=1800)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        # The exception owns the original merged bytes; expose them before propagating the unchanged failure.
+        # 异常持有原始合并字节；传播不变的失败前展示原件。
+        if error.output is not None:
+            sys.stderr.buffer.write(error.output)
+            sys.stderr.buffer.flush()
+        raise
     return result.stdout.decode("utf-8")
 
 
@@ -413,12 +421,11 @@ def native(args):
                       "--module-zip-sha256", plan["module_zip_sha256"], "--module-version", plan["module_version"],
                       "--library", inputs["library"], "--library-sha256", inputs["library_sha256"],
                       "--description", inputs["description"], "--race"])
-    except subprocess.CalledProcessError as error:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         # Error retains this credential-free child's merged raw bytes; preserve failure instead of accepting it.
         # Error 保留本无凭据子进程的合并原始字节；保留失败而非将其接受。
-        (args.output / "native.log").write_bytes(error.output)
-        sys.stderr.buffer.write(error.output)
-        sys.stderr.buffer.flush()
+        if error.output is not None:
+            (args.output / "native.log").write_bytes(error.output)
         raise
     summary = json.loads(output.splitlines()[-1], object_pairs_hook=pairs)
     work = Path(summary["evidence"])
