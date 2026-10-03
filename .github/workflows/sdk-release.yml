@@ -221,6 +221,7 @@ jobs:
         shell: bash
         run: python scripts/release/go_release.py native --core-root "$GITHUB_WORKSPACE/core-release" --plan "$RUNNER_TEMP/frozen/plan.json" --module "$RUNNER_TEMP/frozen/module" --prerequisites "$RUNNER_TEMP/frozen/core/prerequisites.json" --platform "$PLATFORM" --output "$RUNNER_TEMP/native"
       - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
         with:
           name: go-native-${{ matrix.platform }}-r${{ github.run_id }}-a${{ github.run_attempt }}
           path: ${{ runner.temp }}/native

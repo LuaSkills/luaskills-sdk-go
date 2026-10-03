@@ -3,6 +3,7 @@
 """
 import copy
 import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -178,6 +179,76 @@ class ReleaseTests(unittest.TestCase):
         files["example-tests.jsonl"] = events(("TestSomeOtherCase",))
         with self.assertRaisesRegex(ValueError, "receipt missing"):
             gate.validate_native(summary, plan, inputs, files)
+
+    def test_native_real_failure_preserves_raw_output(self):
+        """Run a real failing Python child through native; retain exact merged bytes and the original exit code.
+        通过 native 运行真实失败 Python 子进程；保留精确合并字节及原退出码。
+        Self is this test case; no value is returned and no successful receipt may be created.
+        Self 是本测试用例；无返回值，不得创建成功凭证。
+        """
+        # Temporary owns the real child source and fresh diagnostic output without touching SDK inputs.
+        # Temporary 拥有真实子进程源码与新诊断输出，不触碰 SDK 输入。
+        with tempfile.TemporaryDirectory() as temporary:
+            # Root supplies a real verify script at the exact existing native call path.
+            # Root 在原 native 精确调用路径提供真实 verify 脚本。
+            root = Path(temporary)
+            (root / "scripts").mkdir()
+            # Raw contains ordered stdout and stderr bytes, including a byte invalid in UTF-8.
+            # Raw 包含有序 stdout 与 stderr 字节，包括一个非法 UTF-8 字节。
+            raw = b"native stdout\n" + b"native stderr\xff\n"
+            (root / "scripts/verify_embedded_candidate.py").write_text(
+                '"""Emit real ordered failure output; return no value and exit with status 17.\n'
+                '输出真实有序失败内容；无返回值，以状态 17 退出。\n"""\n'
+                'import os\n'
+                'os.write(1, b"native stdout\\n")\n'
+                'os.write(2, b"native stderr\\xff\\n")\n'
+                'raise SystemExit(17)\n', encoding="utf-8")
+            # Plan and inputs model only pre-child publication authority; the child itself is never mocked.
+            # Plan 与 inputs 仅模拟子进程前发布权威；子进程本身绝不模拟。
+            plan = {"core_commit": "c" * 40, "prerequisites_sha256": "f" * 64,
+                    "module_zip_sha256": "b" * 64, "module_version": "v0.6.1"}
+            inputs = {"library": root / "libluaskills", "library_sha256": "1" * 64,
+                      "description": root / "description.json"}
+            # Host_os and architecture match this actual test host for the unchanged native platform guard.
+            # Host_os 与 architecture 匹配实际测试宿主，供未改 native 平台护栏使用。
+            host_os = {"win32": "windows", "darwin": "macos", "linux": "linux"}[gate.sys.platform]
+            architecture = "x86_64" if gate.platform.machine().lower() in {"x86_64", "amd64"} else "aarch64"
+
+            def resolve_inputs(prerequisites, selected_platform):
+                """Return fixture inputs for the exact pre-child platform; no real Core operation is performed.
+                返回精确子进程前平台的夹具输入；不执行真实 Core 操作。
+                Prerequisites names the fixture receipt; selected_platform must be test-host.
+                Prerequisites 指定夹具凭证；selected_platform 必须为 test-host。
+                """
+                self.assertEqual(selected_platform, "test-host")
+                return inputs
+
+            # Authority provides only the pre-child platform and library-input lookup.
+            # Authority 仅提供子进程前平台与库输入查询。
+            authority = SimpleNamespace(candidate=SimpleNamespace(PLATFORMS={"test-host": ("test", host_os, architecture)}),
+                                        resolve_sdk_inputs=resolve_inputs)
+            # Arguments names the fresh output used by the production native boundary.
+            # Arguments 指定生产 native 边界使用的新输出。
+            arguments = SimpleNamespace(plan=root / "plan.json", core_root=root / "core", platform="test-host",
+                                        prerequisites=root / "prerequisites.json", module=root / "module", output=root / "native")
+            gate.write_json(arguments.plan, plan)
+            gate.write_json(arguments.prerequisites, {})
+            # Displayed captures the real binary stderr display without decoding or replacing bytes.
+            # Displayed 捕获真实二进制 stderr 展示，不解码或替换字节。
+            displayed = io.BytesIO()
+            with patch.object(gate, "ROOT", root), patch.object(gate, "core_authority", return_value=authority), \
+                    patch.object(gate, "host_platform", return_value="test-host"), patch.object(gate, "complete_core"), \
+                    patch.object(gate, "sha256", return_value="f" * 64), patch.object(gate, "module_bytes"), \
+                    patch.object(gate.sys, "stderr", SimpleNamespace(buffer=displayed)):
+                # Failure is the real CalledProcessError emitted by the unchanged subprocess runner.
+                # Failure 是未改子进程运行器发出的真实 CalledProcessError。
+                with self.assertRaises(gate.subprocess.CalledProcessError) as failure:
+                    gate.native(arguments)
+            self.assertEqual(failure.exception.returncode, 17)
+            self.assertEqual(failure.exception.output, raw)
+            self.assertEqual((arguments.output / "native.log").read_bytes(), raw)
+            self.assertEqual(displayed.getvalue(), raw)
+            self.assertFalse((arguments.output / "report.json").exists())
 
     def test_independent_formal_sdk_header(self):
         """Accept different exact TS/Python versions and reject candidate receipts or wrong source/core identity.

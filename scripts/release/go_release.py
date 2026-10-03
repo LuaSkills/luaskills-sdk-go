@@ -408,10 +408,18 @@ def native(args):
     module_bytes(plan, args.module)
     require(not args.output.exists(), "Native evidence output must be fresh")
     args.output.mkdir(parents=True)
-    output = run([sys.executable, ROOT / "scripts/verify_embedded_candidate.py", "--module-zip", (args.module / "module.zip").resolve(),
-                  "--module-zip-sha256", plan["module_zip_sha256"], "--module-version", plan["module_version"],
-                  "--library", inputs["library"], "--library-sha256", inputs["library_sha256"],
-                  "--description", inputs["description"], "--race"])
+    try:
+        output = run([sys.executable, ROOT / "scripts/verify_embedded_candidate.py", "--module-zip", (args.module / "module.zip").resolve(),
+                      "--module-zip-sha256", plan["module_zip_sha256"], "--module-version", plan["module_version"],
+                      "--library", inputs["library"], "--library-sha256", inputs["library_sha256"],
+                      "--description", inputs["description"], "--race"])
+    except subprocess.CalledProcessError as error:
+        # Error retains this credential-free child's merged raw bytes; preserve failure instead of accepting it.
+        # Error 保留本无凭据子进程的合并原始字节；保留失败而非将其接受。
+        (args.output / "native.log").write_bytes(error.output)
+        sys.stderr.buffer.write(error.output)
+        sys.stderr.buffer.flush()
+        raise
     summary = json.loads(output.splitlines()[-1], object_pairs_hook=pairs)
     work = Path(summary["evidence"])
     files = {name: (work / name).read_bytes() for name in ("tests.jsonl", "example-tests.jsonl", "example.log")}
