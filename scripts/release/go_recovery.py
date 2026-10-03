@@ -127,6 +127,56 @@ def tar_members(path, members):
     return {name: {"size": source.stat().st_size, "sha256": gate.sha256(source)} for name, source in sorted(members.items())}
 
 
+def core_proof_members(prerequisites_path, shared):
+    """Select validated Core proof files for both signed SDK stages; return relative-name/Path pairs.
+    为 SDK 两个签名阶段选择已验证 Core 证明文件；返回相对名称与 Path 映射。
+    prerequisites_path identifies the complete original report; shared is the frozen Core prerequisite authority.
+    prerequisites_path 指定完整原报告；shared 为冻结 Core 前置条件权威。
+    """
+    # Keep every audit byte; only exact official auxiliary/copy archives are redundant for SDK consumers.
+    # 保留全部审计字节；仅精确正式辅助归档及归档副本对 SDK 消费者冗余。
+    root = Path(prerequisites_path).resolve(strict=True).parent
+    # Members retain all otherwise unclassified files, never a broad prefix or size-based exclusion.
+    # Members 保留所有未分类文件，绝不采用宽泛前缀或按大小排除。
+    members = {}
+    for path in sorted(root.rglob("*")):
+        gate.require(not path.is_symlink() and path.resolve().is_relative_to(root), "Core proof contains an escaping path or symlink")
+        if path.is_file():
+            members[path.relative_to(root).as_posix()] = path
+    # Core owns the complete report and all five native/source/build/contract byte checks.
+    # Core 拥有完整报告及全部五平台原生、源码、构建、契约字节校验。
+    core = shared.candidate
+    proof = core.read_json(Path(prerequisites_path))
+    gate.require(proof["phase"] == "complete" and proof["complete"] is True and isinstance(proof["registry"], dict),
+                 "Complete Core proof is required before SDK member selection")
+    for platform in core.PLATFORMS:
+        shared.resolve_sdk_inputs(prerequisites_path, platform)
+    # Manifest source ownership is already authenticated by the original Core resolver.
+    # Manifest 的源码归属已由原 Core 解析器认证。
+    manifest = core.read_json(root / "candidate/candidate-manifest.json")
+    # Archive names derive solely from the frozen Core declarations and authenticated source record.
+    # 归档名仅从冻结 Core 声明及已认证源码记录派生。
+    archives = {f"luaskills-{family}-{platform}.tar.gz" for platform in core.PLATFORMS for family in core.ARCHIVE_FAMILIES}
+    source_name = manifest["source_archive"]["name"]
+    # Manifest hashes bind auxiliary archives as well as the required FFI/source originals.
+    # Manifest 摘要绑定辅助归档及必需 FFI、源码原件。
+    manifest_hashes = {name: sha for record in manifest["platforms"] for name, sha in record["archives"].items()}
+    manifest_hashes[source_name] = manifest["source_archive"]["sha256"]
+    # Exact paths exclude only auxiliary candidate archives and all downloaded archive copies.
+    # 精确路径仅排除候选辅助归档及全部已下载归档副本。
+    excluded = {"candidate/" + name for name in archives if name not in {f"luaskills-ffi-sdk-{platform}.tar.gz" for platform in core.PLATFORMS}}
+    excluded.update("downloads/assets/" + name for name in archives | {source_name})
+    for name in sorted(archives | {source_name}):
+        # Both actual copies must equal the official asset and authenticated candidate manifest before omission.
+        # 省略前，两份实际副本必须均等于正式资产及已认证候选清单。
+        expected = proof["github"]["assets"][name]["sha256"]
+        gate.require(expected == manifest_hashes[name], "Core archive manifest differs from official asset: " + name)
+        for relative in ("candidate/" + name, "downloads/assets/" + name):
+            gate.require(relative in members and core.digest(members[relative].read_bytes()) == expected,
+                         "Core archive copy is missing or differs from official asset: " + relative)
+    return {name: path for name, path in members.items() if name not in excluded}
+
+
 def directory_members(members, prefix, directory):
     """Extend selected members with ordinary files beneath one explicit evidence directory; return nothing.
     使用一个显式凭证目录下的普通文件扩展所选成员；无返回值。
@@ -164,8 +214,9 @@ def candidate_stage(args):
                                                output=args.output / "checked-aggregate.json"))
     gate.require(rebuilt == aggregate, "Candidate signing aggregate differs from actual native receipts")
     members = {"plan.json": args.plan, "aggregate.json": args.aggregate}
-    for prefix, directory in (("module", args.module), ("core", args.prerequisites.parent), ("reports", args.reports)):
+    for prefix, directory in (("module", args.module), ("reports", args.reports)):
         directory_members(members, prefix, directory)
+    members.update({"core/" + name: path for name, path in core_proof_members(args.prerequisites, core).items()})
     inventory = tar_members(args.output / CANDIDATE_BUNDLE, members)
     for name, path in (("go-module.zip", args.module / "module.zip"), ("go-aggregate.json", args.aggregate),
                        ("go-core-prerequisites.json", args.prerequisites)):
@@ -385,7 +436,7 @@ def completion_prepare(args):
     members = {"public/public-module.json": args.output / "public/public-module.json", "current/publish-proof.json": args.output / "current/publish-proof.json"}
     for name in ("go-mod-download.json", "go-list.json", "module-members.json", "native-summary.json", "tests.jsonl", "example-tests.jsonl", "example.log"):
         members["public/" + name] = args.output / "public" / name
-    directory_members(members, "core", args.output / "current/core")
+    members.update({"core/" + name: path for name, path in core_proof_members(args.output / "current/core/prerequisites.json", core).items()})
     for kind in ("npm", "pypi"):
         header = gate.read_json(args.output / "current" / kind / "accepted.json")
         members[kind + "/accepted.json"] = args.output / "current" / kind / "accepted.json"

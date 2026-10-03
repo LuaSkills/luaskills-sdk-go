@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import sys
 import tarfile
 import tempfile
@@ -329,6 +330,104 @@ class RecoveryTests(unittest.TestCase):
                     with patch.object(flow, "official_subjects", return_value=normalized), patch.object(gate, "run") as command, self.assertRaises(ValueError):
                         flow.verify_examples(directory, authority, common, parent, run_id, verify_attempt)
                     command.assert_not_called()
+
+
+class CoreProofSelectionTests(unittest.TestCase):
+    """Verify actual Core byte selection and both production packing call sites without public writes.
+    验证实际 Core 字节选择及两个生产打包调用点，不进行公开写入。
+    """
+
+    @unittest.skipUnless("SDK_RELEASE_TEST_CORE_PROOF" in os.environ, "Explicit original complete Core proof required")
+    def test_audit_retention_missing_required_and_tampered_copy(self):
+        """Retain original audit/native evidence and reject missing/tampered inputs through real Core validation.
+        通过真实 Core 校验保留原审计、原生证据，并拒绝缺失、篡改输入。
+        """
+        # Original is read-only; an independent short-path copy avoids Windows hard-link path limits.
+        # Original 只读；独立短路径副本避免 Windows 硬链接路径上限。
+        original = Path(os.environ["SDK_RELEASE_TEST_CORE_PROOF"]).resolve(strict=True)
+        with tempfile.TemporaryDirectory(prefix="cp-") as temporary:
+            # Root preserves the actual producer bytes rather than a mirrored synthetic protocol.
+            # Root 保留实际生产者字节，不采用镜像合成协议。
+            root = Path(temporary) / "core"
+            shutil.copytree(original, root, copy_function=shutil.copyfile)
+            selected = flow.core_proof_members(root / "prerequisites.json", core)
+            self.assertIn("candidate/luaskills-ffi-sdk-windows-x64.tar.gz", selected)
+            self.assertNotIn("candidate/luaskills-demo-ffi-windows-x64.tar.gz", selected)
+            self.assertNotIn("downloads/assets/luaskills-ffi-sdk-windows-x64.tar.gz", selected)
+            for path in (root / "registry").rglob("*"):
+                if path.is_file():
+                    self.assertEqual(selected[path.relative_to(root).as_posix()].read_bytes(), path.read_bytes())
+            # The required official manifest remains mandatory independently of the copied archive selection.
+            # 必需正式清单仍为强制项，不因归档副本选择而改变。
+            required = root / "downloads/candidate-manifest.json"
+            required.unlink()
+            with self.assertRaises(FileNotFoundError):
+                flow.core_proof_members(root / "prerequisites.json", core)
+            shutil.copyfile(original / "downloads/candidate-manifest.json", required)
+            # A source copy that will be omitted still needs its original official asset checksum.
+            # 即将省略的源码副本仍须符合原正式资产校验和。
+            source = core.candidate.read_json(root / "candidate/candidate-manifest.json")["source_archive"]["name"]
+            copy = root / "downloads/assets" / source
+            copy.unlink()
+            copy.write_bytes(b"tampered archive copy")
+            with self.assertRaisesRegex(ValueError, "differs from official asset"):
+                flow.core_proof_members(root / "prerequisites.json", core)
+
+    def test_candidate_and_completion_propagate_core_selection_failure(self):
+        """Execute both actual staging methods and require each to propagate the sole selector failure.
+        执行两个实际准备方法，并要求各自传播唯一选择函数失败。
+        """
+        # Fixture signatures and public processes remain controlled unit-only boundaries.
+        # 夹具签名及公开进程边界保持受控、仅限单测。
+        authority, source, commit, run_id, attempt, manifest, files, normalized = signed_fixture()
+        with tempfile.TemporaryDirectory() as temporary:
+            # Root owns only these small orchestration fixtures, not an authenticated publication candidate.
+            # Root 仅拥有这些小型编排夹具，不是已认证发布候选。
+            root = Path(temporary)
+            proof = root / "candidate/proof"
+            proof.mkdir(parents=True)
+            plan = json.loads(common.sdk_prerequisites.rooted_archive(files[flow.CANDIDATE_BUNDLE], "go-sdk-proof")["plan.json"])
+            # This old recovery fixture needs its explicit module tag to reach the completion selector boundary.
+            # 此旧恢复夹具须提供显式模块标签，才能执行至完成选择边界。
+            plan["module_version"] = "v0.5.9"
+            aggregate = {"accepted": True, "plan": plan}
+            gate.write_json(proof / "plan.json", plan)
+            gate.write_json(proof / "aggregate.json", aggregate)
+            (proof / "module").mkdir()
+            (proof / "module/module.zip").write_bytes(files["go-module.zip"])
+            (proof / "core").mkdir()
+            (proof / "core/prerequisites.json").write_bytes(files["go-core-prerequisites.json"])
+            reports = root / "reports"
+            reports.mkdir()
+            original = root / "candidate/original"
+            flow.save_files(original, files)
+            receipt = {"manifest": manifest, "binding": {}, "physical_inventory": common.inventory_for(files)}
+            gate.write_json(root / "candidate/candidate.json", receipt)
+            environment = {"GITHUB_SHA": source, "GITHUB_WORKFLOW_SHA": source, "GITHUB_JOB": "candidate-evidence",
+                           "GITHUB_RUN_ID": str(run_id), "GITHUB_RUN_ATTEMPT": str(attempt)}
+            candidate = argparse.Namespace(core_root=root, plan=proof / "plan.json", aggregate=proof / "aggregate.json",
+                module=proof / "module", prerequisites=proof / "core/prerequisites.json", reports=reports,
+                mode="artifact-only", output=root / "candidate-stage")
+            with patch.object(flow, "authorities", return_value=(authority, common)), patch.object(gate, "module_bytes"), \
+                    patch.object(gate, "aggregate", return_value=aggregate), patch.dict(os.environ, environment), \
+                    patch.object(flow, "core_proof_members", side_effect=ValueError("Required Core bytes missing")) as select:
+                with self.assertRaisesRegex(ValueError, "Required Core bytes missing"):
+                    flow.candidate_stage(candidate)
+                select.assert_called_once_with(candidate.prerequisites, authority)
+            # Every public/process boundary is mocked; completion still reaches its actual selector call site.
+            # 所有公开、进程边界均有替身；completion 仍执行至实际选择函数调用点。
+            completion = argparse.Namespace(candidate=root / "candidate", core_root=root, intent="recover",
+                npm_root=root, pypi_root=root, output=root / "completion-stage")
+            with patch.object(flow, "authorities", return_value=(authority, common)), \
+                    patch.object(flow, "verify_candidate", return_value={"manifest": manifest, "binding": {}}), \
+                    patch.object(flow, "production_context"), patch.object(flow, "reaggregate_candidate"), \
+                    patch.object(gate, "prerequisites"), patch.object(gate, "publish_tag"), patch.object(gate, "publish_assets"), \
+                    patch.object(gate, "GitHub"), patch.object(flow, "release_files", return_value=({"id": 17}, files)), \
+                    patch.object(gate, "public_module"), patch.dict(os.environ, environment), \
+                    patch.object(flow, "core_proof_members", side_effect=ValueError("Required Core bytes missing")) as select:
+                with self.assertRaisesRegex(ValueError, "Required Core bytes missing"):
+                    flow.completion_prepare(completion)
+                select.assert_called_once_with(completion.output / "current/core/prerequisites.json", authority)
 
 
 if __name__ == "__main__":
