@@ -388,7 +388,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install $(python scripts/release/sdk_release.py tool-requirements)
+          # Requirements are derived once; an extraction failure stops before installation.
+          # Requirements 仅派生一次；提取失败在安装前停止。
+          requirements="$(python scripts/release/sdk_release.py tool-requirements)"
+          # Packages preserve the authority's single-line list as explicit pip arguments.
+          # Packages 将权威单行清单保留为显式 pip 参数。
+          read -r -a packages <<< "$requirements"
+          python -m pip install "${packages[@]}"
       - name: Authenticate and install exact public core Rust toolchain
         working-directory: sdk
         env:
