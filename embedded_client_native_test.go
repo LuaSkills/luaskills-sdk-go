@@ -106,9 +106,12 @@ func nativeTypedRuntimeWithPersistence(t *testing.T, persistent bool) (*Embedded
 // nativeTypedRuntimeWithJournalLimit 以 maxRecords 构造显式存储，返回运行时、包及清理转移函数。
 func nativeTypedRuntimeWithJournalLimit(t *testing.T, persistent bool, maxRecords uint64) (*EmbeddedRuntime, string, func()) {
 	t.Helper()
-	// Register directory cleanup before native owners so LIFO cleanup closes database handles first.
-	// 在原生所有者前注册目录清理，使后进先出清理先关闭数据库句柄。
-	root := t.TempDir()
+	// Register cleanup before native owners, then resolve the owned directory for SQLite NOFOLLOW.
+	// 在原生所有者前注册清理，再为 SQLite NOFOLLOW 解析自有目录的物理路径。
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	// transport, driver and client establish separate native and SDK ownership boundaries.
 	// transport、driver 和 client 建立独立的原生与 SDK 所有权边界。
 	transport := nativeEmbeddedTest(t)
@@ -159,8 +162,14 @@ func nativeTypedRuntimeWithJournalLimit(t *testing.T, persistent bool, maxRecord
 	}
 	typedTake(t, initializing, err)
 	status, err := runtime.Status(context.Background())
-	if typedTake(t, status, err).Initialization != EmbeddedOutputInitializationPhaseReady {
-		t.Fatal("typed runtime failed to initialize")
+	// initialized preserves the actual completed construction result and its original retained error.
+	// initialized 保留实际已完成构造的结果及原始保留错误。
+	initialized := typedTake(t, status, err)
+	if persistent {
+		t.Logf("persistent runtime initialization: root=%s phase=%s error=%+v", root, initialized.Initialization, initialized.Error)
+	}
+	if initialized.Initialization != EmbeddedOutputInitializationPhaseReady {
+		t.Fatalf("typed runtime failed to initialize: phase=%s error=%+v", initialized.Initialization, initialized.Error)
 	}
 	registration, err := runtime.RegisterPlugin(context.Background(), "go-typed-test", EmbeddedInputEmbeddedPluginConfig{MaxRegisteredPools: budgets.MaxRegisteredPools, MaxSessions: budgets.MaxSessions, MaxResidentVms: budgets.MaxResidentVms, MaxRunningCalls: budgets.MaxRunningCalls, MaxQueuedCalls: budgets.MaxQueuedCalls, MaxQueuedBytes: budgets.MaxQueuedBytes, MaxOperations: budgets.MaxOperations})
 	typedTake(t, registration, err)
