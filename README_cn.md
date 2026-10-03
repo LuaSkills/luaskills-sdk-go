@@ -6,7 +6,7 @@ LuaSkills 主仓库：[LuaSkills/luaskills](https://github.com/LuaSkills/luaskil
 
 Go SDK，用于通过公共 JSON FFI 接入 LuaSkills 运行时。
 
-此源码面向 `0.6.0` 发布线；实际发布与资产验证遵循发布流程。它沿用严格的技能包级配置契约，并将运行时资产默认值设为匹配的 LuaSkills core `v0.6.0`、vldb-controller `v0.2.3` 与 vldb-sqlite `v0.1.6`。运行时资产下载须等待匹配核心先发布并通过验收。
+此源码面向 `0.6.1` 发布线；实际发布与资产验证遵循发布流程。它沿用严格的技能包级配置契约，并将运行时资产默认值设为匹配的 LuaSkills core `v0.6.1`、vldb-controller `v0.2.3` 与 vldb-sqlite `v0.1.6`。运行时资产下载须等待匹配核心先发布并通过验收。
 
 SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config、provider callback 边界、宿主工具 callback 边界与 runtime manifest 辅助能力。
 
@@ -22,7 +22,7 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 历史不会变成活动句柄。管理对账或删除前须先遗忘仍保留的活动操作。`HistoryReconcile` 附加一份最终、有界宿主证明，保留原始快照、调用方及副作用身份。可信宿主必须授权对账者、证明全部原执行及外部所有者已停止，并核验整个操作及每条副作用；对账者字符串不是认证。普通 Lua 的未知副作用不能从成功返回推断。使用原命名空间、操作 ID 及前驱修订；存储恢复后精确重试同一证明可确认同一后继。返回修订用于显式删除。此 API 不查询外部系统、不重放回调、不制造中断执行结果，也不恢复失败写入者或执行栈。开发磁盘格式为第 4 版，拒绝未发布的第 1–3 版且不改写原文件；必须使用匹配的开发核心与 SDK 契约。
 
-当前开发源码新增 `NewEmbeddedTransport`，使用独立版本一 C ABI。必须链接包含这些新导出的匹配开发核心；本文不表示已发布的 `0.5.7` 动态库支持它们。SDK 版本和默认运行时标签统一指向匹配的 `0.6.0` 发布线；实际发布与资产验证遵循整个生态发布流程。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
+当前开发源码新增 `NewEmbeddedTransport`，使用独立版本一 C ABI。必须链接包含这些新导出的匹配开发核心；本文不表示已发布的 `0.5.7` 动态库支持它们。SDK 版本和默认运行时标签统一指向匹配的 `0.6.1` 发布线；实际发布与资产验证遵循整个生态发布流程。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
 
 原生分配前，构造器读取 `luaskills_ffi_embedded_describe_v1`，在复制前检查借用指针及长度边界，再检查精确核心／协议／ABI／描述版本、包内契约摘要、必需命令及能力、支持的后端、进程系统和指针位宽。畸形或不兼容元数据返回 `*EmbeddedCompatibilityError`；非零原生状态仍为 `*EmbeddedTransportError`。发现字节由动态库拥有，绝不交给结果释放函数。`CoreDescription()` 返回各切片独立复制的类型化证据，成功释放后仍可读取。构建摘要仅描述选定输入，不认证二进制，也不证明完整封闭构建。
 
@@ -130,7 +130,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
 ```
 
-目标支持 `all`、`luaskills`、`lua`、`vldb`；VLDB 模式支持 `none`、`vldb-controller`、`vldb-direct`、`host-callback`。脚本默认固定 LuaSkills `v0.6.0`，并允许显式覆盖发布版本。
+目标支持 `all`、`luaskills`、`lua`、`vldb`；VLDB 模式支持 `none`、`vldb-controller`、`vldb-direct`、`host-callback`。脚本默认固定 LuaSkills `v0.6.1`，并允许显式覆盖发布版本。
 
 Go SDK 会规划并消费共享 SDK runtime manifest；上述仓库脚本负责直接下载 release 资产。当前共享 manifest 会指向：
 
@@ -204,7 +204,7 @@ python3 scripts/debug-tools/managed_runtime_layout_check.py /opt/luaskills
 ## 版本对齐
 
 - 尽量让 SDK 与 LuaSkills core 保持同一条当前发布版本线。
-- 此 SDK 源码默认指向 LuaSkills core 标签 `v0.6.0`；匹配核心发布并通过验收后才能下载。
+- 此 SDK 源码默认指向 LuaSkills core 标签 `v0.6.1`；匹配核心发布并通过验收后才能下载。
 - runtime packages 与 native deps 仍然来自拆分后的 `LuaSkills/luaskills-packages` 及相关发布资产。
 - SDK 默认 host options 传入 `runtime_root`、两个空的受管根覆盖槽与完整稳定的 `managed_runtime_config`；宿主未显式覆盖时，LuaSkills 会推导固定数据布局。
 - 宿主工具直接放在 `runtime_root/bin`，不再放到 `runtime_root/bin/tools`。

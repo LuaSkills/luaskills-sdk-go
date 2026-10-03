@@ -6,7 +6,7 @@ Main LuaSkills repository: [LuaSkills/luaskills](https://github.com/LuaSkills/lu
 
 Go SDK for integrating the LuaSkills runtime through the public JSON FFI surface.
 
-This source targets the `0.6.0` release line; publication and artifact verification follow the release workflow. It retains the strict package-level skill configuration contract and defaults runtime assets to matching LuaSkills core `v0.6.0`, vldb-controller `v0.2.3`, and vldb-sqlite `v0.1.6`. Runtime asset downloads require the matching core release to be published and verified first.
+This source targets the `0.6.1` release line; publication and artifact verification follow the release workflow. It retains the strict package-level skill configuration contract and defaults runtime assets to matching LuaSkills core `v0.6.1`, vldb-controller `v0.2.3`, and vldb-sqlite `v0.1.6`. Runtime asset downloads require the matching core release to be published and verified first.
 
 The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, provider callback boundaries, host-tool callback boundaries, and runtime manifest helpers.
 
@@ -22,7 +22,7 @@ Runtime methods `StorageStatus / RecoverStorage` expose worker ownership and exp
 
 Historical records never become active handles. Before administrative reconciliation or removal, forget any retained live operation. `HistoryReconcile` attaches one final, bounded host attestation while preserving the original snapshot, caller and effect identities. The trusted host must authorize the resolver, prove all original execution and external owners stopped, and verify the whole operation and every recorded effect; a supplied resolver string is not authentication. Unknown ordinary Lua effects cannot be inferred from successful return. Use the original namespace, operation ID and predecessor revision; retry the identical resolution to acknowledge the same successor after storage recovery. The returned revision supports explicit removal. This API does not query external systems, replay callbacks, manufacture an interrupted result or recover a failed writer/execution stack. Development disk format 4 rejects unpublished formats 1–3 without rewriting them. Matching development core and SDK contracts are required.
 
-The development source adds `NewEmbeddedTransport` over the independent version-one C ABI. Link a matching development core containing the new exports; this does not claim that published `0.5.7` libraries support them. The SDK version and default runtime tag identify the matching `0.6.0` release line; publication and artifact verification follow the ecosystem release workflow. With `CGO_ENABLED=0`, contracts and codecs remain available while native construction returns an explicit error.
+The development source adds `NewEmbeddedTransport` over the independent version-one C ABI. Link a matching development core containing the new exports; this does not claim that published `0.5.7` libraries support them. The SDK version and default runtime tag identify the matching `0.6.1` release line; publication and artifact verification follow the ecosystem release workflow. With `CGO_ENABLED=0`, contracts and codecs remain available while native construction returns an explicit error.
 
 Before native allocation, construction reads `luaskills_ffi_embedded_describe_v1`, bounds the borrowed pointer/length before copying, and validates exact core/protocol/ABI/description versions, the packaged contract digest, required commands and capabilities, supported backend, process OS and pointer width. Malformed or incompatible metadata returns `*EmbeddedCompatibilityError`; nonzero native status retains `*EmbeddedTransportError`. The library owns discovery bytes; they are never passed to a result-free function. `CoreDescription()` returns independently cloned typed evidence, also after successful release. Build hashes describe selected inputs and do not authenticate a binary or prove a hermetic build.
 
@@ -130,7 +130,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
 ```
 
-Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.6.0` by default and accept explicit release-version overrides.
+Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.6.1` by default and accept explicit release-version overrides.
 
 The Go SDK plans and consumes the shared SDK runtime manifest, while the repository scripts above directly download release assets. The shared manifest now points at:
 
@@ -204,7 +204,7 @@ By default, the shared manifest keeps LuaSkills core aligned with the SDK releas
 ## Version Alignment
 
 - Keep the SDK and LuaSkills core on the same current release line whenever possible.
-- This SDK source defaults to LuaSkills core tag `v0.6.0`; download it only after the matching core release is published and verified.
+- This SDK source defaults to LuaSkills core tag `v0.6.1`; download it only after the matching core release is published and verified.
 - Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
 - SDK default host options pass `runtime_root`, null managed-root override slots, and the complete stable `managed_runtime_config`; LuaSkills derives the fixed data layout until the host explicitly overrides roots or policy.
 - Host tools live directly under `runtime_root/bin`, not `runtime_root/bin/tools`.
