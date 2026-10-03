@@ -45,6 +45,39 @@ def authorities(root, commit):
     return core, importlib.import_module("sdk_recovery")
 
 
+class ArtifactHttp:
+    """Adapt only an explicitly bound Actions artifact ZIP's Accept using the original Core HTTP instance.
+    仅使用原 Core HTTP 实例适配明确绑定 Actions 制品 ZIP 的 Accept。
+    """
+
+    def __init__(self, http, repository, artifact_id):
+        """Retain http and bind repository/artifact_id to one exact ZIP URL; return no value.
+        保留 http 并将 repository/artifact_id 绑定到唯一精确 ZIP URL；无返回值。
+        Core download_artifact validates these explicit identities before any request.
+        Core download_artifact 在任何请求前验证这些明确身份。
+        """
+        # The same Core instance retains its opener, credentials, HTTPS rules and body limit.
+        # 同一 Core 实例保留其 opener、凭据、HTTPS 规则及正文界限。
+        self.http = http
+        # GitHub's Actions ZIP endpoint requires JSON Accept even though the redirected body is ZIP bytes.
+        # GitHub Actions ZIP 端点要求 JSON Accept，尽管重定向后的正文是 ZIP 字节。
+        self.archive_url = f"https://api.github.com/repos/{repository}/actions/artifacts/{artifact_id}/zip"
+
+    def json(self, url):
+        """Delegate url's JSON read and decoding to the same Core HTTP; return its object unchanged.
+        将 url 的 JSON 读取及解码委托同一 Core HTTP；原样返回其对象。
+        """
+        return self.http.json(url)
+
+    def get(self, url, binary=False):
+        """Read url with binary's original media except the bound ZIP; return original bytes/headers.
+        按 binary 原媒体读取 url，仅绑定 ZIP 例外；返回原字节／响应头。
+        """
+        # Core's binary flag only chooses Accept; false still returns bounded raw bytes without JSON decoding.
+        # Core 的 binary 标志仅选择 Accept；false 仍返回有界原字节，不作 JSON 解码。
+        return self.http.get(url, binary=False if url == self.archive_url and binary is True else binary)
+
+
 def positive(value):
     """Parse a canonical positive numeric workflow input; return its integer identity.
     解析规范正数工作流输入；返回整数身份。
@@ -317,7 +350,7 @@ def candidate_consume(args):
     core, recovery = authorities(args.core_root, args.core_commit)
     run_id, attempt, artifact_id = positive(args.candidate_run_id), positive(args.candidate_run_attempt), positive(args.candidate_artifact_id)
     artifact_name = recovery.candidate_artifact_name(run_id, attempt)
-    metadata, files = recovery.download_artifact(core.Http(), repository=gate.REPOSITORY, source_sha=args.sdk_sha,
+    metadata, files = recovery.download_artifact(ArtifactHttp(core.Http(), gate.REPOSITORY, artifact_id), repository=gate.REPOSITORY, source_sha=args.sdk_sha,
                                                run_id=run_id, artifact_id=artifact_id, artifact_name=artifact_name)
     fresh(args.output)
     save_files(args.output / "original", files)
@@ -733,7 +766,7 @@ def examples_publish(args):
                  and gate.GitHub().request("actions/workflows/" + str(current["workflow_id"]))["path"] == EXAMPLES_WORKFLOW,
                  "Current examples publication dispatch differs")
     run_id, attempt = positive(args.examples_run_id), positive(args.examples_run_attempt)
-    metadata, files = recovery.download_artifact(core.Http(), repository=gate.REPOSITORY, source_sha=header["sdk_source_sha"],
+    metadata, files = recovery.download_artifact(ArtifactHttp(core.Http(), gate.REPOSITORY, positive(args.examples_artifact_id)), repository=gate.REPOSITORY, source_sha=header["sdk_source_sha"],
                                                run_id=run_id, artifact_id=positive(args.examples_artifact_id),
                                                artifact_name=recovery.candidate_artifact_name(run_id, attempt))
     save_files(args.output, files)
