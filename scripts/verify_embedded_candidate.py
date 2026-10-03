@@ -132,7 +132,9 @@ def verify(arguments: argparse.Namespace) -> None:
         if event.get("Test") == "TestEmbeddedCandidateEvidence" and event["Action"] == "pass":
             evidence_passed = True
     if result.returncode or counts["fail"] or counts["skip"] or not evidence_passed:
-        raise RuntimeError(f"Candidate tests failed; evidence: {work}\n{report[-12000:]}")
+        # Keep every event: the failing test can precede many later passing tests.
+        # 保留全部事件：失败测试可能位于大量后续通过测试之前。
+        raise RuntimeError(f"Candidate tests failed; evidence: {work}\n{report}")
     # The lifecycle regression exercises cancelled post-admission ownership against this same candidate module/library.
     # 生命周期回归针对同一个候选模块／库验证入场后取消的所有权。
     example_tests = work / ("embedded-lifecycle.test" + suffix)
@@ -148,7 +150,9 @@ def verify(arguments: argparse.Namespace) -> None:
             if "Test" in event and event["Action"] in lifecycle_counts:
                 lifecycle_counts[event["Action"]] += 1
     if example_test_result.returncode or lifecycle_counts["fail"] or lifecycle_counts["skip"] or not lifecycle_counts["pass"]:
-        raise RuntimeError(f"Candidate lifecycle tests failed; evidence: {work}\n{example_test_result.stdout.decode('utf-8')[-12000:]}")
+        # Preserve complete lifecycle diagnostics through the same failed-child transport.
+        # 经同一失败子进程运输路径保留完整生命周期诊断。
+        raise RuntimeError(f"Candidate lifecycle tests failed; evidence: {work}\n{example_test_result.stdout.decode('utf-8')}")
     example = work / ("embedded-lifecycle" + suffix)
     subprocess.run([arguments.go, "build", "-p", "4", *race, "-o", str(example), module + "/examples/embedded_lifecycle"], cwd=consumer, env=environment, check=True)
     # Preserve actual example output beside test events; a timeout remains a failed ownership observation.
