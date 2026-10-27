@@ -468,6 +468,7 @@ func DefaultHostOptions(runtimeRoot string) (map[string]any, error) {
 		"allow_network_download":            true,
 		"github_base_url":                   nil,
 		"github_api_base_url":               nil,
+		"github_token":                      nil,
 		"sqlite_library_path":               nil,
 		"sqlite_provider_mode":              "dynamic_library",
 		"sqlite_callback_mode":              "standard",

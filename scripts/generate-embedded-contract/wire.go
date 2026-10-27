@@ -420,6 +420,10 @@ func (g *wireGenerator) declare(name string, schema map[string]any) error {
 		}
 		fmt.Fprintf(&output, "type %s []%s\n", name, item)
 		g.rules[name] = fmt.Sprintf("{kind: \"array\", unique: %t}", schema["uniqueItems"] == true)
+	} else if schema["type"] == "string" {
+		// A named plain string stays an alias so projection treats it exactly like an inline string.
+		// 具名纯字符串保持为别名，使投影与内联字符串完全一致。
+		fmt.Fprintf(&output, "type %s = string\n", name)
 	} else {
 		return fmt.Errorf("unsupported declaration %s", name)
 	}

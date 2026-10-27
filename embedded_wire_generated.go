@@ -691,6 +691,9 @@ type EmbeddedInputLuaRuntimeHostOptions struct {
 	// Optional GitHub site base URL override used to rewrite browser download URLs.
 	// 可选的 GitHub 站点基址覆盖，用于重写浏览器下载地址。
 	GithubBaseUrl **string `json:"github_base_url,omitempty"`
+	// Optional GitHub token, sent only to the official `https://api.github.com` host.
+	// 可选的 GitHub 令牌，只发送给官方 `https://api.github.com` 主机。
+	GithubToken **EmbeddedInputLuaRuntimeSecretString `json:"github_token,omitempty"`
 	// Host-managed root directory used only to probe host-provided FFI/native dependencies.
 	// 仅用于探测宿主提供 FFI/原生依赖的宿主管理根目录。
 	HostProvidedFfiRoot **string `json:"host_provided_ffi_root,omitempty"`
@@ -819,6 +822,10 @@ type EmbeddedInputLuaRuntimeRunLuaPoolConfig struct {
 	// 隔离 runlua 虚拟机需要常驻保温的最小数量。
 	MinSize uint64 `json:"min_size"`
 }
+
+// Secret text supplied by the host, such as a GitHub token, that `Debug` never prints.
+// 宿主提供的机密文本（例如 GitHub 令牌），`Debug` 永不打印其内容。
+type EmbeddedInputLuaRuntimeSecretString = string
 
 // Host-provided controller client options used when one database backend chooses `space_controller`.
 // 当数据库后端选择 `space_controller` 时使用的宿主侧控制器客户端选项。
