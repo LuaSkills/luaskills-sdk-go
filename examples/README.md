@@ -56,10 +56,11 @@ go run .\examples\lifecycle
 go run .\examples\runtime_lease
 ```
 
-`provider_callback` shows the Go provider and host-tool callback API boundaries. They currently return bridge-required errors unless the host adds a controlled cgo callback bridge.
+`provider_callback` (`provider-callback.mjs` for TypeScript) verifies real SQLite: schema creation, parameterized writes, transaction rollback, queries and persistence after engine recreation. Only the host creates data; the retained database path is printed.
 
 ```powershell
-go run .\examples\provider_callback
+cd .\examples\provider_callback
+go run .
 ```
 
 Model callback integration is documented in the main [SDK README](../README.md#model-callback). The Go SDK exposes typed model request, response, and error structures, while real callback registration still requires a host-owned cgo bridge.
@@ -73,3 +74,5 @@ The fixture skill is stored at `examples/fixture-runtime/user_skills/demo-standa
 The repository workflow **Examples Release** authenticates the explicit original SDK candidate and successful completion attempts, both permanent signatures and new cold consumers before creating `luaskills-sdk-go-examples-{VERSION}.zip`. It uses the independently verified TypeScript version, exact core library and public Go module in a new cache to run six examples. The deterministic ZIP and original sidecar are independently signed before publication; recovery reuses only that exact signed artifact.
 
 Download from the matching `examples-v{VERSION}` entry in [Examples releases](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true). The workflow uploads all assets to a draft before publishing this separate Release; existing final assets are never overwritten or extended.
+
+The SQLite demo is a separate Go module, so its driver never enters the SDK module. Source checkouts use a relative replace; published example packages use the exact public version. CGO, a C compiler, and the core link/runtime paths described above are required.

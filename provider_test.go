@@ -81,17 +81,12 @@ func TestSkillOperationProgressCallbacksRequireHostBridge(t *testing.T) {
 // TestClearJSONCallbacksReportsAllHostBridgeRequirements verifies unified cleanup preserves each boundary error.
 // TestClearJSONCallbacksReportsAllHostBridgeRequirements 校验统一清理会保留每类桥接边界错误。
 func TestClearJSONCallbacksReportsAllHostBridgeRequirements(t *testing.T) {
+	// SQLite has a native bridge; unrelated callback families keep their existing explicit boundaries.
+	// SQLite 已有原生桥接；其余回调族保留既有显式边界。
 	err := ClearJSONCallbacks()
-	if !errors.Is(err, ErrProviderCallbacksRequireHostBridge) {
-		t.Fatalf("expected provider bridge error, got: %v", err)
-	}
-	if !errors.Is(err, ErrHostToolCallbacksRequireHostBridge) {
-		t.Fatalf("expected host-tool bridge error, got: %v", err)
-	}
-	if !errors.Is(err, ErrSkillOperationProgressCallbacksRequireHostBridge) {
-		t.Fatalf("expected progress bridge error, got: %v", err)
-	}
-	if !errors.Is(err, ErrModelCallbacksRequireHostBridge) {
-		t.Fatalf("expected model bridge error, got: %v", err)
+	for _, expected := range []error{ErrHostToolCallbacksRequireHostBridge, ErrSkillOperationProgressCallbacksRequireHostBridge, ErrModelCallbacksRequireHostBridge} {
+		if !errors.Is(err, expected) {
+			t.Fatalf("missing bridge boundary %v: %v", expected, err)
+		}
 	}
 }

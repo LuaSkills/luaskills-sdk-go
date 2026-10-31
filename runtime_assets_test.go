@@ -7,6 +7,38 @@ import (
 	"testing"
 )
 
+// TestHostCallbackAssets verifies host-only database ownership and explicit migration errors without network access.
+// TestHostCallbackAssets 在不访问网络的情况下验证数据库仅由宿主拥有，以及显式迁移错误。
+func TestHostCallbackAssets(t *testing.T) {
+	// Pin Lua assets so no release discovery can hide a database dependency.
+	// 固定 Lua 资产，避免发布发现掩盖数据库依赖。
+	root := t.TempDir()
+	manifest, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: root, Database: RuntimeDatabaseHostCallback, LuaRuntimeVersion: "v0.1.6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Assets) != 2 || manifest.Assets[0].Role != RuntimeAssetLuaRuntime || manifest.Assets[1].Role != RuntimeAssetLuaSkillsFFI {
+		t.Fatalf("unexpected assets: %#v", manifest.Assets)
+	}
+	if len(manifest.HostOptionsPatch) != 1 || manifest.HostOptionsPatch["sqlite_callback_mode"] != "json" {
+		t.Fatalf("unexpected host patch: %#v", manifest.HostOptionsPatch)
+	}
+	options, err := DefaultHostOptions(root)
+	if err != nil || options["host_mode"] != "console" {
+		t.Fatalf("unexpected default mode: %#v, %v", options, err)
+	}
+	for _, preset := range []RuntimeDatabasePreset{"vldb-controller", "vldb-direct"} {
+		if _, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: root, Database: preset, LuaRuntimeVersion: "v0.1.6"}); err == nil {
+			t.Fatalf("accepted retired preset: %s", preset)
+		}
+	}
+	for _, key := range []string{"sqlite_library_path", "sqlite_provider_mode", "lancedb_library_path", "lancedb_provider_mode", "lancedb_callback_mode", "space_controller"} {
+		if _, err := HostOptionsFromRuntimeManifest(&RuntimeInstallManifest{RuntimeRoot: root, HostOptionsPatch: map[string]any{key: nil}}); err == nil || !strings.Contains(err.Error(), key) {
+			t.Fatalf("accepted retired field %s: %v", key, err)
+		}
+	}
+}
+
 // TestBuildRuntimeInstallManifestIncludesLuaRuntime verifies the default Lua runtime asset plan.
 // TestBuildRuntimeInstallManifestIncludesLuaRuntime 校验默认 Lua runtime 资产规划。
 func TestBuildRuntimeInstallManifestIncludesLuaRuntime(t *testing.T) {
@@ -205,28 +237,12 @@ func TestCreateEngineOptionsPropagatesManifestErrors(t *testing.T) {
 // TestHostOptionsFromRuntimeManifestSanitizesRootScopedPaths verifies manifest paths stay under runtime root.
 // TestHostOptionsFromRuntimeManifestSanitizesRootScopedPaths 校验 manifest 路径保持在 runtime root 下。
 func TestHostOptionsFromRuntimeManifestSanitizesRootScopedPaths(t *testing.T) {
-	root := t.TempDir()
-	manifest := &RuntimeInstallManifest{
-		RuntimeRoot: root,
-		HostOptionsPatch: map[string]any{
-			"sqlite_library_path":  "libs/sqlite.dll",
-			"lancedb_library_path": filepath.Join(root, "libs", "lancedb.dll"),
-			"space_controller": map[string]any{
-				"executable_path": "bin/vldb-controller.exe",
-			},
-		},
-	}
-
+	// Only host-owned registration settings survive manifest loading.
+	// 清单加载仅保留宿主注册相关设置。
+	manifest := &RuntimeInstallManifest{RuntimeRoot: t.TempDir(), HostOptionsPatch: map[string]any{"host_mode": "desktop", "sqlite_callback_mode": "json"}}
 	options, err := HostOptionsFromRuntimeManifest(manifest)
-	if err != nil {
-		t.Fatalf("unexpected manifest host options error: %v", err)
-	}
-	if options["sqlite_library_path"] != normalizePath(filepath.Join(root, "libs", "sqlite.dll")) {
-		t.Fatalf("unexpected sqlite path: %#v", options["sqlite_library_path"])
-	}
-	spaceController := options["space_controller"].(map[string]any)
-	if spaceController["executable_path"] != normalizePath(filepath.Join(root, "bin", "vldb-controller.exe")) {
-		t.Fatalf("unexpected controller path: %#v", spaceController["executable_path"])
+	if err != nil || options["sqlite_callback_mode"] != "json" || options["host_mode"] != "desktop" {
+		t.Fatalf("unexpected host options: %#v, %v", options, err)
 	}
 }
 

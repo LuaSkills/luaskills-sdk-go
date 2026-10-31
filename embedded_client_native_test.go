@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -167,6 +168,14 @@ func nativeTypedRuntimeWithJournalLimit(t *testing.T, persistent bool, maxRecord
 	initialized := typedTake(t, status, err)
 	if persistent {
 		t.Logf("persistent runtime initialization: root=%s phase=%s error=%+v", root, initialized.Initialization, initialized.Error)
+	}
+	// Default releases must explicitly reject the optional file journal instead of bundling SQLite.
+	// 默认发行版必须显式拒绝可选文件日志，而不是捆绑 SQLite。
+	if persistent && os.Getenv("LUASKILLS_SQLITE_JOURNAL_E2E") != "1" {
+		if initialized.Initialization != EmbeddedOutputInitializationPhaseFailed || initialized.Error == nil || initialized.Error.Code != "invalid_argument" || !strings.Contains(initialized.Error.Message, "explicit sqlite-journal feature") {
+			t.Fatalf("unexpected default journal result: %#v", initialized)
+		}
+		return nil, packageRoot, func() { adopted = true }
 	}
 	if initialized.Initialization != EmbeddedOutputInitializationPhaseReady {
 		t.Fatalf("typed runtime failed to initialize: phase=%s error=%+v", initialized.Initialization, initialized.Error)

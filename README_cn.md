@@ -6,7 +6,7 @@ LuaSkills 主仓库：[LuaSkills/luaskills](https://github.com/LuaSkills/luaskil
 
 Go SDK，用于通过公共 JSON FFI 接入 LuaSkills 运行时。
 
-此源码面向 `0.7.2` 发布线；实际发布与资产验证遵循发布流程。它沿用严格的技能包级配置契约，并将运行时资产默认值设为匹配的 LuaSkills core `v0.7.2`、vldb-controller `v0.2.3` 与 vldb-sqlite `v0.1.6`。运行时资产下载须等待匹配核心先发布并通过验收。
+此源码对齐已发布的 LuaSkills core `0.7.3`。SQLite 仅由宿主注册和管理；运行时安装器仅安装核心与 Lua 资源。
 
 SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config、provider callback 边界、宿主工具 callback 边界与 runtime manifest 辅助能力。
 
@@ -24,7 +24,7 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 历史不会变成活动句柄。管理对账或删除前须先遗忘仍保留的活动操作。`HistoryReconcile` 附加一份最终、有界宿主证明，保留原始快照、调用方及副作用身份。可信宿主必须授权对账者、证明全部原执行及外部所有者已停止，并核验整个操作及每条副作用；对账者字符串不是认证。普通 Lua 的未知副作用不能从成功返回推断。使用原命名空间、操作 ID 及前驱修订；存储恢复后精确重试同一证明可确认同一后继。返回修订用于显式删除。此 API 不查询外部系统、不重放回调、不制造中断执行结果，也不恢复失败写入者或执行栈。开发磁盘格式为第 4 版，拒绝未发布的第 1–3 版且不改写原文件；必须使用匹配的开发核心与 SDK 契约。
 
-当前开发源码新增 `NewEmbeddedTransport`，使用独立版本一 C ABI。必须链接包含这些新导出的匹配开发核心；本文不表示已发布的 `0.5.7` 动态库支持它们。SDK 版本和默认运行时标签统一指向匹配的 `0.7.2` 发布线；实际发布与资产验证遵循整个生态发布流程。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
+当前开发源码新增 `NewEmbeddedTransport`，使用独立版本一 C ABI。必须链接包含这些新导出的匹配开发核心；本文不表示已发布的 `0.5.7` 动态库支持它们。SDK 版本和默认运行时标签统一指向匹配的 `0.7.3` 发布线；实际发布与资产验证遵循整个生态发布流程。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
 
 原生分配前，构造器读取 `luaskills_ffi_embedded_describe_v1`，在复制前检查借用指针及长度边界，再检查精确核心／协议／ABI／描述版本、包内契约摘要、必需命令及能力、支持的后端、进程系统和指针位宽。畸形或不兼容元数据返回 `*EmbeddedCompatibilityError`；非零原生状态仍为 `*EmbeddedTransportError`。发现字节由动态库拥有，绝不交给结果释放函数。`CoreDescription()` 返回各切片独立复制的类型化证据，成功释放后仍可读取。构建摘要仅描述选定输入，不认证二进制，也不证明完整封闭构建。
 
@@ -122,17 +122,17 @@ export LD_LIBRARY_PATH="/opt/luaskills-runtime/libs:${LD_LIBRARY_PATH}"
 
 ## Runtime 资产
 
-仓库提供统一同步脚本，可直接下载 LuaSkills FFI、Lua runtime packages 与 VLDB，无需借用 Python 或 TypeScript 安装器：
+仓库提供统一同步脚本，可直接下载 LuaSkills FFI、Lua runtime packages，无需借用 Python 或 TypeScript 安装器：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_assets.ps1 -Target all -Database vldb-controller -RuntimeRoot D:\runtime\luaskills
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_assets.ps1 -Target all -RuntimeRoot D:\runtime\luaskills
 ```
 
 ```bash
-RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
+RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all
 ```
 
-目标支持 `all`、`luaskills`、`lua`、`vldb`；VLDB 模式支持 `none`、`vldb-controller`、`vldb-direct`、`host-callback`。脚本默认固定 LuaSkills `v0.7.2`，并允许显式覆盖发布版本。
+同步脚本目标支持 `all`、`luaskills`、`lua`，默认核心版本为 `v0.7.3`。CLI 的数据库选项仅支持 `none` 与 `host-callback`；后者只设置 `sqlite_callback_mode: json`，仍需宿主注册。
 
 Go SDK 会规划并消费共享 SDK runtime manifest；上述仓库脚本负责直接下载 release 资产。当前共享 manifest 会指向：
 
@@ -206,7 +206,7 @@ python3 scripts/debug-tools/managed_runtime_layout_check.py /opt/luaskills
 ## 版本对齐
 
 - 尽量让 SDK 与 LuaSkills core 保持同一条当前发布版本线。
-- 此 SDK 源码默认指向 LuaSkills core 标签 `v0.7.2`；匹配核心发布并通过验收后才能下载。
+- 此 SDK 源码默认指向 LuaSkills core 标签 `v0.7.3`；匹配核心发布并通过验收后才能下载。
 - runtime packages 与 native deps 仍然来自拆分后的 `LuaSkills/luaskills-packages` 及相关发布资产。
 - SDK 默认 host options 传入 `runtime_root`、两个空的受管根覆盖槽与完整稳定的 `managed_runtime_config`；宿主未显式覆盖时，LuaSkills 会推导固定数据布局。
 - 宿主工具直接放在 `runtime_root/bin`，不再放到 `runtime_root/bin/tools`。
@@ -218,7 +218,7 @@ npx @luaskills/sdk install-runtime --database none --managed-runtimes all --runt
 
 ```powershell
 pip install luaskills-sdk
-luaskills install-runtime --database vldb-direct --runtime-root D:\runtime\luaskills
+luaskills install-runtime --database host-callback --runtime-root D:\runtime\luaskills
 ```
 
 Go 宿主可以检查同一份资产计划：
@@ -226,7 +226,7 @@ Go 宿主可以检查同一份资产计划：
 ```go
 manifest, err := luaskills.BuildRuntimeInstallManifest(luaskills.RuntimeInstallOptions{
 	RuntimeRoot:      "D:/runtime/luaskills",
-	Database:         luaskills.RuntimeDatabaseVldbDirect,
+	Database:         luaskills.RuntimeDatabaseHostCallback,
 	SkipLuaRuntime:   false,
 	ManagedRuntimes: luaskills.ManagedRuntimeAll,
 })
@@ -245,8 +245,6 @@ if err != nil {
 数据库模式：
 
 - `RuntimeDatabaseNone`：安装 Lua runtime 归档与 LuaSkills FFI SDK 归档，但不安装数据库 provider。
-- `RuntimeDatabaseVldbController`：通过 `space_controller` 模式使用 `vldb-controller` 可执行文件。
-- `RuntimeDatabaseVldbDirect`：使用 `vldb-sqlite-lib` 与 `vldb-lancedb-lib` 动态库。
 - `RuntimeDatabaseHostCallback`：由宿主提供 JSON callback。
 
 ## 基础用法
@@ -306,10 +304,11 @@ go run .\examples\call
 go run .\examples\query
 go run .\examples\lifecycle
 go run .\examples\runtime_lease
-go run .\examples\provider_callback
+cd .\examples\provider_callback
+go run .
 ```
 
-`provider_callback` 同时覆盖 JSON provider callback 与 `vulcan.host.*` 宿主工具 callback 边界。在宿主安装自有 cgo callback bridge 前，它会返回需要宿主桥接的错误。
+`provider_callback` 使用独立示例模块中的真实 SQLite 驱动，通过 Lua 与 SDK 内置 cgo 桥接验证读写、回滚和持久化。
 
 query、lifecycle 与持久 runtime-lease 示例使用内置夹具 skill：`examples/fixture-runtime/user_skills/demo-standard-ffi-skill`。请先使用 TypeScript 或 Python 安装器准备 runtime 资产：
 
@@ -402,15 +401,18 @@ _, err = client.Config.Set(
 
 ## JSON Provider Callback
 
-Go SDK 暴露 callback API 边界，但默认不在包内安装进程级 cgo callback bridge。
+使用随包提供的真实 SQLite 示例：验证建表、参数化写入、失败批次回滚、查询及重建引擎后的持久化。输出数据库路径，示例数据保留供检查。
 
-```go
-err := luaskills.SetSQLiteProviderJSONCallback(func(request any) (any, error) {
-	return map[string]any{"ok": true, "request": request}, nil
-})
+需要 CGO 与 C 编译器。`go-sqlite3` 仅属于独立示例模块，SDK 主模块没有 SQLite 依赖；源码示例使用相对 replace，独立发布包移除该 replace 并使用正式 SDK 版本。
+
+```sh
+cd examples/provider_callback
+go run .
 ```
 
-当前该 API 会返回 `ErrProviderCallbacksRequireHostBridge`。需要 `host_callback + json` 的正式 Go 宿主，应在宿主进程内实现受控 cgo callback bridge，或先使用 TypeScript / Python SDK 接 JSON callback。
+回调接收 `{action, binding, input}`：`binding.default_database_path` 是核心提供的路径，`input` 是技能传入的宿主 SQL 协议。示例实现 `execute_script`、`execute_batch`、`query_json`，其他动作明确报错。宿主负责 SQL 参数、事务和连接生命周期；不要让技能输入覆盖绑定路径。
+
+在引擎创建前注册回调，并设置 `sqlite_callback_mode: "json"`。回调在引擎创建时捕获；后续替换或清空只影响新引擎。SDK 保留旧回调至原生所有者释放，宿主的数据库资源也必须保持有效。`host_mode: "desktop"` 统一隐藏 Windows 命令窗口，`"console"` 为默认模式。技能卸载不会删除宿主数据库。
 
 ## 宿主工具 Callback
 
@@ -511,3 +513,7 @@ go test ./...
 请从[示例发布列表](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true)下载匹配 `examples-v{VERSION}` 的资产；SDK `v{VERSION}` Release 保存 SDK provenance 凭证。已有 final 资产仅在全部字节相同时复用，不覆盖、不追加。
 
 推荐统一发布顺序：`luaskills-packages` -> `luaskills` 核心仓库 -> TypeScript SDK -> Python SDK -> Go SDK -> 各 SDK 的 examples release。
+
+## 0.7.3 数据库迁移
+
+移除 VLDB、LanceDB 及动态数据库库路径、提供方模式和控制器配置。仅保留宿主 SQLite 注册。默认发布核心不包含 SQLite 日志后端，文件日志初始化会明确返回需要 `sqlite-journal` 特性的错误；自定义核心可显式启用此适配器。原数据库文件不会自动删除或迁移。

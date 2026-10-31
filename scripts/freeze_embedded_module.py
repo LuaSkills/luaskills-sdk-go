@@ -25,6 +25,10 @@ def freeze(root: Path, output: Path) -> dict[str, object]:
     # sources/version are current source facts, never inferred from a published tag or adjacent core checkout.
     # sources／version 是当前源码事实，绝不根据已发布标签或相邻核心检出推断。
     sources = module_sources(root)
+    # Match Go module packaging: nested modules are separate products, not SDK dependencies or members.
+    # 对齐 Go 模块打包：嵌套模块是独立产物，不是 SDK 依赖或成员。
+    nested_modules = [name.removesuffix("go.mod") for name in sources if name.endswith("/go.mod")]
+    sources = {name: body for name, body in sources.items() if not any(name.startswith(directory) for directory in nested_modules)}
     version = "v" + sources["VERSION"].decode("utf-8").strip()
     output.mkdir(parents=True)
     # archive has deterministic entry metadata; the complete actual file bytes determine its identity.

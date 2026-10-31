@@ -57,6 +57,13 @@ def prepare(root: Path, output: Path, version: str, module_tag: str, npm_version
         member.parent.mkdir(parents=True, exist_ok=True)
         member.write_bytes(sources[name])
     (output / "go.mod").write_text(f"module luaskills-sdk-go-examples\n\ngo 1.22\n\nrequire github.com/LuaSkills/luaskills-sdk-go {module_tag}\n", encoding="utf-8")
+    # Publish the SQLite demo as a separate consumer without its checkout-only replacement.
+    # 将 SQLite 示例发布为独立消费端，去掉仅适用于检出的替换。
+    sqlite_module = output / "examples/provider_callback/go.mod"
+    sqlite_source = sqlite_module.read_text(encoding="utf-8")
+    sqlite_source = re.sub(r"(?m)^replace github\.com/LuaSkills/luaskills-sdk-go => \.\./\.\.\s*$", "", sqlite_source)
+    sqlite_source = re.sub(r"github\.com/LuaSkills/luaskills-sdk-go v[0-9]+\.[0-9]+\.[0-9]+", "github.com/LuaSkills/luaskills-sdk-go " + module_tag, sqlite_source)
+    sqlite_module.write_text(sqlite_source, encoding="utf-8")
     (output / "EXAMPLES_RELEASE.md").write_text(f"""# LuaSkills Go SDK Examples {version}
 
 These six examples use `github.com/LuaSkills/luaskills-sdk-go {module_tag}`.
@@ -72,6 +79,9 @@ npx @luaskills/sdk@{npm_version} install-runtime --database none --runtime-root 
 CGO_ENABLED=1 go run ./examples/basic
 CGO_ENABLED=1 go run ./examples/query
 CGO_ENABLED=1 go run ./examples/runtime_lease
+cd examples/provider_callback
+go mod download
+CGO_ENABLED=1 go run .
 ```
 """, encoding="utf-8")
 

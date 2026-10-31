@@ -629,8 +629,8 @@ type EmbeddedInputLuaRuntimeCapabilityOptions struct {
 	EnableSkillManagementBridge *bool `json:"enable_skill_management_bridge,omitempty"`
 }
 
-// Callback transport mode used when the database provider mode is `host_callback`.
-// 当数据库 provider 模式为 `host_callback` 时所使用的回调传输模式。
+// Explicit transport for host-registered SQLite callbacks.
+// 宿主注册 SQLite 回调的显式传输方式。
 type EmbeddedInputLuaRuntimeDatabaseCallbackMode string
 
 const (
@@ -642,20 +642,17 @@ const (
 	EmbeddedInputLuaRuntimeDatabaseCallbackModeJson EmbeddedInputLuaRuntimeDatabaseCallbackMode = "json"
 )
 
-// Database access mode used by one host-facing runtime backend.
-// 单个宿主侧运行时后端所使用的数据库访问模式。
-type EmbeddedInputLuaRuntimeDatabaseProviderMode string
+// Per-engine host mode controlling console windows of runtime-owned child processes.
+// 控制运行库所拥有子进程控制台窗口的引擎级宿主模式。
+type EmbeddedInputLuaRuntimeHostMode string
 
 const (
-	// The library loads and calls the local dynamic-library backend directly.
-	// 由库直接加载并调用本地动态库后端。
-	EmbeddedInputLuaRuntimeDatabaseProviderModeDynamicLibrary EmbeddedInputLuaRuntimeDatabaseProviderMode = "dynamic_library"
-	// The library forwards database operations into one host-registered callback bridge.
-	// 由库把数据库操作转发给宿主已注册的回调桥接。
-	EmbeddedInputLuaRuntimeDatabaseProviderModeHostCallback EmbeddedInputLuaRuntimeDatabaseProviderMode = "host_callback"
-	// The library forwards database operations into one external space controller.
-	// 由库把数据库操作转发给外部空间控制器。
-	EmbeddedInputLuaRuntimeDatabaseProviderModeSpaceController EmbeddedInputLuaRuntimeDatabaseProviderMode = "space_controller"
+	// Preserve existing console behavior without explicitly allocating a new console.
+	// 保留现有控制台行为，不显式分配新控制台。
+	EmbeddedInputLuaRuntimeHostModeConsole EmbeddedInputLuaRuntimeHostMode = "console"
+	// Start Windows console children without a console window; other platforms are unchanged.
+	// 启动 Windows 控制台子进程时不创建控制台窗口；其他平台保持原行为。
+	EmbeddedInputLuaRuntimeHostModeDesktop EmbeddedInputLuaRuntimeHostMode = "desktop"
 )
 
 // Host-provided filesystem and runtime paths consumed by the LuaSkills library.
@@ -694,6 +691,9 @@ type EmbeddedInputLuaRuntimeHostOptions struct {
 	// Optional GitHub token, sent only to the official `https://api.github.com` host.
 	// 可选的 GitHub 令牌，只发送给官方 `https://api.github.com` 主机。
 	GithubToken **EmbeddedInputLuaRuntimeSecretString `json:"github_token,omitempty"`
+	// Immutable per-engine process window policy; omitted JSON fields preserve console behavior.
+	// 不可变的引擎级进程窗口策略；JSON 省略此字段时保留命令行行为。
+	HostMode *EmbeddedInputLuaRuntimeHostMode `json:"host_mode,omitempty"`
 	// Host-managed root directory used only to probe host-provided FFI/native dependencies.
 	// 仅用于探测宿主提供 FFI/原生依赖的宿主管理根目录。
 	HostProvidedFfiRoot **string `json:"host_provided_ffi_root,omitempty"`
@@ -706,15 +706,6 @@ type EmbeddedInputLuaRuntimeHostOptions struct {
 	// Host-forced skill identifiers that must be skipped before dependency or database setup.
 	// 宿主强制跳过的技能标识符列表，会在依赖或数据库初始化前生效。
 	IgnoredSkillIds *EmbeddedInputLuaRuntimeHostOptionsIgnoredSkillIds `json:"ignored_skill_ids,omitempty"`
-	// LanceDB callback transport mode selected by the host when provider mode is `host_callback`.
-	// 当 provider 模式为 `host_callback` 时，宿主为 LanceDB 选择的回调传输模式。
-	LancedbCallbackMode *EmbeddedInputLuaRuntimeDatabaseCallbackMode `json:"lancedb_callback_mode,omitempty"`
-	// Explicit LanceDB dynamic-library path owned by the host.
-	// 由宿主显式提供的 LanceDB 动态库路径。
-	LancedbLibraryPath **string `json:"lancedb_library_path,omitempty"`
-	// LanceDB database provider mode selected by the host.
-	// 宿主为 LanceDB 数据库选择的 provider 模式。
-	LancedbProviderMode *EmbeddedInputLuaRuntimeDatabaseProviderMode `json:"lancedb_provider_mode,omitempty"`
 	// Optional lua_packages root used to build `package.path` and `package.cpath`.
 	// 用于拼接 `package.path` 与 `package.cpath` 的可选 lua_packages 根目录。
 	LuaPackagesDir **string `json:"lua_packages_dir,omitempty"`
@@ -754,18 +745,9 @@ type EmbeddedInputLuaRuntimeHostOptions struct {
 	// Optional configuration file watcher debounce interval in milliseconds.
 	// 可选的配置文件监听防抖毫秒数。
 	SkillConfigWatchDebounceMs **uint64 `json:"skill_config_watch_debounce_ms,omitempty"`
-	// Shared controller client options used when one database backend selects `space_controller`.
-	// 当数据库后端选择 `space_controller` 时所使用的共享控制器客户端选项。
-	SpaceController *EmbeddedInputLuaRuntimeSpaceControllerOptions `json:"space_controller,omitempty"`
 	// SQLite callback transport mode selected by the host when provider mode is `host_callback`.
 	// 当 provider 模式为 `host_callback` 时，宿主为 SQLite 选择的回调传输模式。
 	SqliteCallbackMode *EmbeddedInputLuaRuntimeDatabaseCallbackMode `json:"sqlite_callback_mode,omitempty"`
-	// Explicit SQLite dynamic-library path owned by the host.
-	// 由宿主显式提供的 SQLite 动态库路径。
-	SqliteLibraryPath **string `json:"sqlite_library_path,omitempty"`
-	// SQLite database provider mode selected by the host.
-	// 宿主为 SQLite 数据库选择的 provider 模式。
-	SqliteProviderMode *EmbeddedInputLuaRuntimeDatabaseProviderMode `json:"sqlite_provider_mode,omitempty"`
 	// Fixed sibling directory name used under one skill-root parent to store skill state.
 	// 在单个技能根父目录下存放技能状态时使用的固定兄弟目录名称。
 	StateDirName *string `json:"state_dir_name,omitempty"`
@@ -826,57 +808,6 @@ type EmbeddedInputLuaRuntimeRunLuaPoolConfig struct {
 // Secret text supplied by the host, such as a GitHub token, that `Debug` never prints.
 // 宿主提供的机密文本（例如 GitHub 令牌），`Debug` 永不打印其内容。
 type EmbeddedInputLuaRuntimeSecretString = string
-
-// Host-provided controller client options used when one database backend chooses `space_controller`.
-// 当数据库后端选择 `space_controller` 时使用的宿主侧控制器客户端选项。
-type EmbeddedInputLuaRuntimeSpaceControllerOptions struct {
-	// Whether the runtime may auto-spawn the controller when the endpoint is unavailable.
-	// 当控制器端点不可用时，运行时是否允许自动唤起控制器。
-	AutoSpawn bool `json:"auto_spawn"`
-	// Transport connect timeout in seconds used by the controller client proxy.
-	// 控制器客户端代理使用的传输连接超时秒数。
-	ConnectTimeoutSecs uint64 `json:"connect_timeout_secs"`
-	// Default lease TTL in seconds passed to one auto-spawned controller.
-	// 传递给自动唤起控制器的默认租约 TTL 秒数。
-	DefaultLeaseTtlSecs uint64 `json:"default_lease_ttl_secs"`
-	// Optional explicit controller endpoint; when omitted the shared default endpoint is used.
-	// 可选的显式控制器端点；缺失时使用共享默认端点。
-	Endpoint **string `json:"endpoint,omitempty"`
-	// Optional local executable path copied and managed by the host.
-	// 由宿主复制并管理的可选本地可执行文件路径。
-	ExecutablePath **string `json:"executable_path,omitempty"`
-	// Idle timeout in seconds passed to one auto-spawned controller.
-	// 传递给自动唤起控制器的空闲超时秒数。
-	IdleTimeoutSecs uint64 `json:"idle_timeout_secs"`
-	// Lease renew interval in seconds used by the background controller client task.
-	// 后台控制器客户端任务使用的租约续约间隔秒数。
-	LeaseRenewIntervalSecs uint64 `json:"lease_renew_interval_secs"`
-	// Minimum uptime in seconds passed to one auto-spawned controller.
-	// 传递给自动唤起控制器的最小存活秒数。
-	MinimumUptimeSecs uint64 `json:"minimum_uptime_secs"`
-	// Process mode used when auto-spawning one controller process.
-	// 自动唤起控制器进程时使用的进程模式。
-	ProcessMode EmbeddedInputLuaRuntimeSpaceControllerProcessMode `json:"process_mode"`
-	// Startup retry interval in milliseconds used while polling one spawned controller.
-	// 轮询已唤起控制器时使用的启动重试间隔毫秒数。
-	StartupRetryIntervalMs uint64 `json:"startup_retry_interval_ms"`
-	// Startup timeout in seconds used while waiting for one spawned controller to become ready.
-	// 等待已唤起控制器就绪时使用的启动超时秒数。
-	StartupTimeoutSecs uint64 `json:"startup_timeout_secs"`
-}
-
-// Process mode used when the runtime auto-spawns one local space controller process.
-// 运行时自动拉起本地空间控制器进程时使用的进程模式。
-type EmbeddedInputLuaRuntimeSpaceControllerProcessMode string
-
-const (
-	// Service mode keeps the controller process alive until an external stop happens.
-	// Service 模式会让控制器进程持续存活，直到外部显式停止。
-	EmbeddedInputLuaRuntimeSpaceControllerProcessModeService EmbeddedInputLuaRuntimeSpaceControllerProcessMode = "service"
-	// Managed mode allows the controller process to stop itself after idle timeouts.
-	// Managed 模式允许控制器进程在空闲超时后自行停止。
-	EmbeddedInputLuaRuntimeSpaceControllerProcessModeManaged EmbeddedInputLuaRuntimeSpaceControllerProcessMode = "managed"
-)
 
 // Pool sizing configuration for Lua virtual machines.
 // Lua 虚拟机池的容量配置。
@@ -4489,15 +4420,13 @@ var embeddedWireShapes = map[reflect.Type]embeddedWireShape{
 	embeddedWireType[EmbeddedInputLuaInvocationContext]():                                      {kind: "object", additional: true},
 	embeddedWireType[EmbeddedInputLuaRuntimeCapabilityOptions]():                               {kind: "object", additional: true},
 	embeddedWireType[EmbeddedInputLuaRuntimeDatabaseCallbackMode]():                            {kind: "enum", values: []string{"standard", "json"}},
-	embeddedWireType[EmbeddedInputLuaRuntimeDatabaseProviderMode]():                            {kind: "enum", values: []string{"dynamic_library", "host_callback", "space_controller"}},
-	embeddedWireType[EmbeddedInputLuaRuntimeHostOptions]():                                     {kind: "object", additional: true},
+	embeddedWireType[EmbeddedInputLuaRuntimeHostMode]():                                        {kind: "enum", values: []string{"console", "desktop"}},
+	embeddedWireType[EmbeddedInputLuaRuntimeHostOptions]():                                     {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputLuaRuntimeHostOptionsIgnoredSkillIds]():                      {kind: "array", unique: false},
 	embeddedWireType[EmbeddedInputLuaRuntimeHostOptionsPrivateSkillSourceAllowlist]():          {kind: "array", unique: false},
 	embeddedWireType[EmbeddedInputLuaRuntimeHostOptionsReservedEntryNames]():                   {kind: "array", unique: false},
 	embeddedWireType[EmbeddedInputLuaRuntimeManagedRuntimeConfig]():                            {kind: "object", additional: true},
 	embeddedWireType[EmbeddedInputLuaRuntimeRunLuaPoolConfig]():                                {kind: "object", additional: true},
-	embeddedWireType[EmbeddedInputLuaRuntimeSpaceControllerOptions]():                          {kind: "object", additional: true},
-	embeddedWireType[EmbeddedInputLuaRuntimeSpaceControllerProcessMode]():                      {kind: "enum", values: []string{"service", "managed"}},
 	embeddedWireType[EmbeddedInputLuaVmPoolConfig]():                                           {kind: "object", additional: true},
 	embeddedWireType[EmbeddedInputModuleDefinition]():                                          {kind: "object", additional: false},
 	embeddedWireType[EmbeddedInputModuleDefinitionExports]():                                   {kind: "array", unique: false},

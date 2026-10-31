@@ -3,7 +3,6 @@ package luaskills
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/LuaSkills/luaskills-sdk-go/internal/runtimeassets"
 	"io"
 	"net/http"
 	"os"
@@ -17,23 +16,11 @@ import (
 
 // DefaultLuaSkillsVersion is the release tag used by SDK runtime installation.
 // DefaultLuaSkillsVersion 是 SDK 运行时安装使用的 LuaSkills 发布标签。
-const DefaultLuaSkillsVersion = "v0.7.2"
+const DefaultLuaSkillsVersion = "v0.7.3"
 
 // DefaultLuaSkillsPackagesSeries is the release series used by SDK runtime package installation.
 // DefaultLuaSkillsPackagesSeries 是 SDK 运行时 package 安装使用的 luaskills-packages 发布协议线。
 const DefaultLuaSkillsPackagesSeries = "0.1"
-
-// DefaultVldbControllerVersion is the release tag used by SDK runtime installation.
-// DefaultVldbControllerVersion 是 SDK 运行时安装使用的 vldb-controller 发布标签。
-const DefaultVldbControllerVersion = "v0.2.3"
-
-// DefaultVldbSQLiteVersion is the release tag used by SDK runtime installation.
-// DefaultVldbSQLiteVersion 是 SDK 运行时安装使用的 vldb-sqlite 发布标签。
-const DefaultVldbSQLiteVersion = "v0.1.6"
-
-// DefaultVldbLanceDBVersion is the release tag used by SDK runtime installation.
-// DefaultVldbLanceDBVersion 是 SDK 运行时安装使用的 vldb-lancedb 发布标签。
-const DefaultVldbLanceDBVersion = "v0.1.5"
 
 // DefaultManagedPythonVersion is the managed CPython version used by Lua-driven child runtimes.
 // DefaultManagedPythonVersion 是 Lua 调度子运行时使用的受管 CPython 版本。
@@ -63,12 +50,6 @@ const (
 	// RuntimeDatabaseNone does not install or configure database providers.
 	// RuntimeDatabaseNone 不安装也不配置数据库 provider。
 	RuntimeDatabaseNone RuntimeDatabasePreset = "none"
-	// RuntimeDatabaseVldbController uses vldb-controller through space_controller mode.
-	// RuntimeDatabaseVldbController 通过 space_controller 模式使用 vldb-controller。
-	RuntimeDatabaseVldbController RuntimeDatabasePreset = "vldb-controller"
-	// RuntimeDatabaseVldbDirect uses vldb-sqlite-lib and vldb-lancedb-lib directly.
-	// RuntimeDatabaseVldbDirect 直接使用 vldb-sqlite-lib 与 vldb-lancedb-lib。
-	RuntimeDatabaseVldbDirect RuntimeDatabasePreset = "vldb-direct"
 	// RuntimeDatabaseHostCallback lets the host provide JSON callbacks.
 	// RuntimeDatabaseHostCallback 由宿主提供 JSON callback。
 	RuntimeDatabaseHostCallback RuntimeDatabasePreset = "host-callback"
@@ -85,15 +66,6 @@ const (
 	// RuntimeAssetLuaSkillsFFI identifies the LuaSkills FFI SDK archive.
 	// RuntimeAssetLuaSkillsFFI 标识 LuaSkills FFI SDK 归档。
 	RuntimeAssetLuaSkillsFFI RuntimeAssetRole = "luaskills_ffi"
-	// RuntimeAssetVldbController identifies the vldb-controller executable archive.
-	// RuntimeAssetVldbController 标识 vldb-controller 可执行文件归档。
-	RuntimeAssetVldbController RuntimeAssetRole = "vldb_controller"
-	// RuntimeAssetVldbSQLiteLib identifies the vldb-sqlite dynamic library archive.
-	// RuntimeAssetVldbSQLiteLib 标识 vldb-sqlite 动态库归档。
-	RuntimeAssetVldbSQLiteLib RuntimeAssetRole = "vldb_sqlite_lib"
-	// RuntimeAssetVldbLanceDBLib identifies the vldb-lancedb dynamic library archive.
-	// RuntimeAssetVldbLanceDBLib 标识 vldb-lancedb 动态库归档。
-	RuntimeAssetVldbLanceDBLib RuntimeAssetRole = "vldb_lancedb_lib"
 )
 
 // ManagedRuntimeTarget is one SDK-level managed child runtime installation mode.
@@ -124,27 +96,18 @@ type RuntimePlatformTarget struct {
 	// PlatformKey is the LuaSkills platform key used by FFI SDK archives.
 	// PlatformKey 是 FFI SDK 归档使用的 LuaSkills 平台标识。
 	PlatformKey string `json:"platform_key"`
-	// TargetTriple is the Rust-style target triple used by VLDB archives.
-	// TargetTriple 是 VLDB 归档使用的 Rust 风格 target triple。
+	// TargetTriple is the Rust-style target triple identifying the native platform.
+	// TargetTriple 是 标识原生平台的 Rust 风格 target triple。
 	TargetTriple string `json:"target_triple"`
 	// ArchiveExt is the archive extension used by this platform.
 	// ArchiveExt 是当前平台使用的归档扩展名。
 	ArchiveExt string `json:"archive_ext"`
-	// ControllerBinaryName is the vldb-controller executable file name.
-	// ControllerBinaryName 是 vldb-controller 可执行文件名。
-	ControllerBinaryName string `json:"controller_binary_name"`
 	// DynamicLibraryExt is the dynamic library extension used by this platform.
 	// DynamicLibraryExt 是当前平台使用的动态库扩展名。
 	DynamicLibraryExt string `json:"dynamic_library_ext"`
 	// LuaSkillsLibraryName is the expected installed LuaSkills library name.
 	// LuaSkillsLibraryName 是预期安装后的 LuaSkills 动态库名称。
 	LuaSkillsLibraryName string `json:"luaskills_library_name"`
-	// SQLiteLibraryName is the expected installed SQLite library name.
-	// SQLiteLibraryName 是预期安装后的 SQLite 动态库名称。
-	SQLiteLibraryName string `json:"sqlite_library_name"`
-	// LanceDBLibraryName is the expected installed LanceDB library name.
-	// LanceDBLibraryName 是预期安装后的 LanceDB 动态库名称。
-	LanceDBLibraryName string `json:"lancedb_library_name"`
 }
 
 // RuntimeAssetDescriptor describes one GitHub Release asset.
@@ -272,15 +235,6 @@ type RuntimeInstallOptions struct {
 	// LuaRuntimeSeries is the runtime packages release series.
 	// LuaRuntimeSeries 是 runtime packages 发布协议线。
 	LuaRuntimeSeries string
-	// VldbControllerVersion is the vldb-controller release tag.
-	// VldbControllerVersion 是 vldb-controller 发布标签。
-	VldbControllerVersion string
-	// VldbSQLiteVersion is the vldb-sqlite release tag.
-	// VldbSQLiteVersion 是 vldb-sqlite 发布标签。
-	VldbSQLiteVersion string
-	// VldbLanceDBVersion is the vldb-lancedb release tag.
-	// VldbLanceDBVersion 是 vldb-lancedb 发布标签。
-	VldbLanceDBVersion string
 	// SkipLuaSkillsFFI omits the LuaSkills FFI SDK archive from the manifest.
 	// SkipLuaSkillsFFI 从清单中省略 LuaSkills FFI SDK 归档。
 	SkipLuaSkillsFFI bool
@@ -293,15 +247,6 @@ type RuntimeInstallOptions struct {
 	// LuaRuntimeRepo is the GitHub repository that publishes runtime packages assets.
 	// LuaRuntimeRepo 是发布 runtime packages 资产的 GitHub 仓库。
 	LuaRuntimeRepo string
-	// VldbControllerRepo is the GitHub repository that publishes vldb-controller assets.
-	// VldbControllerRepo 是发布 vldb-controller 资产的 GitHub 仓库。
-	VldbControllerRepo string
-	// VldbSQLiteRepo is the GitHub repository that publishes vldb-sqlite assets.
-	// VldbSQLiteRepo 是发布 vldb-sqlite 资产的 GitHub 仓库。
-	VldbSQLiteRepo string
-	// VldbLanceDBRepo is the GitHub repository that publishes vldb-lancedb assets.
-	// VldbLanceDBRepo 是发布 vldb-lancedb 资产的 GitHub 仓库。
-	VldbLanceDBRepo string
 	// ManagedRuntimes selects managed child runtimes for SDK installers.
 	// ManagedRuntimes 为 SDK 安装器选择受管子运行时。
 	ManagedRuntimes ManagedRuntimeTarget
@@ -333,11 +278,8 @@ func ResolveRuntimePlatformTargetFor(goos string, goarch string) (RuntimePlatfor
 			PlatformKey:          "windows-x64",
 			TargetTriple:         "x86_64-pc-windows-msvc",
 			ArchiveExt:           ".zip",
-			ControllerBinaryName: "vldb-controller.exe",
 			DynamicLibraryExt:    ".dll",
 			LuaSkillsLibraryName: "luaskills.dll",
-			SQLiteLibraryName:    "vldb_sqlite.dll",
-			LanceDBLibraryName:   "vldb_lancedb.dll",
 		}, nil
 	}
 	if goos == "darwin" && goarch == "amd64" {
@@ -378,7 +320,7 @@ func BuildRuntimeInstallManifest(options RuntimeInstallOptions) (*RuntimeInstall
 		DatabaseMode:     normalized.Database,
 		Platform:         target,
 		Assets:           assets,
-		HostOptionsPatch: buildRuntimeHostOptionsPatch(normalized.RuntimeRoot, normalized.Database, target, assets),
+		HostOptionsPatch: buildRuntimeHostOptionsPatch(normalized.Database),
 		ManagedRuntimes:  managedRuntimes,
 	}
 	return manifest, nil
@@ -419,67 +361,14 @@ func sanitizeRuntimeManifestHostOptions(runtimeRoot string, patch map[string]any
 	if strings.TrimSpace(runtimeRoot) == "" {
 		return nil, fmt.Errorf("runtime manifest runtime_root must be a string path")
 	}
-	sanitized := mergeMaps(map[string]any{}, patch)
-	for _, key := range []string{"sqlite_library_path", "lancedb_library_path"} {
-		path, err := sanitizeRuntimeManifestPath(runtimeRoot, sanitized[key], key)
-		if err != nil {
-			return nil, err
-		}
-		if path != nil {
-			sanitized[key] = *path
+	// Retired 0.7.3 fields are rejected explicitly instead of reviving database installers.
+	// 显式拒绝已退役的 0.7.3 字段，避免重新启用数据库安装器。
+	for _, key := range []string{"sqlite_library_path", "sqlite_provider_mode", "lancedb_library_path", "lancedb_provider_mode", "lancedb_callback_mode", "space_controller"} {
+		if _, present := patch[key]; present {
+			return nil, fmt.Errorf("host_options_patch.%s was removed in 0.7.3; register SQLite with the host", key)
 		}
 	}
-	if rawSpaceController, ok := sanitized["space_controller"]; ok && rawSpaceController != nil {
-		spaceController, ok := rawSpaceController.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("host_options_patch.space_controller must be one object")
-		}
-		spaceCopy := mergeMaps(map[string]any{}, spaceController)
-		path, err := sanitizeRuntimeManifestPath(runtimeRoot, spaceCopy["executable_path"], "space_controller.executable_path")
-		if err != nil {
-			return nil, err
-		}
-		if path != nil {
-			spaceCopy["executable_path"] = *path
-		}
-		sanitized["space_controller"] = spaceCopy
-	}
-	return sanitized, nil
-}
-
-// sanitizeRuntimeManifestPath validates one runtime-root-scoped host option path.
-// sanitizeRuntimeManifestPath 校验单个受 runtime-root 约束的宿主选项路径。
-func sanitizeRuntimeManifestPath(runtimeRoot string, value any, context string) (*string, error) {
-	if value == nil {
-		return nil, nil
-	}
-	pathText, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf("host_options_patch.%s must be a string path", context)
-	}
-	if strings.TrimSpace(pathText) == "" || strings.ContainsRune(pathText, '\x00') {
-		return nil, fmt.Errorf("host_options_patch.%s must be a path inside runtime root", context)
-	}
-	rootPath, err := filepath.Abs(runtimeRoot)
-	if err != nil {
-		return nil, fmt.Errorf("resolve runtime root for host_options_patch.%s: %w", context, err)
-	}
-	candidatePath := pathText
-	if !filepath.IsAbs(candidatePath) {
-		if runtimeassets.HasUnsafeRelativeSegment(candidatePath) {
-			return nil, fmt.Errorf("host_options_patch.%s must be a path inside runtime root", context)
-		}
-		candidatePath = filepath.Join(rootPath, candidatePath)
-	}
-	candidatePath, err = filepath.Abs(candidatePath)
-	if err != nil {
-		return nil, fmt.Errorf("resolve host_options_patch.%s: %w", context, err)
-	}
-	if !runtimeassets.IsStrictlyInside(rootPath, candidatePath) {
-		return nil, fmt.Errorf("host_options_patch.%s escapes runtime root: %s", context, pathText)
-	}
-	normalized := normalizePath(candidatePath)
-	return &normalized, nil
+	return mergeMaps(map[string]any{}, patch), nil
 }
 
 // decodeRuntimeInstallManifest decodes one runtime install manifest with path-aware diagnostics.
@@ -509,6 +398,11 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) (RuntimeInsta
 	if options.Database == "" {
 		options.Database = RuntimeDatabaseNone
 	}
+	// Reject removed presets before resolving any release or starting a download.
+	// 在解析发布或开始下载前拒绝已删除的预设。
+	if options.Database != RuntimeDatabaseNone && options.Database != RuntimeDatabaseHostCallback {
+		return RuntimeInstallOptions{}, fmt.Errorf("unsupported database preset: %s", options.Database)
+	}
 	if options.LuaSkillsVersion == "" {
 		options.LuaSkillsVersion = DefaultLuaSkillsVersion
 	}
@@ -522,29 +416,11 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) (RuntimeInsta
 		}
 		options.LuaRuntimeVersion = resolvedTag
 	}
-	if options.VldbControllerVersion == "" {
-		options.VldbControllerVersion = DefaultVldbControllerVersion
-	}
-	if options.VldbSQLiteVersion == "" {
-		options.VldbSQLiteVersion = DefaultVldbSQLiteVersion
-	}
-	if options.VldbLanceDBVersion == "" {
-		options.VldbLanceDBVersion = DefaultVldbLanceDBVersion
-	}
 	if options.LuaSkillsRepo == "" {
 		options.LuaSkillsRepo = "LuaSkills/luaskills"
 	}
 	if options.LuaRuntimeRepo == "" {
 		options.LuaRuntimeRepo = "LuaSkills/luaskills-packages"
-	}
-	if options.VldbControllerRepo == "" {
-		options.VldbControllerRepo = "OpenVulcan/vldb-controller"
-	}
-	if options.VldbSQLiteRepo == "" {
-		options.VldbSQLiteRepo = "OpenVulcan/vldb-sqlite"
-	}
-	if options.VldbLanceDBRepo == "" {
-		options.VldbLanceDBRepo = "OpenVulcan/vldb-lancedb"
 	}
 	if options.ManagedRuntimes == "" {
 		options.ManagedRuntimes = ManagedRuntimeNone
@@ -683,11 +559,8 @@ func darwinRuntimeTarget(archPrefix string, platformKey string) RuntimePlatformT
 		PlatformKey:          platformKey,
 		TargetTriple:         archPrefix + "-apple-darwin",
 		ArchiveExt:           ".tar.gz",
-		ControllerBinaryName: "vldb-controller",
 		DynamicLibraryExt:    ".dylib",
 		LuaSkillsLibraryName: "libluaskills.dylib",
-		SQLiteLibraryName:    "libvldb_sqlite.dylib",
-		LanceDBLibraryName:   "libvldb_lancedb.dylib",
 	}
 }
 
@@ -698,11 +571,8 @@ func linuxRuntimeTarget(archPrefix string, platformKey string) RuntimePlatformTa
 		PlatformKey:          platformKey,
 		TargetTriple:         archPrefix + "-unknown-linux-gnu",
 		ArchiveExt:           ".tar.gz",
-		ControllerBinaryName: "vldb-controller",
 		DynamicLibraryExt:    ".so",
 		LuaSkillsLibraryName: "libluaskills.so",
-		SQLiteLibraryName:    "libvldb_sqlite.so",
-		LanceDBLibraryName:   "libvldb_lancedb.so",
 	}
 }
 
@@ -717,16 +587,6 @@ func buildRuntimeAssetDescriptors(options RuntimeInstallOptions, target RuntimeP
 	if !options.SkipLuaSkillsFFI {
 		assetName := fmt.Sprintf("luaskills-ffi-sdk-%s.tar.gz", target.PlatformKey)
 		assets = append(assets, releaseRuntimeAsset(RuntimeAssetLuaSkillsFFI, options.LuaSkillsRepo, options.LuaSkillsVersion, assetName, stringPtr("libs/"+target.LuaSkillsLibraryName)))
-	}
-	if options.Database == RuntimeDatabaseVldbController {
-		assetName := fmt.Sprintf("vldb-controller-%s-%s%s", options.VldbControllerVersion, target.TargetTriple, target.ArchiveExt)
-		assets = append(assets, releaseRuntimeAsset(RuntimeAssetVldbController, options.VldbControllerRepo, options.VldbControllerVersion, assetName, stringPtr("bin/"+target.ControllerBinaryName)))
-	}
-	if options.Database == RuntimeDatabaseVldbDirect {
-		sqliteAsset := fmt.Sprintf("vldb-sqlite-lib-%s-%s%s", options.VldbSQLiteVersion, target.TargetTriple, target.ArchiveExt)
-		lancedbAsset := fmt.Sprintf("vldb-lancedb-lib-%s-%s%s", options.VldbLanceDBVersion, target.TargetTriple, target.ArchiveExt)
-		assets = append(assets, releaseRuntimeAsset(RuntimeAssetVldbSQLiteLib, options.VldbSQLiteRepo, options.VldbSQLiteVersion, sqliteAsset, stringPtr("libs/"+target.SQLiteLibraryName)))
-		assets = append(assets, releaseRuntimeAsset(RuntimeAssetVldbLanceDBLib, options.VldbLanceDBRepo, options.VldbLanceDBVersion, lancedbAsset, stringPtr("libs/"+target.LanceDBLibraryName)))
 	}
 	return assets
 }
@@ -857,42 +717,11 @@ func parseReleaseTagSemVer(tag string) (releaseSemVer, bool) {
 
 // buildRuntimeHostOptionsPatch builds host option overrides for one database mode.
 // buildRuntimeHostOptionsPatch 为单个数据库模式构造宿主选项覆盖。
-func buildRuntimeHostOptionsPatch(runtimeRoot string, database RuntimeDatabasePreset, target RuntimePlatformTarget, assets []RuntimeAssetDescriptor) map[string]any {
-	root := normalizePath(runtimeRoot)
+func buildRuntimeHostOptionsPatch(database RuntimeDatabasePreset) map[string]any {
+	// The JSON transport is selected only; database ownership stays with the host.
+	// 仅选择 JSON 传输；数据库所有权始终属于宿主。
 	if database == RuntimeDatabaseHostCallback {
-		return map[string]any{
-			"sqlite_provider_mode":  "host_callback",
-			"sqlite_callback_mode":  "json",
-			"lancedb_provider_mode": "host_callback",
-			"lancedb_callback_mode": "json",
-		}
-	}
-	if database == RuntimeDatabaseVldbController {
-		return map[string]any{
-			"sqlite_provider_mode":  "space_controller",
-			"lancedb_provider_mode": "space_controller",
-			"space_controller": map[string]any{
-				"endpoint":                  nil,
-				"auto_spawn":                true,
-				"executable_path":           normalizePath(filepath.Join(root, "bin", target.ControllerBinaryName)),
-				"process_mode":              "managed",
-				"minimum_uptime_secs":       300,
-				"idle_timeout_secs":         900,
-				"default_lease_ttl_secs":    120,
-				"connect_timeout_secs":      5,
-				"startup_timeout_secs":      15,
-				"startup_retry_interval_ms": 250,
-				"lease_renew_interval_secs": 30,
-			},
-		}
-	}
-	if database == RuntimeDatabaseVldbDirect {
-		return map[string]any{
-			"sqlite_library_path":   resolveRuntimeInstalledAsset(root, assets, RuntimeAssetVldbSQLiteLib),
-			"sqlite_provider_mode":  "dynamic_library",
-			"lancedb_library_path":  resolveRuntimeInstalledAsset(root, assets, RuntimeAssetVldbLanceDBLib),
-			"lancedb_provider_mode": "dynamic_library",
-		}
+		return map[string]any{"sqlite_callback_mode": "json"}
 	}
 	return map[string]any{}
 }

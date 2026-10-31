@@ -157,15 +157,16 @@ func (m *SkillManagementClient) Update(skillRoots []RuntimeSkillRoot, request Sk
 	return m.apply(skillLifecycleUpdateAction, skillRoots, request, options)
 }
 
-// Uninstall uninstalls one skill and optionally cleans its databases.
-// Uninstall 卸载单个 skill，并可选清理其数据库。
-func (m *SkillManagementClient) Uninstall(skillRoots []RuntimeSkillRoot, skillID string, uninstallOptions SkillUninstallOptions, lifecycleOptions LifecycleOptions) (map[string]any, error) {
+// Uninstall removes skillID from skillRoots using lifecycleOptions and returns its lifecycle result.
+// Uninstall 使用 lifecycleOptions 从 skillRoots 移除 skillID，并返回生命周期结果。
+// Host-owned databases remain untouched.
+// 宿主拥有的数据库保持不变。
+func (m *SkillManagementClient) Uninstall(skillRoots []RuntimeSkillRoot, skillID string, lifecycleOptions LifecycleOptions) (map[string]any, error) {
 	var result map[string]any
 	payload := map[string]any{
 		"engine_id":   m.client.engineID,
 		"skill_roots": skillRoots,
 		"skill_id":    skillID,
-		"options":     uninstallOptions,
 		"target_root": lifecycleOptions.TargetRoot,
 	}
 	m.addAuthority(payload, lifecycleOptions.Authority)

@@ -10,12 +10,17 @@ import "C"
 import (
 	"fmt"
 	"runtime"
+	"sync"
 	"unsafe"
 )
 
 // embeddedCgo calls only the exact version-one ABI declared in the packaged upstream headers.
 // embeddedCgo 仅调用包内上游头文件声明的精确版本一 ABI。
 type embeddedCgo struct{}
+
+// embeddedSQLiteScopes pins callbacks for every real transport, including its worker-owned pools.
+// embeddedSQLiteScopes 为每个真实传输固定回调，包含其工作线程拥有的池。
+var embeddedSQLiteScopes sync.Map
 
 // newEmbeddedNative selects the linked cgo implementation; there is no legacy protocol fallback.
 // newEmbeddedNative 选择链接的 cgo 实现；不存在旧协议回退。
@@ -48,7 +53,15 @@ func copyEmbeddedDescription(pointer unsafe.Pointer, length uint64) ([]byte, err
 func (embeddedCgo) create(config EmbeddedTransportConfig) (uint64, EmbeddedNativeStatus) {
 	native := C.FfiEmbeddedTransportConfigV1{struct_size: C.uint32_t(C.sizeof_FfiEmbeddedTransportConfigV1), protocol_version: C.uint32_t(EmbeddedProtocolVersion), max_runtimes: C.uint64_t(config.MaxRuntimes), max_result_buffers: C.uint64_t(config.MaxResultBuffers), max_result_bytes: C.uint64_t(config.MaxResultBytes), max_response_bytes: C.uint64_t(config.MaxResponseBytes), max_request_bytes: C.uint64_t(config.MaxRequestBytes)}
 	var identity C.uint64_t
+	// Admission precedes native publication and any later engine creation through this transport.
+	// 准入先于原生发布及此传输后续的任何引擎创建。
+	releaseScope := retainSQLiteProviderScope()
 	status := C.luaskills_ffi_embedded_transport_new_v1(&native, &identity)
+	if status == 0 {
+		embeddedSQLiteScopes.Store(uint64(identity), releaseScope)
+	} else {
+		releaseScope()
+	}
 	return uint64(identity), EmbeddedNativeStatus(status)
 }
 
@@ -87,5 +100,13 @@ func (embeddedCgo) close(identity uint64) EmbeddedNativeStatus {
 // free releases the exact root only after core ownership has drained.
 // free 仅在核心所有权排空后释放精确根。
 func (embeddedCgo) free(identity uint64) EmbeddedNativeStatus {
-	return EmbeddedNativeStatus(C.luaskills_ffi_embedded_transport_free_v1(C.uint64_t(identity)))
+	// Failed destruction leaves callback ownership intact for the existing recovery path.
+	// 销毁失败时保持回调所有权，供既有恢复路径使用。
+	status := EmbeddedNativeStatus(C.luaskills_ffi_embedded_transport_free_v1(C.uint64_t(identity)))
+	if status == EmbeddedNativeOk {
+		if release, present := embeddedSQLiteScopes.LoadAndDelete(identity); present {
+			release.(func())()
+		}
+	}
+	return status
 }

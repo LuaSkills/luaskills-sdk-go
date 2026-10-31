@@ -293,10 +293,6 @@ type ModelEmbedJSONCallback func(request ModelEmbedJSONRequest) (any, error)
 // ModelLLMJSONCallback 是模型 LLM JSON callback 使用的宿主函数形状。
 type ModelLLMJSONCallback func(request ModelLLMJSONRequest) (any, error)
 
-// ErrProviderCallbacksRequireHostBridge explains why Go does not register callbacks directly yet.
-// ErrProviderCallbacksRequireHostBridge 说明 Go 当前为何尚不直接注册 callback。
-var ErrProviderCallbacksRequireHostBridge = errors.New("luaskills Go SDK provider callbacks require a host-owned cgo callback bridge")
-
 // ErrHostToolCallbacksRequireHostBridge explains why Go does not register host-tool callbacks directly yet.
 // ErrHostToolCallbacksRequireHostBridge 说明 Go 当前为何尚不直接注册宿主工具 callback。
 var ErrHostToolCallbacksRequireHostBridge = errors.New("luaskills Go SDK host tool callbacks require a host-owned cgo callback bridge")
@@ -309,28 +305,18 @@ var ErrSkillOperationProgressCallbacksRequireHostBridge = errors.New("luaskills 
 // ErrModelCallbacksRequireHostBridge 说明 Go 当前为何尚不直接注册模型 callback。
 var ErrModelCallbacksRequireHostBridge = errors.New("luaskills Go SDK model callbacks require a host-owned cgo callback bridge")
 
-// SetSQLiteProviderJSONCallback reports the required host bridge for SQLite JSON callbacks.
-// SetSQLiteProviderJSONCallback 报告 SQLite JSON callback 所需的宿主桥接。
+// SetSQLiteProviderJSONCallback registers callback for future engines; existing engines retain their snapshot.
+// SetSQLiteProviderJSONCallback 为未来引擎注册 callback；已有引擎保留自己的快照。
+// The host owns database resources and must keep them open until captured engines are closed; returns native errors.
+// 宿主拥有数据库资源，必须保持打开直至捕获它的引擎关闭；返回原生错误。
 func SetSQLiteProviderJSONCallback(callback JSONProviderCallback) error {
-	return ErrProviderCallbacksRequireHostBridge
+	return setNativeSQLiteProviderJSONCallback(callback)
 }
 
-// ClearSQLiteProviderJSONCallback reports the required host bridge for clearing SQLite callbacks.
-// ClearSQLiteProviderJSONCallback 报告清理 SQLite callback 所需的宿主桥接。
+// ClearSQLiteProviderJSONCallback clears the default for future engines; returns a native error on failure.
+// ClearSQLiteProviderJSONCallback 清空未来引擎的默认值；失败时返回原生错误。
 func ClearSQLiteProviderJSONCallback() error {
 	return SetSQLiteProviderJSONCallback(nil)
-}
-
-// SetLanceDBProviderJSONCallback reports the required host bridge for LanceDB JSON callbacks.
-// SetLanceDBProviderJSONCallback 报告 LanceDB JSON callback 所需的宿主桥接。
-func SetLanceDBProviderJSONCallback(callback JSONProviderCallback) error {
-	return ErrProviderCallbacksRequireHostBridge
-}
-
-// ClearLanceDBProviderJSONCallback reports the required host bridge for clearing LanceDB callbacks.
-// ClearLanceDBProviderJSONCallback 报告清理 LanceDB callback 所需的宿主桥接。
-func ClearLanceDBProviderJSONCallback() error {
-	return SetLanceDBProviderJSONCallback(nil)
 }
 
 // SetHostToolJSONCallback reports the required host bridge for host-tool JSON callbacks.
@@ -386,7 +372,6 @@ func ClearModelLLMJSONCallback() error {
 func ClearJSONCallbacks() error {
 	return errors.Join(
 		ClearSQLiteProviderJSONCallback(),
-		ClearLanceDBProviderJSONCallback(),
 		ClearHostToolJSONCallback(),
 		ClearSkillOperationProgressJSONCallback(),
 		ClearModelEmbedJSONCallback(),

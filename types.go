@@ -55,12 +55,6 @@ type SkillInstallRequest struct {
 	SourceType SkillInstallSourceType `json:"source_type,omitempty"`
 }
 
-// SkillUninstallOptions controls optional database cleanup after uninstall.
-// SkillUninstallOptions 控制卸载后的可选数据库清理。
-type SkillUninstallOptions struct {
-	RemoveSQLite  bool `json:"remove_sqlite,omitempty"`
-	RemoveLanceDB bool `json:"remove_lancedb,omitempty"`
-}
 
 // LifecycleOptions carries optional target-root and authority overrides.
 // LifecycleOptions 携带可选 target-root 与 authority 覆盖。

@@ -834,7 +834,13 @@ def examples(args):
     for member, body in source.items():
         require((Path(imported["Dir"]) / member).read_bytes() == body, "Examples public module member differs: " + member)
     for example in PUBLISHED_EXAMPLES:
-        (args.output / (example + ".log")).write_text(run(["go", "run", "./examples/" + example], package, environment), encoding="utf-8")
+        # The SQLite driver lives in its own module; every other example uses the parent consumer.
+        # SQLite 驱动位于独立模块；其余示例使用父级消费端。
+        example_root = package / "examples/provider_callback" if example == "provider_callback" else package
+        example_target = "." if example == "provider_callback" else "./examples/" + example
+        if example == "provider_callback":
+            run(["go", "mod", "tidy"], example_root, environment)
+        (args.output / (example + ".log")).write_text(run(["go", "run", example_target], example_root, environment), encoding="utf-8")
     require(sha256(library) == inputs["library_sha256"], "Installed runtime bytes changed during examples")
     archive = args.output / (name + ".zip")
     write_archive(package, archive, name)

@@ -56,10 +56,11 @@ go run .\examples\lifecycle
 go run .\examples\runtime_lease
 ```
 
-`provider_callback` 展示 Go provider 与宿主工具 callback API 边界。除非宿主添加受控 cgo callback bridge，否则当前会返回需要宿主桥接的错误。
+`provider_callback`（TypeScript 为 `provider-callback.mjs`）执行真实 SQLite 接入验证：建表、参数化写入、事务回滚、查询和重建引擎后的持久化。数据仅由宿主创建，输出保留的数据库路径。
 
 ```powershell
-go run .\examples\provider_callback
+cd .\examples\provider_callback
+go run .
 ```
 
 模型 callback 对接见主 [SDK README](../README_cn.md#模型-callback)。Go SDK 暴露类型化模型请求、响应和错误结构；真实 callback 注册仍需要宿主拥有的 cgo bridge。
@@ -73,3 +74,5 @@ go run .\examples\provider_callback
 仓库工作流 **Examples Release** 先认证显式原 SDK 候选与成功完成轮次、两条永久签名链及新的冷消费者，再生成 `luaskills-sdk-go-examples-{VERSION}.zip`。它使用独立已验 TypeScript 精确版本、实际核心库字节及新缓存中的公共 Go 模块运行六例。确定性 ZIP 与原 sidecar 在发布前独立签名；恢复仅复用指定原签名制品。
 
 从[示例发布列表](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true)中匹配的 `examples-v{VERSION}` 条目下载。工作流先向 draft 上传全部资产，再发布此独立 Release；已有 final 资产不覆盖、不追加。
+
+SQLite 示例是独立 Go 模块，驱动不会进入 SDK 主模块。源码 checkout 使用相对 replace；发布示例包使用精确公开版本。需要 CGO、C 编译器以及上述核心链接和动态库搜索路径。

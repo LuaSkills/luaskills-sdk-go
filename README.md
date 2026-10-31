@@ -6,7 +6,7 @@ Main LuaSkills repository: [LuaSkills/luaskills](https://github.com/LuaSkills/lu
 
 Go SDK for integrating the LuaSkills runtime through the public JSON FFI surface.
 
-This source targets the `0.7.2` release line; publication and artifact verification follow the release workflow. It retains the strict package-level skill configuration contract and defaults runtime assets to matching LuaSkills core `v0.7.2`, vldb-controller `v0.2.3`, and vldb-sqlite `v0.1.6`. Runtime asset downloads require the matching core release to be published and verified first.
+This source aligns with released LuaSkills core `0.7.3`. SQLite is registered and managed by the host; runtime installers fetch only the core and Lua assets.
 
 The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, provider callback boundaries, host-tool callback boundaries, and runtime manifest helpers.
 
@@ -24,7 +24,7 @@ Runtime methods `StorageStatus / RecoverStorage` expose worker ownership and exp
 
 Historical records never become active handles. Before administrative reconciliation or removal, forget any retained live operation. `HistoryReconcile` attaches one final, bounded host attestation while preserving the original snapshot, caller and effect identities. The trusted host must authorize the resolver, prove all original execution and external owners stopped, and verify the whole operation and every recorded effect; a supplied resolver string is not authentication. Unknown ordinary Lua effects cannot be inferred from successful return. Use the original namespace, operation ID and predecessor revision; retry the identical resolution to acknowledge the same successor after storage recovery. The returned revision supports explicit removal. This API does not query external systems, replay callbacks, manufacture an interrupted result or recover a failed writer/execution stack. Development disk format 4 rejects unpublished formats 1–3 without rewriting them. Matching development core and SDK contracts are required.
 
-The development source adds `NewEmbeddedTransport` over the independent version-one C ABI. Link a matching development core containing the new exports; this does not claim that published `0.5.7` libraries support them. The SDK version and default runtime tag identify the matching `0.7.2` release line; publication and artifact verification follow the ecosystem release workflow. With `CGO_ENABLED=0`, contracts and codecs remain available while native construction returns an explicit error.
+The development source adds `NewEmbeddedTransport` over the independent version-one C ABI. Link a matching development core containing the new exports; this does not claim that published `0.5.7` libraries support them. The SDK version and default runtime tag identify the matching `0.7.3` release line; publication and artifact verification follow the ecosystem release workflow. With `CGO_ENABLED=0`, contracts and codecs remain available while native construction returns an explicit error.
 
 Before native allocation, construction reads `luaskills_ffi_embedded_describe_v1`, bounds the borrowed pointer/length before copying, and validates exact core/protocol/ABI/description versions, the packaged contract digest, required commands and capabilities, supported backend, process OS and pointer width. Malformed or incompatible metadata returns `*EmbeddedCompatibilityError`; nonzero native status retains `*EmbeddedTransportError`. The library owns discovery bytes; they are never passed to a result-free function. `CoreDescription()` returns independently cloned typed evidence, also after successful release. Build hashes describe selected inputs and do not authenticate a binary or prove a hermetic build.
 
@@ -122,17 +122,17 @@ export LD_LIBRARY_PATH="/opt/luaskills-runtime/libs:${LD_LIBRARY_PATH}"
 
 ## Runtime Assets
 
-The repository includes a unified synchronization script that directly downloads LuaSkills FFI, Lua runtime packages, and VLDB without requiring the Python or TypeScript installer:
+The repository includes a unified synchronization script that directly downloads LuaSkills FFI, Lua runtime packages without requiring the Python or TypeScript installer:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_assets.ps1 -Target all -Database vldb-controller -RuntimeRoot D:\runtime\luaskills
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_assets.ps1 -Target all -RuntimeRoot D:\runtime\luaskills
 ```
 
 ```bash
-RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all vldb-controller
+RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all
 ```
 
-Supported targets are `all`, `luaskills`, `lua`, and `vldb`. VLDB presets are `none`, `vldb-controller`, `vldb-direct`, and `host-callback`. The scripts pin LuaSkills to `v0.7.2` by default and accept explicit release-version overrides.
+Sync script targets are `all`, `luaskills`, and `lua`, with core `v0.7.3`. CLI database presets are only `none` and `host-callback`; the latter sets `sqlite_callback_mode: json` and still requires host registration.
 
 The Go SDK plans and consumes the shared SDK runtime manifest, while the repository scripts above directly download release assets. The shared manifest now points at:
 
@@ -206,7 +206,7 @@ By default, the shared manifest keeps LuaSkills core aligned with the SDK releas
 ## Version Alignment
 
 - Keep the SDK and LuaSkills core on the same current release line whenever possible.
-- This SDK source defaults to LuaSkills core tag `v0.7.2`; download it only after the matching core release is published and verified.
+- This SDK source defaults to LuaSkills core tag `v0.7.3`; download it only after the matching core release is published and verified.
 - Runtime packages and native dependencies still come from the split `LuaSkills/luaskills-packages` and related release assets.
 - SDK default host options pass `runtime_root`, null managed-root override slots, and the complete stable `managed_runtime_config`; LuaSkills derives the fixed data layout until the host explicitly overrides roots or policy.
 - Host tools live directly under `runtime_root/bin`, not `runtime_root/bin/tools`.
@@ -218,7 +218,7 @@ npx @luaskills/sdk install-runtime --database none --managed-runtimes all --runt
 
 ```powershell
 pip install luaskills-sdk
-luaskills install-runtime --database vldb-direct --runtime-root D:\runtime\luaskills
+luaskills install-runtime --database host-callback --runtime-root D:\runtime\luaskills
 ```
 
 Go hosts can inspect the same asset plan:
@@ -226,7 +226,7 @@ Go hosts can inspect the same asset plan:
 ```go
 manifest, err := luaskills.BuildRuntimeInstallManifest(luaskills.RuntimeInstallOptions{
 	RuntimeRoot:      "D:/runtime/luaskills",
-	Database:         luaskills.RuntimeDatabaseVldbDirect,
+	Database:         luaskills.RuntimeDatabaseHostCallback,
 	SkipLuaRuntime:   false,
 	ManagedRuntimes: luaskills.ManagedRuntimeAll,
 })
@@ -245,8 +245,6 @@ if err != nil {
 Database modes:
 
 - `RuntimeDatabaseNone`: installs the Lua runtime archive and the LuaSkills FFI SDK archive, without database providers.
-- `RuntimeDatabaseVldbController`: uses the `vldb-controller` executable through `space_controller` mode.
-- `RuntimeDatabaseVldbDirect`: uses `vldb-sqlite-lib` and `vldb-lancedb-lib` dynamic libraries.
 - `RuntimeDatabaseHostCallback`: expects the host to provide JSON callbacks.
 
 ## Basic Usage
@@ -306,10 +304,11 @@ go run .\examples\call
 go run .\examples\query
 go run .\examples\lifecycle
 go run .\examples\runtime_lease
-go run .\examples\provider_callback
+cd .\examples\provider_callback
+go run .
 ```
 
-`provider_callback` covers both JSON provider callbacks and the `vulcan.host.*` host-tool callback boundary. It returns bridge-required errors until a host-owned cgo callback bridge is installed.
+`provider_callback` uses the real SQLite driver in its separate example module and the SDK cgo bridge to verify reads, writes, rollback and persistence through Lua.
 
 The query, lifecycle, and persistent runtime-lease examples use the bundled fixture skill at `examples/fixture-runtime/user_skills/demo-standard-ffi-skill`. Prepare runtime assets with a TypeScript or Python installer first:
 
@@ -411,15 +410,18 @@ Values are excluded by default. `IncludeValues: true` returns unmasked effective
 
 ## JSON Provider Callback
 
-The Go SDK exposes the callback API boundary, but does not install a process-level cgo callback bridge by default.
+Run the shipped real SQLite demo: it verifies schema creation, parameterized writes, failed-batch rollback, queries, and persistence after recreating the engine. It prints the database path and retains the data for inspection.
 
-```go
-err := luaskills.SetSQLiteProviderJSONCallback(func(request any) (any, error) {
-	return map[string]any{"ok": true, "request": request}, nil
-})
+Requires CGO and a C compiler. `go-sqlite3` belongs only to the separate demo module; the SDK module has no SQLite dependency. Source examples use a relative replace; standalone release packages remove it and use the exact published SDK version.
+
+```sh
+cd examples/provider_callback
+go run .
 ```
 
-Currently this returns `ErrProviderCallbacksRequireHostBridge`. Production Go hosts that need `host_callback + json` should implement a controlled cgo callback bridge in the host process, or use the TypeScript / Python SDK for JSON callbacks.
+Callbacks receive `{action, binding, input}`: `binding.default_database_path` is provided by the core and `input` is the host SQL protocol supplied by the skill. The demo implements `execute_script`, `execute_batch`, and `query_json`; unsupported actions fail explicitly. The host owns SQL parameters, transactions, and connection lifetime. Never let skill input override the binding path.
+
+Register before creating the engine and set `sqlite_callback_mode: "json"`. Engines capture their provider; replacement or clearing affects only new engines. The SDK retains old callbacks until native owners are freed, and host database resources must remain valid too. `host_mode: "desktop"` hides Windows command windows; `"console"` is the default. Uninstalling a skill does not delete its host database.
 
 ## Host Tool Callback
 
@@ -520,3 +522,7 @@ Use **Go SDK Release** at the exact committed SDK SHA after the workflow has ent
 Download the matching `examples-v{VERSION}` asset from [Examples releases](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true). SDK `v{VERSION}` releases contain SDK provenance evidence. Existing final assets are reused only when every byte matches; they are never overwritten or extended.
 
 Recommended unified publish order: `luaskills-packages` -> `luaskills` core release -> TypeScript SDK -> Python SDK -> Go SDK -> SDK examples releases.
+
+## 0.7.3 Database Migration
+
+VLDB, LanceDB, dynamic database library paths, provider modes and controller configuration are removed. SQLite remains host-registered only. The default released core excludes the SQLite journal backend and rejects file-journal initialization with an explicit `sqlite-journal` feature error; custom cores can opt into this adapter. Existing database files are not automatically removed or migrated.

@@ -35,6 +35,9 @@ type Client struct {
 	// closed records whether the native engine handle has been released.
 	// closed 记录原生引擎句柄是否已经释放。
 	closed bool
+	// releaseSQLiteScope retains captured SQLite callbacks until successful native engine destruction.
+	// releaseSQLiteScope 保留捕获的 SQLite 回调直至原生引擎成功销毁。
+	releaseSQLiteScope func()
 }
 
 // NewClient creates one native LuaSkills engine and wraps it in a high-level client.
@@ -64,11 +67,16 @@ func NewClient(options ClientOptions) (*Client, error) {
 	var handle struct {
 		EngineID uint64 `json:"engine_id"`
 	}
+	// Pin before native creation so concurrent registration cannot retire a captured callback.
+	// 在原生创建前固定，防止并发注册退役已捕获回调。
+	releaseScope := retainSQLiteProviderScope()
 	if err := callJSON("luaskills_ffi_engine_new_json", map[string]any{"options": engineOptions}, &handle); err != nil {
+		releaseScope()
 		return nil, err
 	}
 	client := &Client{
-		engineID: handle.EngineID,
+		engineID:           handle.EngineID,
+		releaseSQLiteScope: releaseScope,
 	}
 	client.stateChanged = sync.NewCond(&client.mu)
 	client.Config = &ConfigClient{client: client}
@@ -310,6 +318,9 @@ func (c *Client) Close() (map[string]any, error) {
 	var result map[string]any
 	callbackErr := SetManagedSessionWakeCallback(engineID, nil)
 	freeErr := callJSON("luaskills_ffi_engine_free_json", map[string]any{"engine_id": engineID}, &result)
+	if freeErr == nil && c.releaseSQLiteScope != nil {
+		c.releaseSQLiteScope()
+	}
 	c.finishClose(freeErr)
 	if err := errors.Join(callbackErr, freeErr); err != nil {
 		return nil, err
@@ -447,6 +458,9 @@ func validateManagedRuntimeResolveOptions(options ManagedRuntimeResolveOptions) 
 func DefaultHostOptions(runtimeRoot string) (map[string]any, error) {
 	root := normalizePath(runtimeRoot)
 	baseOptions := map[string]any{
+		// Console inherits streams; desktop suppresses runtime-owned command windows.
+		// console 继承流；desktop 隐藏运行库自有命令窗口。
+		"host_mode":                         "console",
 		"runtime_root":                      root,
 		"managed_runtime_distribution_root": nil,
 		"managed_runtime_environment_root":  nil,
@@ -469,13 +483,7 @@ func DefaultHostOptions(runtimeRoot string) (map[string]any, error) {
 		"github_base_url":                   nil,
 		"github_api_base_url":               nil,
 		"github_token":                      nil,
-		"sqlite_library_path":               nil,
-		"sqlite_provider_mode":              "dynamic_library",
 		"sqlite_callback_mode":              "standard",
-		"lancedb_library_path":              nil,
-		"lancedb_provider_mode":             "dynamic_library",
-		"lancedb_callback_mode":             "standard",
-		"space_controller":                  DefaultSpaceControllerOptions(),
 		"cache_config":                      nil,
 		"runlua_pool_config":                nil,
 		"reserved_entry_names":              []string{},
@@ -499,31 +507,10 @@ func DefaultHostOptions(runtimeRoot string) (map[string]any, error) {
 	return mergeHostOptions(baseOptions, manifestOptions), nil
 }
 
-// DefaultSpaceControllerOptions returns the SDK default space-controller options.
-// DefaultSpaceControllerOptions 返回 SDK 默认 space-controller 选项。
-func DefaultSpaceControllerOptions() map[string]any {
-	return map[string]any{
-		"endpoint":                  nil,
-		"auto_spawn":                false,
-		"executable_path":           nil,
-		"process_mode":              "managed",
-		"minimum_uptime_secs":       300,
-		"idle_timeout_secs":         900,
-		"default_lease_ttl_secs":    120,
-		"connect_timeout_secs":      5,
-		"startup_timeout_secs":      15,
-		"startup_retry_interval_ms": 250,
-		"lease_renew_interval_secs": 30,
-	}
-}
-
 // mergeHostOptions merges caller host overrides over complete default host options.
 // mergeHostOptions 将调用方宿主覆盖合并到完整默认宿主选项上。
 func mergeHostOptions(base map[string]any, overrides map[string]any) map[string]any {
 	merged := mergeMaps(base, overrides)
-	if value, ok := overrides["space_controller"].(map[string]any); ok {
-		merged["space_controller"] = mergeMaps(base["space_controller"].(map[string]any), value)
-	}
 	if value, ok := overrides["capabilities"].(map[string]any); ok {
 		merged["capabilities"] = mergeMaps(base["capabilities"].(map[string]any), value)
 	}

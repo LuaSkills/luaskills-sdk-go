@@ -17,6 +17,10 @@ func TestEmbeddedClientNativePersistence(t *testing.T) {
 	// All resources share the existing actual native fixture's ordered cleanup ownership.
 	// 全部资源共享既有实际原生夹具的有序清理所有权。
 	runtime, root, _ := nativeTypedRuntimeWithPersistence(t, true)
+	if runtime == nil {
+		return
+	} // Default-core journal rejection was verified by the fixture.
+	// 夹具已验证默认核心拒绝文件日志。
 	// Status supplies the original core namespace rather than a guessed FFI identity.
 	// 状态提供原核心命名空间，而非猜测 FFI 身份。
 	statusPending, err := runtime.Status(context.Background())
@@ -200,6 +204,10 @@ func TestEmbeddedClientNativePersistenceCapacity(t *testing.T) {
 	// The sole history row is occupied by the first real business operation, without raw database mutation.
 	// 唯一历史行由首个真实业务操作占用，不直接变更数据库。
 	runtime, root, _ := nativeTypedRuntimeWithJournalLimit(t, true, 1)
+	if runtime == nil {
+		return
+	} // Default-core journal rejection was verified by the fixture.
+	// 夹具已验证默认核心拒绝文件日志。
 	// Count actual host entries independently of operation result and storage observations.
 	// 独立于操作结果及存储观测统计实际宿主进入次数。
 	var calls atomic.Uint64
