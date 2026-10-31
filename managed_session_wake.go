@@ -3,21 +3,15 @@
 package luaskills
 
 /*
-#include <stdint.h>
+#include "luaskills_ffi.h"
 #include <stdlib.h>
 
-typedef struct FfiOwnedBuffer {
-    uint8_t *ptr;
-    size_t len;
-} FfiOwnedBuffer;
-
-typedef int32_t (*FfiManagedSessionWakeCallback)(uint64_t engine_id, void *user_data, FfiOwnedBuffer *error_out);
-
+// Share the public header's guarded ABI types with every exported callback preamble.
+// 所有导出回调前导声明共享公共头文件中受包含保护的 ABI 类型。
 extern int32_t goManagedSessionWake(uint64_t engine_id, void *user_data, FfiOwnedBuffer *error_out);
-int32_t luaskills_ffi_set_managed_session_wake_callback(uint64_t engine_id, FfiManagedSessionWakeCallback callback, void *user_data, FfiOwnedBuffer *error_out);
-int32_t luaskills_ffi_buffer_clone(const uint8_t *value, size_t len, FfiOwnedBuffer *buffer_out, FfiOwnedBuffer *error_out);
-void luaskills_ffi_buffer_free(FfiOwnedBuffer value);
 
+// Register or clear engine_id's Go wake callback; write native diagnostics to error_out and return its status.
+// 注册或清除 engine_id 的 Go 唤醒回调；将原生诊断写入 error_out 并返回状态。
 static int32_t set_go_managed_session_wake_callback(uint64_t engine_id, int enabled, FfiOwnedBuffer *error_out) {
     return luaskills_ffi_set_managed_session_wake_callback(
         engine_id,

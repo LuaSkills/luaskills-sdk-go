@@ -9,6 +9,29 @@ permissions:
   contents: read
 
 jobs:
+  # Compile the combined callback ABI on minimum/current Go before any formal release needs a core library.
+  # 在最低及当前 Go 上编译合并回调 ABI，使正式发布需要核心库之前即可发现声明冲突。
+  cgo-declarations:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15-intel]
+        go: ['1.22', stable]
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: "1"
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Compile actual generated CGO declarations without native linking
+        run: python scripts/verify_cgo_declarations.py
   offline:
     runs-on: ubuntu-latest
     env:

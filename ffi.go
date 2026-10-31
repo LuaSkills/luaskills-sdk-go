@@ -5,75 +5,10 @@ package luaskills
 /*
 #cgo !windows LDFLAGS: -lluaskills
 #cgo windows LDFLAGS: -l:luaskills.dll
-#include <stdint.h>
+// Keep buffer layouts and JSON declarations owned by the shipped public header.
+// 缓冲布局及 JSON 声明统一由随包公共头文件维护。
+#include "luaskills_json_ffi.h"
 #include <stdlib.h>
-
-typedef struct FfiBorrowedBuffer {
-    uint8_t *ptr;
-    size_t len;
-} FfiBorrowedBuffer;
-
-typedef struct FfiOwnedBuffer {
-    uint8_t *ptr;
-    size_t len;
-} FfiOwnedBuffer;
-
-void luaskills_ffi_buffer_free(FfiOwnedBuffer value);
-FfiOwnedBuffer luaskills_ffi_version_json(void);
-FfiOwnedBuffer luaskills_ffi_describe_json(void);
-FfiOwnedBuffer luaskills_ffi_managed_runtime_resolve_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_engine_new_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_engine_free_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_load_from_roots_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_reload_from_roots_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_list_entries_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_list_skill_help_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_render_skill_help_detail_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_prompt_argument_completions_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_is_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_skill_name_for_tool_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_skill_config_list_json(FfiBorrowedBuffer input_json);
-// Describe declared package configuration structure through the public JSON FFI endpoint.
-// 通过公共 JSON FFI 端点描述已声明的技能包配置结构。
-FfiOwnedBuffer luaskills_ffi_skill_config_describe_json(FfiBorrowedBuffer input_json);
-// Validate one effective package configuration through the public JSON FFI endpoint.
-// 通过公共 JSON FFI 端点校验单个有效技能包配置。
-FfiOwnedBuffer luaskills_ffi_skill_config_validate_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_skill_config_get_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_skill_config_set_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_skill_config_delete_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_skill_config_refresh_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_skill_config_events_poll_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_call_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_run_lua_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_disable_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_disable_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_enable_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_enable_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_uninstall_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_uninstall_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_install_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_install_skill_json(FfiBorrowedBuffer input_json);
-// Install one private URL-manifest skill through the system-private JSON FFI endpoint.
-// 通过 system 私有 JSON FFI 入口安装单个私有 URL manifest 技能。
-FfiOwnedBuffer luaskills_ffi_system_private_install_skill_from_url_manifest_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_update_skill_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_update_skill_json(FfiBorrowedBuffer input_json);
-// Update one private URL-manifest skill through the system-private JSON FFI endpoint.
-// 通过 system 私有 JSON FFI 入口更新单个私有 URL manifest 技能。
-FfiOwnedBuffer luaskills_ffi_system_private_update_skill_from_url_manifest_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_lease_create_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_lease_eval_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_lease_status_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_lease_list_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_runtime_lease_close_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_lease_create_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_lease_eval_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_lease_status_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_lease_list_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_system_runtime_lease_close_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_managed_session_events_poll_json(FfiBorrowedBuffer input_json);
-FfiOwnedBuffer luaskills_ffi_managed_session_events_wait_json(FfiBorrowedBuffer input_json);
 */
 import "C"
 
