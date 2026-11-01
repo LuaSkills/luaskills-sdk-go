@@ -3,7 +3,7 @@ module github.com/LuaSkills/luaskills-sdk-go/examples/provider_callback
 go 1.22
 
 require (
-	github.com/LuaSkills/luaskills-sdk-go v0.8.0
+	github.com/LuaSkills/luaskills-sdk-go v0.8.1
 	github.com/mattn/go-sqlite3 v1.14.52
 )
 
