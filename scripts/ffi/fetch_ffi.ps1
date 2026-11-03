@@ -5,8 +5,8 @@
     # GitHub repository that publishes LuaSkills FFI SDK assets.
     # 发布 LuaSkills FFI SDK 资产的 GitHub 仓库。
     [string]$LuaSkillsRepo = "LuaSkills/luaskills",
-    # GitHub Release tag that contains the LuaSkills FFI SDK asset.
-    # 包含 LuaSkills FFI SDK 资产的 GitHub Release 标签。
+    # Optional exact vX.Y.Z core tag; empty resolves the newest published patch of the contract series.
+    # 可选的精确 vX.Y.Z 核心标签；为空时解析契约系列最新已发布补丁版本。
     [string]$LuaSkillsVersion = ""
 )
 
@@ -152,6 +152,181 @@ function Get-ReleaseAssetInfo {
     return [PSCustomObject]@{
         Url = $Asset.browser_download_url
         Digest = [string]$Asset.digest
+    }
+}
+
+function Get-ContractCoreSeries {
+    <#
+    .SYNOPSIS
+    Read the core release series (major.minor) declared by the packaged embedded contract.
+    读取包内嵌入式契约声明的核心发布系列（major.minor）。
+
+    .PARAMETER ContractDir
+    Directory that holds contract.json and contract.sha256.
+    包含 contract.json 与 contract.sha256 的目录。
+    #>
+    param([string]$ContractDir)
+
+    $ContractPath = Join-Path $ContractDir "contract.json"
+    if (-not (Test-Path -LiteralPath $ContractPath -PathType Leaf)) {
+        throw "Embedded contract not found: $ContractPath"
+    }
+    $Series = [string](Get-Content -Raw -LiteralPath $ContractPath | ConvertFrom-Json).core_series
+    if ($Series -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+        throw "Embedded contract $ContractPath has no valid core_series"
+    }
+    return $Series
+}
+
+function Get-ContractDigest {
+    <#
+    .SYNOPSIS
+    Read the first token of one contract.sha256 sidecar.
+    读取单个 contract.sha256 旁路文件的第一个字段。
+
+    .PARAMETER Path
+    Sidecar path in "<digest>  contract.json" form.
+    形如“<摘要>  contract.json”的旁路文件路径。
+    #>
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Embedded contract digest not found: $Path"
+    }
+    $Fields = @((Get-Content -Raw -LiteralPath $Path).Trim() -split '\s+')
+    return $Fields[0]
+}
+
+function Convert-TagToSemVer {
+    <#
+    .SYNOPSIS
+    Convert one Git tag such as v0.1.6 into a semantic-version object.
+    将形如 v0.1.6 的 Git 标签转换为语义化版本对象。
+
+    .PARAMETER Tag
+    Git tag text to normalize and parse.
+    需要规范化并解析的 Git 标签文本。
+    #>
+    param([string]$Tag)
+
+    $Normalized = if ($Tag.StartsWith("v")) { $Tag.Substring(1) } else { $Tag }
+    if ($Normalized -notmatch '^\d+\.\d+\.\d+$') {
+        throw "Unsupported semantic version tag: $Tag"
+    }
+    return [System.Version]$Normalized
+}
+
+function Resolve-ReleaseTagForSeries {
+    <#
+    .SYNOPSIS
+    Resolve the newest published GitHub release tag inside one major.minor series.
+    解析一个 major.minor 协议线内最新的已发布 GitHub release 标签。
+
+    .PARAMETER Repo
+    GitHub repository in owner/name form.
+    owner/name 形式的 GitHub 仓库。
+
+    .PARAMETER Series
+    Major.minor series such as 0.9.
+    形如 0.9 的 major.minor 协议线。
+    #>
+    param(
+        [string]$Repo,
+        [string]$Series
+    )
+
+    if ($Series -notmatch '^\d+\.\d+$') {
+        throw "Unsupported core series: $Series"
+    }
+
+    $ApiUrl = "https://api.github.com/repos/$Repo/releases?per_page=100"
+    $Releases = Invoke-RestMethod -Uri $ApiUrl -UseBasicParsing
+    # Candidates collects eligible releases in one array materialization to avoid repeated array growth.
+    # Candidates 通过一次数组物化收集符合条件的 release，避免反复扩展数组。
+    $Candidates = @(
+        foreach ($Release in $Releases) {
+            if ($Release.draft -or $Release.prerelease) {
+                continue
+            }
+            $TagName = [string]$Release.tag_name
+            try {
+                $Version = Convert-TagToSemVer -Tag $TagName
+            } catch {
+                continue
+            }
+            if ("$($Version.Major).$($Version.Minor)" -ne $Series) {
+                continue
+            }
+            [PSCustomObject]@{
+                Tag = $TagName
+                Version = $Version
+            }
+        }
+    )
+
+    if ($Candidates.Count -eq 0) {
+        throw "No published release found for $Repo series $Series"
+    }
+
+    return ($Candidates | Sort-Object Version -Descending | Select-Object -First 1).Tag
+}
+
+function Resolve-LuaSkillsVersion {
+    <#
+    .SYNOPSIS
+    Resolve the core tag: an explicit tag must belong to the contract series; empty selects its newest published patch.
+    解析核心标签：显式标签必须属于契约系列；为空时选择该系列最新已发布补丁版本。
+
+    .PARAMETER ExplicitTag
+    Optional exact vX.Y.Z core tag.
+    可选的精确 vX.Y.Z 核心标签。
+
+    .PARAMETER Series
+    Core release series declared by the packaged embedded contract.
+    包内嵌入式契约声明的核心发布系列。
+    #>
+    param(
+        [string]$ExplicitTag,
+        [string]$Series
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ExplicitTag)) {
+        return Resolve-ReleaseTagForSeries -Repo $LuaSkillsRepo -Series $Series
+    }
+    $TagMatch = [regex]::Match($ExplicitTag, '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
+    if (-not $TagMatch.Success -or "$($TagMatch.Groups[1].Value).$($TagMatch.Groups[2].Value)" -ne $Series) {
+        throw "LuaSkills core tag '$ExplicitTag' is not an exact vX.Y.Z tag of core series $Series supported by this SDK."
+    }
+    return $ExplicitTag
+}
+
+function Assert-ArchiveContract {
+    <#
+    .SYNOPSIS
+    Require the extracted FFI SDK archive to package the same embedded contract digest as this SDK.
+    要求已解压的 FFI SDK 归档打包与本 SDK 相同的嵌入式契约摘要。
+
+    .PARAMETER ExtractDir
+    Directory that holds the extracted archive.
+    保存已解压归档的目录。
+
+    .PARAMETER AssetName
+    Downloaded archive name used in diagnostics.
+    诊断中使用的已下载归档名称。
+    #>
+    param(
+        [string]$ExtractDir,
+        [string]$AssetName
+    )
+
+    $Expected = Get-ContractDigest -Path (Join-Path $ContractDir "contract.sha256")
+    $ArchiveSidecar = Join-Path $ExtractDir "contracts\embedded\v1\contract.sha256"
+    if (-not (Test-Path -LiteralPath $ArchiveSidecar -PathType Leaf)) {
+        throw "Downloaded $AssetName does not contain contracts/embedded/v1/contract.sha256"
+    }
+    $Actual = Get-ContractDigest -Path $ArchiveSidecar
+    if ([string]::IsNullOrEmpty($Expected) -or $Expected -cne $Actual) {
+        throw "Embedded contract mismatch in $AssetName ($LuaSkillsRepo@$LuaSkillsVersion): expected $Expected, got $Actual"
     }
 }
 
@@ -349,6 +524,9 @@ function Install-LuaSkillsFfi {
         if (-not $ExtractedLibrary) {
             throw "LuaSkills dynamic library was not found in downloaded $AssetName"
         }
+        # The packaged contract digest is checked before anything is copied; a mismatch never falls back to another tag.
+        # 在复制任何内容前校验包内契约摘要；不匹配时绝不回退到其他标签。
+        Assert-ArchiveContract -ExtractDir $ExtractDir -AssetName $AssetName
 
         $IncludeSource = Join-Path $ExtractDir "include"
         if (Test-Path -LiteralPath $IncludeSource) {
@@ -379,23 +557,10 @@ function Install-LuaSkillsFfi {
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } elseif ($MyInvocation.MyCommand.Path) { Split-Path -Parent $MyInvocation.MyCommand.Path } else { "" }
 $ProjectRoot = Resolve-ProjectRoot -ScriptDirectory $ScriptDir
 Set-Location $ProjectRoot
-if ([string]::IsNullOrWhiteSpace($LuaSkillsVersion)) {
-    $VersionPath = Join-Path $ProjectRoot "VERSION"
-    if (Test-Path -LiteralPath $VersionPath) {
-        $LuaSkillsVersion = "v$((Get-Content -Raw -LiteralPath $VersionPath).Trim())"
-    } else {
-        $CargoTomlPath = Join-Path $ProjectRoot "Cargo.toml"
-        if (-not (Test-Path -LiteralPath $CargoTomlPath)) {
-            throw "LuaSkills FFI SDK version was not provided. Pass -LuaSkillsVersion when running from a packaged runtime."
-        }
-        $CargoTomlText = Get-Content -Raw -LiteralPath $CargoTomlPath
-        $CargoVersionMatch = [regex]::Match($CargoTomlText, '(?m)^version\s*=\s*"([^"]+)"')
-        if (-not $CargoVersionMatch.Success) {
-            throw "Unable to resolve fallback LuaSkills version from Cargo.toml."
-        }
-        $LuaSkillsVersion = "v$($CargoVersionMatch.Groups[1].Value)"
-    }
-}
+# ContractDir holds the packaged embedded contract that fixes the core series and the required contract digest.
+# ContractDir 保存包内嵌入式契约，它确定核心系列及所需契约摘要。
+$ContractDir = Join-Path $ProjectRoot "contracts\embedded\v1"
+$LuaSkillsVersion = Resolve-LuaSkillsVersion -ExplicitTag $LuaSkillsVersion -Series (Get-ContractCoreSeries -ContractDir $ContractDir)
 Ensure-Dir $RuntimeRoot
 Install-LuaSkillsFfi -RuntimeRootPath $RuntimeRoot
 Write-Host "LuaSkills FFI SDK installed into $RuntimeRoot"

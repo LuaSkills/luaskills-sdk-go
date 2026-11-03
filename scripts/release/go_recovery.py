@@ -681,7 +681,7 @@ def examples_stage(args):
                  "Examples signing source/job/mode differs")
     examples = gate.read_json(args.examples / "examples.json")
     gate.require(examples["accepted"] is True and examples["plan"]["sdk_sha"] == header["sdk_source_sha"]
-                 and examples["plan"]["sdk_version"] == header["sdk_version"], "Actual six-example receipt differs from formal SDK")
+                 and examples["plan"]["sdk_version"] == header["sdk_version"], "Actual seven-example receipt differs from formal SDK")
     version = header["sdk_version"]
     archive = args.examples / ("luaskills-sdk-go-examples-" + version + ".zip")
     sidecar = archive.with_suffix(".zip.sha256")
@@ -782,7 +782,7 @@ def examples_publish(args):
     gate.trusted_workflow(api, header["sdk_source_sha"])
     notes = args.output.parent / "examples-notes.md"
     gate.require(not notes.exists(), "Examples publication notes output must be fresh")
-    notes.write_text(f"Original signed six-example ZIP and sidecar from {run_id}/{attempt}; formally completed Go SDK {header['candidate_run_id']}/{header['candidate_run_attempt']} and {header['completion_run_id']}/{header['completion_run_attempt']}.\n", encoding="utf-8")
+    notes.write_text(f"Original signed seven-example ZIP and sidecar from {run_id}/{attempt}; formally completed Go SDK {header['candidate_run_id']}/{header['candidate_run_attempt']} and {header['completion_run_id']}/{header['completion_run_attempt']}.\n", encoding="utf-8")
     result = gate.publish_assets(api, "examples-v" + header["sdk_version"], header["sdk_source_sha"],
                                 tuple(args.output / name for name in sorted(files)), "LuaSkills Go SDK Examples " + header["sdk_version"], notes)
     return {**result, "original_attempt": actual, "artifact": metadata}

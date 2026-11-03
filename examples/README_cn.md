@@ -56,6 +56,12 @@ go run .\examples\lifecycle
 go run .\examples\runtime_lease
 ```
 
+`writable_dirs` 使运行时根保持只读：设置 `preserve_host_writable_dirs: true`，由宿主创建 `temp_dir`，并把 `download_cache_root` 放在 `runtime_root` 之外，然后输出技能看到的 `vulcan.runtime.temp_dir`。
+
+```powershell
+go run .\examples\writable_dirs
+```
+
 `provider_callback`（TypeScript 为 `provider-callback.mjs`）执行真实 SQLite 接入验证：建表、参数化写入、事务回滚、查询和重建引擎后的持久化。数据仅由宿主创建，输出保留的数据库路径。
 
 ```powershell
@@ -71,7 +77,7 @@ go run .
 
 ## 示例发布包
 
-仓库工作流 **Examples Release** 先认证显式原 SDK 候选与成功完成轮次、两条永久签名链及新的冷消费者，再生成 `luaskills-sdk-go-examples-{VERSION}.zip`。它使用独立已验 TypeScript 精确版本、实际核心库字节及新缓存中的公共 Go 模块运行六例。确定性 ZIP 与原 sidecar 在发布前独立签名；恢复仅复用指定原签名制品。
+仓库工作流 **Examples Release** 先认证显式原 SDK 候选与成功完成轮次、两条永久签名链及新的冷消费者，再生成 `luaskills-sdk-go-examples-{VERSION}.zip`。它使用独立已验 TypeScript 精确版本、实际核心库字节及新缓存中的公共 Go 模块运行七例。确定性 ZIP 与原 sidecar 在发布前独立签名；恢复仅复用指定原签名制品。
 
 从[示例发布列表](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true)中匹配的 `examples-v{VERSION}` 条目下载。工作流先向 draft 上传全部资产，再发布此独立 Release；已有 final 资产不覆盖、不追加。
 

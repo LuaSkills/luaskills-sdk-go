@@ -6,9 +6,9 @@
     # Runtime root that receives all synchronized assets.
     # 接收全部同步资产的运行根目录。
     [string]$RuntimeRoot = "output",
-    # Exact LuaSkills release tag used for the FFI SDK asset.
-    # FFI SDK 资产使用的精确 LuaSkills 发布标签。
-    [string]$LuaSkillsVersion = "v0.8.2",
+    # Optional exact vX.Y.Z core tag for the FFI SDK asset; empty resolves the newest published patch of the contract series.
+    # FFI SDK 资产可选的精确 vX.Y.Z 核心标签；为空时解析契约系列最新已发布补丁版本。
+    [string]$LuaSkillsVersion = "",
     # Compatible Lua runtime packages release series.
     # 兼容的 Lua runtime packages 发布协议线。
     [string]$LuaRuntimeSeries = "0.1",

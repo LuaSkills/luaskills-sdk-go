@@ -38,6 +38,21 @@ func (e *EmbeddedCompatibilityError) Unwrap() error { return e.Cause }
 // embeddedBuildDigest 校验核心小写 SHA-256 输入证据，不认证二进制。
 var embeddedBuildDigest = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+// embeddedCoreVersionPattern accepts only an exact canonical major.minor.patch core version.
+// embeddedCoreVersionPattern 只接受精确规范的 major.minor.patch 核心版本。
+var embeddedCoreVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+
+// EmbeddedCoreVersionInSeries reports whether version is an exact x.y.z core release of EmbeddedCoreSeries.
+// EmbeddedCoreVersionInSeries 判断 version 是否为 EmbeddedCoreSeries 系列中的精确 x.y.z 核心版本。
+// Every patch of the series keeps the contract bytes; the contract digest is still checked separately.
+// 该系列的每个补丁版本保持契约字节不变；契约摘要仍需单独校验。
+func EmbeddedCoreVersionInSeries(version string) bool {
+	if !embeddedCoreVersionPattern.MatchString(version) {
+		return false
+	}
+	return version[:strings.LastIndex(version, ".")] == EmbeddedCoreSeries
+}
+
 // validateEmbeddedNames requires unique nonempty names and the generated required subset; empty optional lists are valid.
 // validateEmbeddedNames 要求唯一非空名称及生成必需子集；可选清单允许为空。
 func validateEmbeddedNames(values, required []string, field string) error {
@@ -79,8 +94,11 @@ func validateEmbeddedDescription(bytes []byte) (EmbeddedOutputCoreDescription, e
 			return empty, &EmbeddedCompatibilityError{Message: fmt.Sprintf("native %s mismatch: expected %d, received %d", version.name, version.expected, version.actual)}
 		}
 	}
-	if description.CoreVersion != EmbeddedCoreVersion || description.Build.ContractSha256 != EmbeddedContractSHA256 {
-		return empty, &EmbeddedCompatibilityError{Message: "native core version or embedded contract SHA-256 mismatch"}
+	if !EmbeddedCoreVersionInSeries(description.CoreVersion) {
+		return empty, &EmbeddedCompatibilityError{Message: fmt.Sprintf("native core version %q is not an exact release of core series %s", description.CoreVersion, EmbeddedCoreSeries)}
+	}
+	if description.Build.ContractSha256 != EmbeddedContractSHA256 {
+		return empty, &EmbeddedCompatibilityError{Message: fmt.Sprintf("native embedded contract SHA-256 mismatch: expected %s, received %s", EmbeddedContractSHA256, description.Build.ContractSha256)}
 	}
 	for _, inventory := range []struct {
 		name             string

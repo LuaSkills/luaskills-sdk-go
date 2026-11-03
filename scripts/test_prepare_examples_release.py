@@ -81,7 +81,7 @@ class PublishedArchiveTests(unittest.TestCase):
                         # report proves the prepared source excludes development API files and preserves relative file links.
                         # report 证明已准备源码排除开发 API 文件并保留相对文件链接。
                         report = verify_archive(archive, "examples-package")
-                        self.assertEqual(len(report["examples"]), 6)
+                        self.assertEqual(len(report["examples"]), 7)
                         self.assertNotIn("examples/embedded_lifecycle/main.go", files)
                         self.assertGreater(report["relative_document_links"], 0)
                         with zipfile.ZipFile(archive) as packaged:

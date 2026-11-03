@@ -18,7 +18,7 @@ from verify_embedded_distribution import module_sources
 
 # This single published-example inventory expands only alongside a matching smoke-tested SDK module version.
 # 此唯一已发布示例清单仅随匹配且已冒烟验证的 SDK 模块版本扩展。
-PUBLISHED_EXAMPLES = ("basic", "query", "call", "lifecycle", "runtime_lease", "provider_callback")
+PUBLISHED_EXAMPLES = ("basic", "query", "call", "lifecycle", "runtime_lease", "provider_callback", "writable_dirs")
 # These shipped documents preserve every relative Markdown file link in the standalone package.
 # 这些随包文档保留独立包中的每个相对 Markdown 文件链接。
 PACKAGE_DOCUMENTS = ("LICENSE", "README.md", "README_cn.md", "examples/README.md", "examples/README_cn.md", "docs/embedded-validation.md")
@@ -66,8 +66,8 @@ def prepare(root: Path, output: Path, version: str, module_tag: str, npm_version
     sqlite_module.write_text(sqlite_source, encoding="utf-8")
     (output / "EXAMPLES_RELEASE.md").write_text(f"""# LuaSkills Go SDK Examples {version}
 
-These six examples use `github.com/LuaSkills/luaskills-sdk-go {module_tag}`.
-这六个示例使用 `github.com/LuaSkills/luaskills-sdk-go {module_tag}`。
+These seven examples use `github.com/LuaSkills/luaskills-sdk-go {module_tag}`.
+这七个示例使用 `github.com/LuaSkills/luaskills-sdk-go {module_tag}`。
 
 See [English examples](examples/README.md), [中文示例](examples/README_cn.md), and [development validation boundaries](docs/embedded-validation.md).
 The development-only `embedded_lifecycle` example is excluded; obtain it from a matching development source checkout.
@@ -87,7 +87,7 @@ CGO_ENABLED=1 go run .
 
 
 def verify_archive(archive: Path, package_name: str) -> dict[str, object]:
-    """Inspect real archive under package_name, returning six-example/hash/link evidence or explicit failure.
+    """Inspect real archive under package_name, returning seven-example/hash/link evidence or explicit failure.
     检查 package_name 下的真实 archive，返回六示例／摘要／链接证据或明确失败。
     Reject unpublished directories, duplicate/escaped paths, missing examples and broken relative document targets.
     拒绝未发布目录、重复／逃逸路径、缺失示例及文档相对目标断链。

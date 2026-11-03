@@ -175,21 +175,31 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "member manifest mismatch"):
                 gate.module_bytes(plan, directory)
 
-    def test_version_mirror_and_default_tag(self):
-        """Read real metadata files and reject mismatched embedded mirror or explicit default asset tag.
-        读取真实元数据文件，拒绝嵌入镜像或显式默认资产标签不符。
+    def test_core_series_and_core_tag(self):
+        """Read real metadata files: accept any core patch of the series and reject series drift or a tag outside it.
+        读取真实元数据文件：接受系列内任一核心补丁，拒绝系列漂移或系列外标签。
         """
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "VERSION").write_text("0.5.9\n")
-            (root / "embedded_contract_generated.go").write_text('const EmbeddedCoreVersion = "0.5.9"\n')
-            (root / "runtime_assets.go").write_text('const DefaultLuaSkillsVersion = "v0.5.9"\n')
-            self.assertEqual(gate.source_metadata(root, "v0.5.9"), "0.5.9")
-            with self.assertRaisesRegex(ValueError, "asset tag"):
-                gate.source_metadata(root, "v0.6.0")
-            (root / "embedded_contract_generated.go").write_text('const EmbeddedCoreVersion = "0.5.8"\n')
-            with self.assertRaisesRegex(ValueError, "mirror differ"):
-                gate.source_metadata(root, "v0.5.9")
+            (root / "VERSION").write_text("0.5.2\n")
+            (root / "embedded_contract_generated.go").write_text('const EmbeddedCoreSeries = "0.5"\n')
+            (root / "runtime_assets.go").write_text('const DefaultLuaSkillsSeries = "0.5"\n')
+            for core_tag in ("v0.5.0", "v0.5.2", "v0.5.9"):
+                self.assertEqual(gate.source_metadata(root, core_tag), "0.5.2")
+            for core_tag in ("v0.6.0", "v0.4.9", "0.5.1", "v0.5", "v0.5.01", "v0.5.1-rc.1"):
+                with self.subTest(core_tag=core_tag), self.assertRaisesRegex(ValueError, "outside the SDK core series"):
+                    gate.source_metadata(root, core_tag)
+            (root / "runtime_assets.go").write_text('const DefaultLuaSkillsSeries = "0.6"\n')
+            with self.assertRaisesRegex(ValueError, "asset series"):
+                gate.source_metadata(root, "v0.5.2")
+            (root / "runtime_assets.go").write_text('const DefaultLuaSkillsSeries = "0.5"\n')
+            (root / "VERSION").write_text("0.6.0\n")
+            with self.assertRaisesRegex(ValueError, "major.minor differs"):
+                gate.source_metadata(root, "v0.5.2")
+            (root / "VERSION").write_text("0.5.2\n")
+            (root / "embedded_contract_generated.go").write_text('const EmbeddedCoreVersion = "0.5.2"\n')
+            with self.assertRaisesRegex(ValueError, "embedded core series required"):
+                gate.source_metadata(root, "v0.5.2")
 
     def test_missing_platform_sha_and_nonformal_cargo(self):
         """Reject omitted native platforms, swapped SDK hashes, nonformal phases and fake Cargo receipts.

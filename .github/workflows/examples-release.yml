@@ -163,7 +163,7 @@ jobs:
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
           python scripts/release/go_release.py formal-proof --sdk-sha "$SDK_SHA" --sdk-version "$version" --candidate-run-id "$CANDIDATE_RUN" --candidate-run-attempt "$CANDIDATE_ATTEMPT" --completion-run-id "$COMPLETION_RUN" --completion-run-attempt "$COMPLETION_ATTEMPT" --completion-source-sha "$COMPLETION_SOURCE" --core-root "$GITHUB_WORKSPACE/core-release" --core-tag "$CORE_TAG" --core-commit "$CORE_COMMIT" --npm-root "$GITHUB_WORKSPACE/npm-release" --pypi-root "$GITHUB_WORKSPACE/pypi-release" --platform host --output "$RUNNER_TEMP/formal"
-      - name: Run six public-module examples using exact verified independent TypeScript installer
+      - name: Run seven public-module examples using exact verified independent TypeScript installer
         working-directory: sdk
         shell: bash
         run: python scripts/release/go_release.py examples --core-root "$GITHUB_WORKSPACE/core-release" --formal "$RUNNER_TEMP/formal" --output "$RUNNER_TEMP/examples"

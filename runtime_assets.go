@@ -1,12 +1,16 @@
 package luaskills
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -14,9 +18,27 @@ import (
 	"time"
 )
 
-// DefaultLuaSkillsVersion is the release tag used by SDK runtime installation.
-// DefaultLuaSkillsVersion 是 SDK 运行时安装使用的 LuaSkills 发布标签。
-const DefaultLuaSkillsVersion = "v0.8.2"
+// DefaultLuaSkillsSeries is the LuaSkills core release series (major.minor) used by SDK runtime installation.
+// DefaultLuaSkillsSeries 是 SDK 运行时安装使用的 LuaSkills 核心发布系列（major.minor）。
+// Installation resolves the newest published vX.Y.Z core release of this series; it equals EmbeddedCoreSeries.
+// 安装时解析该系列最新已发布的 vX.Y.Z 核心版本；它与 EmbeddedCoreSeries 相同。
+const DefaultLuaSkillsSeries = "0.9"
+
+// DefaultLuaSkillsRepository is the GitHub repository that publishes LuaSkills core release assets.
+// DefaultLuaSkillsRepository 是发布 LuaSkills 核心发布资产的 GitHub 仓库。
+const DefaultLuaSkillsRepository = "LuaSkills/luaskills"
+
+// LuaSkillsFFIContractDigestPath is the archive member that carries the packaged embedded contract digest.
+// LuaSkillsFFIContractDigestPath 是承载包内嵌入式契约摘要的归档成员。
+const LuaSkillsFFIContractDigestPath = "contracts/embedded/v1/contract.sha256"
+
+// githubAPIBaseURL is the GitHub REST API origin used for release discovery; tests replace it with a local listing.
+// githubAPIBaseURL 是发布发现使用的 GitHub REST API 源；测试将其替换为本地清单。
+var githubAPIBaseURL = "https://api.github.com"
+
+// luaSkillsCoreTagPattern accepts only an exact canonical vX.Y.Z core release tag.
+// luaSkillsCoreTagPattern 只接受精确规范的 vX.Y.Z 核心发布标签。
+var luaSkillsCoreTagPattern = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 // DefaultLuaSkillsPackagesSeries is the release series used by SDK runtime package installation.
 // DefaultLuaSkillsPackagesSeries 是 SDK 运行时 package 安装使用的 luaskills-packages 发布协议线。
@@ -226,8 +248,10 @@ type RuntimeInstallOptions struct {
 	// Database selects the SDK-level database integration mode.
 	// Database 选择 SDK 级数据库集成模式。
 	Database RuntimeDatabasePreset
-	// LuaSkillsVersion is the LuaSkills release tag.
-	// LuaSkillsVersion 是 LuaSkills 发布标签。
+	// LuaSkillsVersion is an optional exact vX.Y.Z core release tag inside DefaultLuaSkillsSeries.
+	// LuaSkillsVersion 是 DefaultLuaSkillsSeries 内可选的精确 vX.Y.Z 核心发布标签。
+	// Empty resolves the newest published release of the series; a tag outside the series is rejected.
+	// 为空时解析该系列最新已发布版本；系列外的标签会被拒绝。
 	LuaSkillsVersion string
 	// LuaRuntimeVersion is the runtime packages release tag.
 	// LuaRuntimeVersion 是 runtime packages 发布标签。
@@ -403,8 +427,24 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) (RuntimeInsta
 	if options.Database != RuntimeDatabaseNone && options.Database != RuntimeDatabaseHostCallback {
 		return RuntimeInstallOptions{}, fmt.Errorf("unsupported database preset: %s", options.Database)
 	}
-	if options.LuaSkillsVersion == "" {
-		options.LuaSkillsVersion = DefaultLuaSkillsVersion
+	if options.LuaSkillsRepo == "" {
+		options.LuaSkillsRepo = DefaultLuaSkillsRepository
+	}
+	if options.LuaSkillsVersion != "" {
+		if err := ValidateLuaSkillsReleaseTag(options.LuaSkillsVersion); err != nil {
+			return RuntimeInstallOptions{}, err
+		}
+	} else if !options.SkipLuaSkillsFFI {
+		// The newest published patch of the series is installed; its packaged contract digest is checked after download.
+		// 安装该系列最新已发布补丁版本；下载后再校验其包内契约摘要。
+		resolvedTag, err := resolveReleaseTagForSeries(options.LuaSkillsRepo, DefaultLuaSkillsSeries)
+		if err != nil {
+			return RuntimeInstallOptions{}, err
+		}
+		if err := ValidateLuaSkillsReleaseTag(resolvedTag); err != nil {
+			return RuntimeInstallOptions{}, err
+		}
+		options.LuaSkillsVersion = resolvedTag
 	}
 	if options.LuaRuntimeSeries == "" {
 		options.LuaRuntimeSeries = DefaultLuaSkillsPackagesSeries
@@ -415,9 +455,6 @@ func normalizeRuntimeInstallOptions(options RuntimeInstallOptions) (RuntimeInsta
 			return RuntimeInstallOptions{}, err
 		}
 		options.LuaRuntimeVersion = resolvedTag
-	}
-	if options.LuaSkillsRepo == "" {
-		options.LuaSkillsRepo = "LuaSkills/luaskills"
 	}
 	if options.LuaRuntimeRepo == "" {
 		options.LuaRuntimeRepo = "LuaSkills/luaskills-packages"
@@ -623,7 +660,7 @@ func resolveReleaseTagForSeries(repository string, series string) (string, error
 	if err != nil {
 		return "", err
 	}
-	request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://api.github.com/repos/%s/releases?per_page=100", repository), nil)
+	request, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/repos/%s/releases?per_page=100", githubAPIBaseURL, repository), nil)
 	if err != nil {
 		return "", err
 	}
@@ -667,6 +704,66 @@ func resolveReleaseTagForSeries(repository string, series string) (string, error
 		return candidates[left].patch > candidates[right].patch
 	})
 	return candidates[0].tag, nil
+}
+
+// ValidateLuaSkillsReleaseTag accepts only an exact vX.Y.Z core release tag of DefaultLuaSkillsSeries.
+// ValidateLuaSkillsReleaseTag 只接受 DefaultLuaSkillsSeries 中精确的 vX.Y.Z 核心发布标签。
+func ValidateLuaSkillsReleaseTag(tag string) error {
+	if !luaSkillsCoreTagPattern.MatchString(tag) {
+		return fmt.Errorf("LuaSkills core release tag %q must be an exact vX.Y.Z tag", tag)
+	}
+	if tag[1:strings.LastIndex(tag, ".")] != DefaultLuaSkillsSeries {
+		return fmt.Errorf("LuaSkills core release tag %s is outside core series %s supported by this SDK", tag, DefaultLuaSkillsSeries)
+	}
+	return nil
+}
+
+// VerifyLuaSkillsFFIArchiveContract requires a luaskills-ffi-sdk-<platform>.tar.gz archive to package this SDK's contract.
+// VerifyLuaSkillsFFIArchiveContract 要求 luaskills-ffi-sdk-<platform>.tar.gz 归档打包本 SDK 的契约。
+// The archive's contract digest sidecar must name EmbeddedContractSHA256; a missing or different digest is an error.
+// 归档的契约摘要旁路文件必须指明 EmbeddedContractSHA256；缺失或不同的摘要均为错误。
+func VerifyLuaSkillsFFIArchiveContract(archivePath string) error {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("open LuaSkills FFI SDK archive %s: %w", archivePath, err)
+	}
+	defer file.Close()
+	decompressed, err := gzip.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("read LuaSkills FFI SDK archive %s: %w", archivePath, err)
+	}
+	defer decompressed.Close()
+	archive := tar.NewReader(decompressed)
+	for {
+		header, err := archive.Next()
+		if errors.Is(err, io.EOF) {
+			return fmt.Errorf("LuaSkills FFI SDK archive %s does not contain %s", archivePath, LuaSkillsFFIContractDigestPath)
+		}
+		if err != nil {
+			return fmt.Errorf("read LuaSkills FFI SDK archive %s: %w", archivePath, err)
+		}
+		if header.Name != LuaSkillsFFIContractDigestPath {
+			continue
+		}
+		if header.Typeflag != tar.TypeReg {
+			return fmt.Errorf("LuaSkills FFI SDK archive %s member %s is not a regular file", archivePath, LuaSkillsFFIContractDigestPath)
+		}
+		// The sidecar is one short "<digest>  contract.json" line; reading past a small bound rejects malformed members.
+		// 旁路文件是一行简短的“<摘要>  contract.json”；超过较小上限的读取会拒绝畸形成员。
+		content, err := io.ReadAll(io.LimitReader(archive, 4096))
+		if err != nil {
+			return fmt.Errorf("read %s from LuaSkills FFI SDK archive %s: %w", LuaSkillsFFIContractDigestPath, archivePath, err)
+		}
+		fields := strings.Fields(string(content))
+		if len(fields) == 0 || fields[0] != EmbeddedContractSHA256 {
+			actual := "<empty>"
+			if len(fields) > 0 {
+				actual = fields[0]
+			}
+			return fmt.Errorf("LuaSkills FFI SDK archive %s packages embedded contract %s, but this SDK requires %s", archivePath, actual, EmbeddedContractSHA256)
+		}
+		return nil
+	}
 }
 
 // parseReleaseSeries parses one release series string like 0.1.

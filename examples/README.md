@@ -56,6 +56,12 @@ go run .\examples\lifecycle
 go run .\examples\runtime_lease
 ```
 
+`writable_dirs` keeps the runtime root read-only: it sets `preserve_host_writable_dirs: true` with a host-created `temp_dir` and a `download_cache_root` outside `runtime_root`, then prints the `vulcan.runtime.temp_dir` that skills see.
+
+```powershell
+go run .\examples\writable_dirs
+```
+
 `provider_callback` (`provider-callback.mjs` for TypeScript) verifies real SQLite: schema creation, parameterized writes, transaction rollback, queries and persistence after engine recreation. Only the host creates data; the retained database path is printed.
 
 ```powershell
@@ -71,7 +77,7 @@ The fixture skill is stored at `examples/fixture-runtime/user_skills/demo-standa
 
 ## Release Package
 
-The repository workflow **Examples Release** authenticates the explicit original SDK candidate and successful completion attempts, both permanent signatures and new cold consumers before creating `luaskills-sdk-go-examples-{VERSION}.zip`. It uses the independently verified TypeScript version, exact core library and public Go module in a new cache to run six examples. The deterministic ZIP and original sidecar are independently signed before publication; recovery reuses only that exact signed artifact.
+The repository workflow **Examples Release** authenticates the explicit original SDK candidate and successful completion attempts, both permanent signatures and new cold consumers before creating `luaskills-sdk-go-examples-{VERSION}.zip`. It uses the independently verified TypeScript version, exact core library and public Go module in a new cache to run seven examples. The deterministic ZIP and original sidecar are independently signed before publication; recovery reuses only that exact signed artifact.
 
 Download from the matching `examples-v{VERSION}` entry in [Examples releases](https://github.com/LuaSkills/luaskills-sdk-go/releases?q=examples-v&expanded=true). The workflow uploads all assets to a draft before publishing this separate Release; existing final assets are never overwritten or extended.
 

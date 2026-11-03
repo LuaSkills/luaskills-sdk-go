@@ -6,7 +6,7 @@ LuaSkills 主仓库：[LuaSkills/luaskills](https://github.com/LuaSkills/luaskil
 
 Go SDK，用于通过公共 JSON FFI 接入 LuaSkills 运行时。
 
-此源码对齐已发布的 LuaSkills core `0.8.2`。SQLite 仅由宿主注册和管理；运行时安装器仅安装核心与 Lua 资源。
+此源码跟随 LuaSkills core `0.9` 系列：可配合嵌入式契约摘要一致的任一 core `0.9.x` 补丁版本使用。SQLite 仅由宿主注册和管理；运行时安装器仅安装核心与 Lua 资源。
 
 SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config、provider callback 边界、宿主工具 callback 边界与 runtime manifest 辅助能力。
 
@@ -24,9 +24,9 @@ SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、�
 
 历史不会变成活动句柄。管理对账或删除前须先遗忘仍保留的活动操作。`HistoryReconcile` 附加一份最终、有界宿主证明，保留原始快照、调用方及副作用身份。可信宿主必须授权对账者、证明全部原执行及外部所有者已停止，并核验整个操作及每条副作用；对账者字符串不是认证。普通 Lua 的未知副作用不能从成功返回推断。使用原命名空间、操作 ID 及前驱修订；存储恢复后精确重试同一证明可确认同一后继。返回修订用于显式删除。此 API 不查询外部系统、不重放回调、不制造中断执行结果，也不恢复失败写入者或执行栈。开发磁盘格式为第 4 版，拒绝未发布的第 1–3 版且不改写原文件；必须使用匹配的开发核心与 SDK 契约。
 
-`NewEmbeddedTransport` 使用独立版本一 C ABI。请链接与随包头文件及生成契约匹配的 LuaSkills core `0.8.2`，该版本包含 ARM64 宿主的 LuaJIT 分配器修复。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
+`NewEmbeddedTransport` 使用独立版本一 C ABI。请链接包内契约摘要与随包头文件及生成契约一致的 LuaSkills core `0.9.x` 版本，该系列包含 ARM64 宿主的 LuaJIT 分配器修复。`CGO_ENABLED=0` 仍可使用契约和编码器，原生构造明确返回不支持错误。
 
-原生分配前，构造器读取 `luaskills_ffi_embedded_describe_v1`，在复制前检查借用指针及长度边界，再检查精确核心／协议／ABI／描述版本、包内契约摘要、必需命令及能力、支持的后端、进程系统和指针位宽。畸形或不兼容元数据返回 `*EmbeddedCompatibilityError`；非零原生状态仍为 `*EmbeddedTransportError`。发现字节由动态库拥有，绝不交给结果释放函数。`CoreDescription()` 返回各切片独立复制的类型化证据，成功释放后仍可读取。构建摘要仅描述选定输入，不认证二进制，也不证明完整封闭构建。
+原生分配前，构造器读取 `luaskills_ffi_embedded_describe_v1`，在复制前检查借用指针及长度边界，再检查核心版本为 `EmbeddedCoreSeries` 系列内的精确 `x.y.z`，以及精确协议／ABI／描述版本、包内契约摘要、必需命令及能力、支持的后端、进程系统和指针位宽。畸形或不兼容元数据返回 `*EmbeddedCompatibilityError`；非零原生状态仍为 `*EmbeddedTransportError`。发现字节由动态库拥有，绝不交给结果释放函数。`CoreDescription()` 返回各切片独立复制的类型化证据，成功释放后仍可读取。构建摘要仅描述选定输入，不认证二进制，也不证明完整封闭构建。
 
 cgo 后端调用链接／加载时解析的符号；旧库缺少发现符号时，可能在 Go 代码执行前发生链接或系统加载失败，因此不能保证该情况总是转成 SDK 错误。没有旧协议回退或 SDK 卸载动态库操作。驱动协程复用传输保留的精确链接后端，不会按另一路径加载库。应使用不可变版本原生资产；在运行进程内替换核心不属于此 API 的更新契约。
 
@@ -132,7 +132,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deps/sync_runtime_as
 RUNTIME_ROOT=/opt/luaskills scripts/deps/sync_runtime_assets.sh all
 ```
 
-同步脚本目标支持 `all`、`luaskills`、`lua`，默认核心版本为 `v0.8.2`。CLI 的数据库选项仅支持 `none` 与 `host-callback`；后者只设置 `sqlite_callback_mode: json`，仍需宿主注册。
+同步脚本目标支持 `all`、`luaskills`、`lua`。核心默认使用最新已发布的 `v0.9.x` 版本（系列取自包内契约的 `core_series`）；`-LuaSkillsVersion`／`LUASKILLS_VERSION` 可固定精确标签，但必须属于该系列。解压后归档中的 `contracts/embedded/v1/contract.sha256` 必须与 SDK 契约摘要一致；不一致直接失败，不尝试其他标签。CLI 的数据库选项仅支持 `none` 与 `host-callback`；后者只设置 `sqlite_callback_mode: json`，仍需宿主注册。
 
 Go SDK 会规划并消费共享 SDK runtime manifest；上述仓库脚本负责直接下载 release 资产。当前共享 manifest 会指向：
 
@@ -201,14 +201,16 @@ RUNTIME_ROOT=/opt/luaskills scripts/deps/fetch_managed_runtimes.sh all
 python3 scripts/debug-tools/managed_runtime_layout_check.py /opt/luaskills
 ```
 
-默认情况下，这份共享 manifest 会把 LuaSkills core 固定到 SDK 对应版本，并从兼容的 `0.1` 协议线中自动解析最新已发布的 runtime packages patch 版本。
+默认情况下，这份共享 manifest 会解析 `DefaultLuaSkillsSeries` 系列最新已发布的 LuaSkills core 补丁版本（显式 `LuaSkillsVersion` 必须是该系列的 `vX.Y.Z` 标签；自行下载规划归档的宿主用 `VerifyLuaSkillsFFIArchiveContract` 校验），并从兼容的 `0.1` 协议线中自动解析最新已发布的 runtime packages patch 版本。
 
 ## 版本对齐
 
-- 尽量让 SDK 与 LuaSkills core 保持同一条当前发布版本线。
-- 此 SDK 源码默认指向 LuaSkills core 标签 `v0.8.2`；匹配核心发布并通过验收后才能下载。
+- SDK `0.9.x` 可配合嵌入式契约摘要一致的任一 LuaSkills core `0.9.x` 补丁版本（`DefaultLuaSkillsSeries = "0.9"`）。核心补丁版本保持契约字节不变，因此无需发布新 SDK。
+- 安装器与同步脚本选择该系列最新已发布的核心补丁版本，包内契约摘要不一致即拒绝，不回退到更旧的补丁版本。显式核心标签必须属于该系列。
+- 新的核心次版本系列会改变契约，需要新的 SDK 次版本。
 - runtime packages 与 native deps 仍然来自拆分后的 `LuaSkills/luaskills-packages` 及相关发布资产。
 - SDK 默认 host options 传入 `runtime_root`、两个空的受管根覆盖槽与完整稳定的 `managed_runtime_config`；宿主未显式覆盖时，LuaSkills 会推导固定数据布局。
+- `preserve_host_writable_dirs`（默认 `false`）保留宿主设置的 `temp_dir` 与 `download_cache_root`，不再从 `runtime_root` 推导，使只读运行时根不接收临时文件或下载内容。此时两个路径均为必填；宿主创建 `temp_dir`，引擎创建下载缓存。参见 `examples/writable_dirs`。
 - 宿主工具直接放在 `runtime_root/bin`，不再放到 `runtime_root/bin/tools`。
 
 ```powershell
@@ -505,7 +507,7 @@ go test ./...
 
 工作流先进入默认分支，再针对精确已提交 SDK SHA 运行 **Go SDK Release**。默认 `artifact-only` 冻结一个实际模块 ZIP，在全部核心平台执行真实 cgo／race，并在公开写入前独立签署完整候选。显式 `publish` 或 `recover` 重查完整公共核心及独立 NPM／PyPI 正式双链消费者，主 `vVERSION` 仅发布原候选字节，再实际冷消费公共 Go proxy。独立签名完成凭证发布至 `recovery-vVERSION-rRUNID-aATTEMPT`，两组源码／run／attempt 身份均显式记录，详见[发布契约](https://github.com/LuaSkills/luaskills-sdk-go/blob/main/scripts/release/README.md)。当前开发 VERSION 与嵌入版本镜像须由发布负责人协调一致后，正式冻结才可通过。
 
-**Examples Release** 要求显式原 SDK 候选及成功完成轮次，重验两条永久签名链及实际冷消费者，再使用独立已验 TypeScript 精确版本安装 runtime、核对核心字节，并用公共 Go 模块运行六例。确定性 ZIP 与原 sidecar 在发布前独立签名，恢复只消费指定原签名制品。全部 draft 资产上传后发布独立 `examples-v{VERSION}` Release：
+**Examples Release** 要求显式原 SDK 候选及成功完成轮次，重验两条永久签名链及实际冷消费者，再使用独立已验 TypeScript 精确版本安装 runtime、核对核心字节，并用公共 Go 模块运行七例。确定性 ZIP 与原 sidecar 在发布前独立签名，恢复只消费指定原签名制品。全部 draft 资产上传后发布独立 `examples-v{VERSION}` Release：
 
 - `luaskills-sdk-go-examples-{VERSION}.zip`
 - `luaskills-sdk-go-examples-{VERSION}.zip.sha256`

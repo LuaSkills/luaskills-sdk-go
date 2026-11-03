@@ -1,11 +1,186 @@
 package luaskills
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// testLuaSkillsTag is an exact core tag of the SDK series so manifest tests never discover releases over the network.
+// testLuaSkillsTag 是 SDK 系列内的精确核心标签，使清单测试绝不通过网络发现发布。
+const testLuaSkillsTag = "v" + DefaultLuaSkillsSeries + ".0"
+
+// fakeGitHubReleases serves one fixed release listing in place of the GitHub API and counts listing requests.
+// fakeGitHubReleases 以固定发布清单代替 GitHub API，并统计清单请求次数。
+func fakeGitHubReleases(t *testing.T, repository string, releases []map[string]any) *int {
+	t.Helper()
+	requests := new(int)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+repository+"/releases" {
+			t.Errorf("unexpected release discovery request: %s", request.URL.Path)
+			http.NotFound(writer, request)
+			return
+		}
+		*requests++
+		writer.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(writer).Encode(releases); err != nil {
+			t.Error(err)
+		}
+	}))
+	previous := githubAPIBaseURL
+	githubAPIBaseURL = server.URL
+	t.Cleanup(func() {
+		githubAPIBaseURL = previous
+		server.Close()
+	})
+	return requests
+}
+
+// fakeRelease builds one GitHub release listing entry.
+// fakeRelease 构造一个 GitHub 发布清单条目。
+func fakeRelease(tag string, draft bool, prerelease bool) map[string]any {
+	return map[string]any{"tag_name": tag, "draft": draft, "prerelease": prerelease}
+}
+
+// TestLuaSkillsSeriesMatchesEmbeddedContract keeps the installed core series identical to the compatibility series.
+// TestLuaSkillsSeriesMatchesEmbeddedContract 保持安装的核心系列与兼容检查系列一致。
+func TestLuaSkillsSeriesMatchesEmbeddedContract(t *testing.T) {
+	if DefaultLuaSkillsSeries != EmbeddedCoreSeries {
+		t.Fatalf("installer series %s differs from embedded contract series %s", DefaultLuaSkillsSeries, EmbeddedCoreSeries)
+	}
+}
+
+// TestLuaSkillsSeriesResolvesNewestPatch installs the newest published patch of the series from a fake listing.
+// TestLuaSkillsSeriesResolvesNewestPatch 从伪造清单中安装该系列最新已发布补丁版本。
+func TestLuaSkillsSeriesResolvesNewestPatch(t *testing.T) {
+	series := "v" + DefaultLuaSkillsSeries
+	requests := fakeGitHubReleases(t, DefaultLuaSkillsRepository, []map[string]any{
+		fakeRelease(series+".0", false, false),
+		fakeRelease(series+".10", false, false),
+		fakeRelease(series+".3", false, false),
+		fakeRelease(series+".11", true, false),
+		fakeRelease(series+".12", false, true),
+		fakeRelease("v"+embeddedNextMinorVersion(), false, false),
+		fakeRelease("nightly", false, false),
+	})
+	manifest, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: t.TempDir(), LuaRuntimeVersion: "v0.1.6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *requests != 1 {
+		t.Fatalf("expected one release listing request, got %d", *requests)
+	}
+	for _, asset := range manifest.Assets {
+		if asset.Role != RuntimeAssetLuaSkillsFFI {
+			continue
+		}
+		if asset.Version != series+".10" || !strings.Contains(asset.DownloadURL, "/releases/download/"+series+".10/") {
+			t.Fatalf("series default did not resolve the newest published patch: %#v", asset)
+		}
+		return
+	}
+	t.Fatal("LuaSkills FFI asset is missing from the manifest")
+}
+
+// TestLuaSkillsSeriesWithoutPublishedPatchFails rejects a series with no published patch instead of choosing another series.
+// TestLuaSkillsSeriesWithoutPublishedPatchFails 在系列没有已发布补丁时拒绝，而不选择其他系列。
+func TestLuaSkillsSeriesWithoutPublishedPatchFails(t *testing.T) {
+	series := "v" + DefaultLuaSkillsSeries
+	fakeGitHubReleases(t, DefaultLuaSkillsRepository, []map[string]any{
+		fakeRelease(series+".1", true, false),
+		fakeRelease(series+".2", false, true),
+		fakeRelease("v"+embeddedNextMinorVersion(), false, false),
+	})
+	_, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: t.TempDir(), LuaRuntimeVersion: "v0.1.6"})
+	if err == nil || !strings.Contains(err.Error(), DefaultLuaSkillsSeries) {
+		t.Fatalf("series without a published patch was not rejected: %v", err)
+	}
+}
+
+// TestLuaSkillsExplicitTag accepts an exact tag of the series without discovery and rejects every tag outside it.
+// TestLuaSkillsExplicitTag 无需发现即接受系列内的精确标签，并拒绝系列外的所有标签。
+func TestLuaSkillsExplicitTag(t *testing.T) {
+	requests := fakeGitHubReleases(t, DefaultLuaSkillsRepository, nil)
+	explicit := "v" + DefaultLuaSkillsSeries + ".4"
+	manifest, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: t.TempDir(), LuaRuntimeVersion: "v0.1.6", LuaSkillsVersion: explicit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Assets[len(manifest.Assets)-1].Version != explicit || *requests != 0 {
+		t.Fatalf("explicit tag was not used exactly: %#v, requests=%d", manifest.Assets, *requests)
+	}
+	for _, tag := range []string{"v" + embeddedNextMinorVersion(), "v0.0.1", DefaultLuaSkillsSeries + ".1", "v" + DefaultLuaSkillsSeries,
+		"v" + DefaultLuaSkillsSeries + ".01", "v" + DefaultLuaSkillsSeries + ".1-rc.1", "latest"} {
+		if _, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: t.TempDir(), LuaRuntimeVersion: "v0.1.6", LuaSkillsVersion: tag}); err == nil {
+			t.Errorf("explicit tag outside series %s was accepted: %s", DefaultLuaSkillsSeries, tag)
+		}
+	}
+	if *requests != 0 {
+		t.Fatalf("explicit tags triggered release discovery: %d", *requests)
+	}
+}
+
+// writeFFIArchive writes one gzip tar archive containing the given members.
+// writeFFIArchive 写入包含给定成员的 gzip tar 归档。
+func writeFFIArchive(t *testing.T, members map[string]string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "luaskills-ffi-sdk-test.tar.gz")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	compressed := gzip.NewWriter(file)
+	archive := tar.NewWriter(compressed)
+	for name, content := range members {
+		if err := archive.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(content)), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := archive.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestVerifyLuaSkillsFFIArchiveContract accepts only an archive packaging this SDK's exact contract digest.
+// TestVerifyLuaSkillsFFIArchiveContract 只接受打包本 SDK 精确契约摘要的归档。
+func TestVerifyLuaSkillsFFIArchiveContract(t *testing.T) {
+	sidecar := EmbeddedContractSHA256 + "  contract.json\n"
+	matching := writeFFIArchive(t, map[string]string{"lib/libluaskills.so": "binary", LuaSkillsFFIContractDigestPath: sidecar})
+	if err := VerifyLuaSkillsFFIArchiveContract(matching); err != nil {
+		t.Fatal("matching contract digest was rejected:", err)
+	}
+	other := strings.Repeat("0", 64)
+	mismatched := writeFFIArchive(t, map[string]string{"lib/libluaskills.so": "binary", LuaSkillsFFIContractDigestPath: other + "  contract.json\n"})
+	if err := VerifyLuaSkillsFFIArchiveContract(mismatched); err == nil || !strings.Contains(err.Error(), other) || !strings.Contains(err.Error(), EmbeddedContractSHA256) {
+		t.Fatalf("contract digest mismatch was not rejected: %v", err)
+	}
+	for name, members := range map[string]map[string]string{
+		"missing": {"lib/libluaskills.so": "binary"},
+		"empty":   {LuaSkillsFFIContractDigestPath: ""},
+		"nested":  {"package/" + LuaSkillsFFIContractDigestPath: sidecar},
+	} {
+		if err := VerifyLuaSkillsFFIArchiveContract(writeFFIArchive(t, members)); err == nil {
+			t.Errorf("%s contract digest was accepted", name)
+		}
+	}
+	if err := VerifyLuaSkillsFFIArchiveContract(filepath.Join(t.TempDir(), "absent.tar.gz")); err == nil {
+		t.Error("absent archive was accepted")
+	}
+}
 
 // TestHostCallbackAssets verifies host-only database ownership and explicit migration errors without network access.
 // TestHostCallbackAssets 在不访问网络的情况下验证数据库仅由宿主拥有，以及显式迁移错误。
@@ -13,7 +188,7 @@ func TestHostCallbackAssets(t *testing.T) {
 	// Pin Lua assets so no release discovery can hide a database dependency.
 	// 固定 Lua 资产，避免发布发现掩盖数据库依赖。
 	root := t.TempDir()
-	manifest, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: root, Database: RuntimeDatabaseHostCallback, LuaRuntimeVersion: "v0.1.6"})
+	manifest, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: root, Database: RuntimeDatabaseHostCallback, LuaRuntimeVersion: "v0.1.6", LuaSkillsVersion: testLuaSkillsTag})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +203,7 @@ func TestHostCallbackAssets(t *testing.T) {
 		t.Fatalf("unexpected default mode: %#v, %v", options, err)
 	}
 	for _, preset := range []RuntimeDatabasePreset{"vldb-controller", "vldb-direct"} {
-		if _, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: root, Database: preset, LuaRuntimeVersion: "v0.1.6"}); err == nil {
+		if _, err := BuildRuntimeInstallManifest(RuntimeInstallOptions{RuntimeRoot: root, Database: preset, LuaRuntimeVersion: "v0.1.6", LuaSkillsVersion: testLuaSkillsTag}); err == nil {
 			t.Fatalf("accepted retired preset: %s", preset)
 		}
 	}
@@ -46,6 +221,7 @@ func TestBuildRuntimeInstallManifestIncludesLuaRuntime(t *testing.T) {
 		RuntimeRoot:       "runtime",
 		Database:          RuntimeDatabaseNone,
 		LuaRuntimeVersion: "v0.1.6",
+		LuaSkillsVersion:  testLuaSkillsTag,
 	})
 	if err != nil {
 		t.Fatalf("BuildRuntimeInstallManifest failed: %v", err)
@@ -68,6 +244,7 @@ func TestBuildRuntimeInstallManifestSkipsLuaRuntime(t *testing.T) {
 		RuntimeRoot:       "runtime",
 		Database:          RuntimeDatabaseNone,
 		LuaRuntimeVersion: "v0.1.6",
+		LuaSkillsVersion:  testLuaSkillsTag,
 		SkipLuaRuntime:    true,
 	})
 	if err != nil {
@@ -134,6 +311,9 @@ func TestDefaultHostOptionsAllowsMissingManifest(t *testing.T) {
 	}
 	if value, exists := options["managed_runtime_config"]; !exists || value != DefaultManagedRuntimeConfig() {
 		t.Fatalf("unexpected managed runtime config: %#v", value)
+	}
+	if value, exists := options["preserve_host_writable_dirs"]; !exists || value != false {
+		t.Fatalf("writable directories must follow runtime_root by default: %#v", value)
 	}
 }
 

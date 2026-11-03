@@ -11,6 +11,7 @@ import (
 	"github.com/LuaSkills/luaskills-sdk-go/internal/embeddedjson"
 	"go/format"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -24,9 +25,9 @@ type document struct {
 	// ProtocolVersion selects the exact request/response and ABI version.
 	// ProtocolVersion 选择精确请求／响应及 ABI 版本。
 	ProtocolVersion uint32 `json:"protocol_version"`
-	// CoreVersion records the generating core, not a published-library compatibility claim.
-	// CoreVersion 记录生成核心，不声称已发布动态库兼容。
-	CoreVersion string `json:"core_version"`
+	// CoreSeries names the core release series (major.minor) whose every patch keeps these exact bytes.
+	// CoreSeries 指明核心发布系列（major.minor），该系列的全部补丁版本保持这些精确字节。
+	CoreSeries string `json:"core_series"`
 	// Compatibility records the core-owned borrowed-description contract and mandatory capabilities.
 	// Compatibility 记录核心拥有的借用型描述契约及必需能力。
 	Compatibility struct {
@@ -56,6 +57,10 @@ type document struct {
 	// RuntimeResponses 与全部嵌套运行时命令核对。
 	RuntimeResponses map[string]json.RawMessage `json:"runtime_responses"`
 }
+
+// coreSeriesPattern accepts only a canonical major.minor release series without leading zeros.
+// coreSeriesPattern 只接受不带前导零的规范 major.minor 发布系列。
+var coreSeriesPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 // main checks exact artifact bytes and either verifies or writes formatted Go artifacts; invalid input exits nonzero.
 // main 校验精确产物字节，并验证或写入格式化 Go 产物；无效输入以非零状态退出。
@@ -90,7 +95,7 @@ func run(check bool) error {
 	if err = json.Unmarshal(data, &contract); err != nil {
 		return err
 	}
-	if contract.ContractVersion != 1 || contract.ProtocolVersion != 1 || contract.CoreVersion == "" {
+	if contract.ContractVersion != 1 || contract.ProtocolVersion != 1 || !coreSeriesPattern.MatchString(contract.CoreSeries) {
 		return fmt.Errorf("unsupported embedded contract metadata")
 	}
 	if contract.Compatibility.DescriptionVersion != 1 || contract.Compatibility.MaxDescriptionBytes == 0 || len(contract.Compatibility.RequiredCapabilities) == 0 {
@@ -126,7 +131,7 @@ func run(check bool) error {
 	output.WriteString("// Code generated from the packaged embedded contract; DO NOT EDIT.\n// 从包内嵌入式契约生成；请勿手工编辑。\npackage luaskills\n\n")
 	fmt.Fprintf(&output, "// EmbeddedProtocolVersion is the exact root JSON and C structure protocol version.\n// EmbeddedProtocolVersion 是精确的根 JSON 及 C 结构协议版本。\nconst EmbeddedProtocolVersion uint32 = %d\n", contract.ProtocolVersion)
 	fmt.Fprintf(&output, "// EmbeddedContractSHA256 identifies every byte of the packaged contract.\n// EmbeddedContractSHA256 标识包内契约的全部字节。\nconst EmbeddedContractSHA256 = %q\n", hash)
-	fmt.Fprintf(&output, "// EmbeddedCoreVersion identifies the core package that generated this contract.\n// EmbeddedCoreVersion 标识生成此契约的核心包。\nconst EmbeddedCoreVersion = %q\n", contract.CoreVersion)
+	fmt.Fprintf(&output, "// EmbeddedCoreSeries is the core release series (major.minor) whose patches keep this exact contract.\n// EmbeddedCoreSeries 是保持此精确契约的核心发布系列（major.minor）。\nconst EmbeddedCoreSeries = %q\n", contract.CoreSeries)
 	fmt.Fprintf(&output, "// EmbeddedDescriptionVersion is the independent borrowed descriptor format.\n// EmbeddedDescriptionVersion 是独立借用型描述格式。\nconst EmbeddedDescriptionVersion uint32 = %d\n", contract.Compatibility.DescriptionVersion)
 	fmt.Fprintf(&output, "// EmbeddedDescriptionMaxBytes bounds native descriptor copies before JSON decoding.\n// EmbeddedDescriptionMaxBytes 限制 JSON 解码前的原生描述复制。\nconst EmbeddedDescriptionMaxBytes uint64 = %d\n", contract.Compatibility.MaxDescriptionBytes)
 	output.WriteString("// EmbeddedNativeStatus is one exact signed C ABI status code.\n// EmbeddedNativeStatus 是一个精确的有符号 C ABI 状态码。\ntype EmbeddedNativeStatus int32\nconst (\n")

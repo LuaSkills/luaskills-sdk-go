@@ -13,9 +13,9 @@ TARGET="${1:-all}"
 # RuntimeRoot receives all synchronized assets.
 # RuntimeRoot 接收全部同步资产。
 RUNTIME_ROOT="${RUNTIME_ROOT:-output}"
-# LuaSkillsVersion stores the exact LuaSkills release tag.
-# LuaSkillsVersion 保存精确的 LuaSkills 发布标签。
-LUASKILLS_VERSION="${LUASKILLS_VERSION:-v0.8.2}"
+# LuaSkillsVersion stores an optional exact vX.Y.Z core tag; empty resolves the newest published patch of the contract series.
+# LuaSkillsVersion 保存可选的精确 vX.Y.Z 核心标签；为空时解析契约系列最新已发布补丁版本。
+LUASKILLS_VERSION="${LUASKILLS_VERSION:-}"
 
 case "$TARGET" in
   all|luaskills)

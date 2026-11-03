@@ -721,6 +721,13 @@ type EmbeddedInputLuaRuntimeHostOptions struct {
 	// Optional official LuaSkills Hub base URL used by managed Hub installs.
 	// 受管 Hub 安装使用的可选官方 LuaSkills Hub 基址。
 	OfficialSkillHubBaseUrl **string `json:"official_skill_hub_base_url,omitempty"`
+	// Keep the host-set `temp_dir` and `download_cache_root` instead of deriving them from
+	// `runtime_root`, so a read-only runtime root never receives transient files or downloads.
+	// Both paths are then required; the host creates `temp_dir`, the engine creates the cache.
+	// 保留宿主设置的 `temp_dir` 与 `download_cache_root`，不再从 `runtime_root` 推导，
+	// 使只读运行时根绝不接收临时文件或下载内容。此时两个路径均为必填；宿主创建 `temp_dir`，
+	// 引擎创建下载缓存。
+	PreserveHostWritableDirs *bool `json:"preserve_host_writable_dirs,omitempty"`
 	// Host-controlled URL prefixes allowed for private skill manifests.
 	// 宿主管控的私有技能 manifest 允许 URL 前缀。
 	PrivateSkillSourceAllowlist *EmbeddedInputLuaRuntimeHostOptionsPrivateSkillSourceAllowlist `json:"private_skill_source_allowlist,omitempty"`

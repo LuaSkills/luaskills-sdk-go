@@ -144,15 +144,21 @@ def runner_for(os_name, architecture):
 
 
 def source_metadata(root, core_tag):
-    """Read Go VERSION, generated version mirror and asset tag from root; return the final SDK version.
-    从 root 读取 Go VERSION、生成版本镜像及资产标签；返回正式 SDK 版本。
+    """Read Go VERSION, generated core series and default asset series from root; return the final SDK version.
+    从 root 读取 Go VERSION、生成核心系列及默认资产系列；返回正式 SDK 版本。
+    The SDK major.minor, embedded contract series and installer series must agree, and core_tag must be a patch of that series.
+    SDK major.minor、嵌入契约系列及安装器系列必须一致，且 core_tag 必须是该系列的补丁版本。
     """
     version = (root / "VERSION").read_text(encoding="utf-8").strip()
     require(re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version), "Final Go VERSION required")
-    embedded = re.findall(r'^const EmbeddedCoreVersion = "([^"]+)"$', (root / "embedded_contract_generated.go").read_text(encoding="utf-8"), re.M)
-    require(embedded == [version], "Go VERSION and embedded VERSION mirror differ")
-    asset = re.findall(r'^const DefaultLuaSkillsVersion = "([^"]+)"$', (root / "runtime_assets.go").read_text(encoding="utf-8"), re.M)
-    require(asset == [core_tag], "Default core asset tag differs from explicit core prerequisite tag")
+    embedded = re.findall(r'^const EmbeddedCoreSeries = "([^"]+)"$', (root / "embedded_contract_generated.go").read_text(encoding="utf-8"), re.M)
+    require(len(embedded) == 1 and re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", embedded[0]), "Generated embedded core series required")
+    series = embedded[0]
+    require(version.rsplit(".", 1)[0] == series, "Go VERSION major.minor differs from the embedded core series")
+    asset = re.findall(r'^const DefaultLuaSkillsSeries = "([^"]+)"$', (root / "runtime_assets.go").read_text(encoding="utf-8"), re.M)
+    require(asset == [series], "Default core asset series differs from the embedded core series")
+    tag = re.fullmatch(r"v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))\.(?:0|[1-9][0-9]*)", core_tag)
+    require(tag is not None and tag.group(1) == series, "Explicit core prerequisite tag is outside the SDK core series")
     return version
 
 
@@ -790,8 +796,8 @@ def validate_attestation_results(results, subjects, commit, run_id, attempt, wor
 
 
 def examples(args):
-    """Build, install and run the six published examples from the authenticated formal Go batch.
-    从已认证正式 Go 批次构建、安装并运行六个已发布示例。
+    """Build, install and run the seven published examples from the authenticated formal Go batch.
+    从已认证正式 Go 批次构建、安装并运行七个已发布示例。
     """
     formal = args.formal.resolve()
     proof = read_json(formal / "current/publish-proof.json")
@@ -848,7 +854,7 @@ def examples(args):
     sidecar = archive.with_suffix(".zip.sha256")
     sidecar.write_text(sha256(archive) + "  " + archive.name + "\n", encoding="utf-8")
     notes = args.output / "notes.md"
-    notes.write_text(f"Go SDK {plan['sdk_version']} examples from {plan['sdk_sha']}; public Go module {plan['module_version']}, TypeScript runtime installer {plan['npm_version']}, core {plan['core_tag']} {plan['core_commit']}. All six bundled examples completed against exact installed core bytes.\n", encoding="utf-8")
+    notes.write_text(f"Go SDK {plan['sdk_version']} examples from {plan['sdk_sha']}; public Go module {plan['module_version']}, TypeScript runtime installer {plan['npm_version']}, core {plan['core_tag']} {plan['core_commit']}. All seven bundled examples completed against exact installed core bytes.\n", encoding="utf-8")
     result = {"schema_version": SCHEMA, "plan": plan, "accepted": True, "archive": str(archive), "sha256": sha256(archive),
               "npm_version": plan["npm_version"], "library_sha256": inputs["library_sha256"], "validation": validated, "replace": False}
     write_json(args.output / "examples.json", result)

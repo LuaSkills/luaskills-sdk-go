@@ -5,10 +5,10 @@
 同一检出的 `SDK_RECOVERY.md`、`sdk_recovery.py` 负责。Go 核对已提交原字节后直接调用，
 不复制平台表或恢复算法。上游工具变化后必须重读源码并重新冻结、消费实际模块 ZIP。
 
-`VERSION` 是 Go SDK 唯一正式版本，必须与 `EmbeddedCoreVersion` 镜像一致，默认核心资产标签匹配
-显式 `core_tag`。NPM/PyPI 版本独立输入并实际消费，示例安装命令使用已验 TS 版本。历史开发快照
-`VERSION=0.5.7`、嵌入版本 `0.5.9` 因身份不一致而被正式冻结拒绝。当前源码面向 `0.8.2`
-发布线；实际正式状态以发布证据为准。此流程不修改版本或覆盖旧标签。
+`VERSION` 是 Go SDK 唯一正式版本，其 `major.minor` 必须等于生成的 `EmbeddedCoreSeries`，默认核心资产系列
+`DefaultLuaSkillsSeries` 也必须相同，显式 `core_tag` 必须是该系列的精确 `vX.Y.Z` 标签。NPM/PyPI 版本独立输入并实际消费，示例安装命令使用已验 TS 版本。历史开发快照
+`VERSION=0.5.7`、嵌入版本 `0.5.9` 因身份不一致而被正式冻结拒绝。当前源码面向 `0.9`
+系列；实际正式状态以发布证据为准。此流程不修改版本或覆盖旧标签。
 
 ## 两条签名链
 
@@ -63,7 +63,7 @@ SDK 消费文件和公开 Go 原生日志。正式下游从两个公开 Release 
 | candidate-consume | 显式 candidate-run-id/candidate-run-attempt/candidate-artifact-id；验字节、签名和精确 attempt |
 | completion-prepare / completion-publish | intent=publish/recover，新前置消费→唯一 tag→原主资产→公开冷消费→独立签名完成 Release |
 | formal-proof | 双链永久证据、精确成功完成 attempt、当前新核心和 TS/PY/Go 冷消费；失败不生成 accepted.json |
-| examples | 六个已发布示例，独立 TS 安装器、精确核心、公开 Go 模块新缓存、确定性 ZIP |
+| examples | 七个已发布示例，独立 TS 安装器、精确核心、公开 Go 模块新缓存、确定性 ZIP |
 | examples-stage / examples-finalize / examples-publish | 独立签名原 ZIP/sidecar，显式原示例 run/attempt/artifact ID，恢复保持原字节 |
 
 Go formal-proof 必须显式传入 `--sdk-sha --sdk-version --candidate-run-id --candidate-run-attempt

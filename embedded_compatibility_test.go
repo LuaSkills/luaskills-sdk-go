@@ -18,7 +18,7 @@ func embeddedDescriptionFixture() EmbeddedOutputCoreDescription {
 	digest := strings.Repeat("a", 64)
 	return EmbeddedOutputCoreDescription{
 		DescriptionVersion: EmbeddedDescriptionVersion, ProtocolVersion: EmbeddedProtocolVersion,
-		AbiStructureVersion: EmbeddedProtocolVersion, CoreVersion: EmbeddedCoreVersion,
+		AbiStructureVersion: EmbeddedProtocolVersion, CoreVersion: EmbeddedCoreSeries + ".0",
 		Commands: EmbeddedRootCommands(), RuntimeCommands: EmbeddedRuntimeCommands(),
 		Capabilities:      EmbeddedRequiredCapabilities(),
 		ExecutionBackends: []EmbeddedOutputExecutionBackend{EmbeddedOutputExecutionBackendInProcess},
@@ -134,6 +134,10 @@ func TestEmbeddedCompatibilityRejectsMetadata(t *testing.T) {
 	}
 	for name, change := range map[string]func(*EmbeddedOutputCoreDescription){
 		"core_version":             func(d *EmbeddedOutputCoreDescription) { d.CoreVersion = "mismatch" },
+		"core_next_minor":          func(d *EmbeddedOutputCoreDescription) { d.CoreVersion = embeddedNextMinorVersion() },
+		"core_series_only":         func(d *EmbeddedOutputCoreDescription) { d.CoreVersion = EmbeddedCoreSeries },
+		"core_prerelease":          func(d *EmbeddedOutputCoreDescription) { d.CoreVersion = EmbeddedCoreSeries + ".1-rc.1" },
+		"core_tag_prefix":          func(d *EmbeddedOutputCoreDescription) { d.CoreVersion = "v" + EmbeddedCoreSeries + ".1" },
 		"description_version":      func(d *EmbeddedOutputCoreDescription) { d.DescriptionVersion++ },
 		"protocol_version":         func(d *EmbeddedOutputCoreDescription) { d.ProtocolVersion++ },
 		"abi_structure_version":    func(d *EmbeddedOutputCoreDescription) { d.AbiStructureVersion++ },
@@ -167,6 +171,62 @@ func TestEmbeddedCompatibilityRejectsMetadata(t *testing.T) {
 			}
 			requireCompatibilityRejection(t, bytes)
 		})
+	}
+}
+
+// embeddedNextMinorVersion returns the first patch of the next core minor series, which must never match this contract.
+// embeddedNextMinorVersion 返回下一核心次版本系列的首个补丁版本，它绝不能匹配本契约。
+func embeddedNextMinorVersion() string {
+	major, minor, found := strings.Cut(EmbeddedCoreSeries, ".")
+	next, err := strconv.Atoi(minor)
+	if !found || err != nil {
+		panic("generated core series is not major.minor: " + EmbeddedCoreSeries)
+	}
+	return major + "." + strconv.Itoa(next+1) + ".0"
+}
+
+// TestEmbeddedCoreVersionInSeries accepts every exact patch of the contract series and rejects anything else.
+// TestEmbeddedCoreVersionInSeries 接受契约系列的每个精确补丁版本，并拒绝其他任何版本。
+func TestEmbeddedCoreVersionInSeries(t *testing.T) {
+	for _, version := range []string{EmbeddedCoreSeries + ".0", EmbeddedCoreSeries + ".3", EmbeddedCoreSeries + ".17"} {
+		if !EmbeddedCoreVersionInSeries(version) {
+			t.Errorf("patch %s of series %s was rejected", version, EmbeddedCoreSeries)
+		}
+	}
+	for _, version := range []string{"", EmbeddedCoreSeries, EmbeddedCoreSeries + ".", EmbeddedCoreSeries + ".01",
+		EmbeddedCoreSeries + ".1.2", EmbeddedCoreSeries + ".1-rc.1", EmbeddedCoreSeries + ".1+build", "v" + EmbeddedCoreSeries + ".1",
+		" " + EmbeddedCoreSeries + ".1", embeddedNextMinorVersion(), "9" + EmbeddedCoreSeries + ".0"} {
+		if EmbeddedCoreVersionInSeries(version) {
+			t.Errorf("version %q was accepted for series %s", version, EmbeddedCoreSeries)
+		}
+	}
+}
+
+// TestEmbeddedCompatibilityAcceptsSeriesPatch accepts a later core patch whose contract digest still matches.
+// TestEmbeddedCompatibilityAcceptsSeriesPatch 接受契约摘要仍匹配的后续核心补丁版本。
+func TestEmbeddedCompatibilityAcceptsSeriesPatch(t *testing.T) {
+	description := embeddedDescriptionFixture()
+	description.CoreVersion = EmbeddedCoreSeries + ".7"
+	encoded, err := json.Marshal(description)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted, err := validateEmbeddedDescription(encoded)
+	if err != nil {
+		t.Fatal("series patch with matching contract digest was rejected:", err)
+	}
+	if accepted.CoreVersion != description.CoreVersion {
+		t.Fatalf("accepted core version changed: %s", accepted.CoreVersion)
+	}
+	description.Build.ContractSha256 = strings.Repeat("c", 64)
+	encoded, err = json.Marshal(description)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = validateEmbeddedDescription(encoded)
+	var failure *EmbeddedCompatibilityError
+	if !errors.As(err, &failure) || !strings.Contains(failure.Message, "contract SHA-256") {
+		t.Fatal("series patch with a different contract digest was not rejected:", err)
 	}
 }
 
