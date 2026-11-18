@@ -8,6 +8,8 @@ Go SDK，用于通过公共 JSON FFI 接入 LuaSkills 运行时。
 
 此源码跟随 LuaSkills core `0.9` 系列：可配合嵌入式契约摘要一致的任一 core `0.9.x` 补丁版本使用。SQLite 仅由宿主注册和管理；运行时安装器仅安装核心与 Lua 资源。
 
+SDK `0.9.1` 已针对 LuaSkills core `v0.9.1` 验证。公开 FFI 的 `list_entries` 和 `call_skill` 可发现和执行技能。旧包级帮助接口在该核心版本返回停用错误。随包指南注册及隐式调用入口目前由 Rust API 提供。
+
 SDK 封装了 cgo JSON FFI 调用、engine 生命周期、正式 skill root、带权限语义的管理调用、skill config、provider callback 边界、宿主工具 callback 边界与 runtime manifest 辅助能力。
 
 ## 嵌入式运行时开发接口

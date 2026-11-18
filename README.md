@@ -8,6 +8,8 @@ Go SDK for integrating the LuaSkills runtime through the public JSON FFI surface
 
 This source follows the LuaSkills core `0.9` series: it works with every core `0.9.x` patch whose embedded contract digest matches. SQLite is registered and managed by the host; runtime installers fetch only the core and Lua assets.
 
+SDK `0.9.1` is verified against LuaSkills core `v0.9.1`. The public FFI exposes skill discovery and execution through `list_entries` and `call_skill`. Legacy package-help calls report retirement with this core. Bundled guide registration and implicit dispatch are currently available through the Rust API.
+
 The SDK wraps cgo JSON FFI calls, engine lifecycle, formal skill roots, authority-aware management calls, skill config, provider callback boundaries, host-tool callback boundaries, and runtime manifest helpers.
 
 ## Embedded runtime development API
