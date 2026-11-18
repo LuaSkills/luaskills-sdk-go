@@ -68,10 +68,4 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Println("Prompt completion count:", len(completions))
-
-	help, err := client.ListSkillHelp(luaskills.AuthorityDelegatedTool)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Help tree count:", len(help))
 }
